@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}New Assignment/Training - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Register New Assignment/Training</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <form method="POST" action="/assignment/new" id="newAssignmentForm">
+        <h3 style="margin-bottom: 20px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Basic Information
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="type">Type *</label>
+                <select id="type" name="type" class="form-control" required>
+                    <option value="ASSIGNMENT">Assignment / Project</option>
+                    <option value="TRAINING">Training</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="office_id">Office *</label>
+                <select id="office_id" name="office_id" class="form-control" required>
+                    <option value="">Select Office</option>
+                    {% for office in offices %}
+                    <option value="{{ office }}">{{ office }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="status">Status *</label>
+                <select id="status" name="status" class="form-control" required>
+                    {% for status in status_options %}
+                    <option value="{{ status.option_value }}" {% if status.option_value == 'Pipeline' %}selected{% endif %}>{{ status.option_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="title">Title *</label>
+            <input type="text" id="title" name="title" class="form-control" required
+                   placeholder="Enter assignment/training title">
+        </div>
+
+        <div class="form-group">
+            <label for="tor_scope">ToRs / Scope / Description</label>
+            <textarea id="tor_scope" name="tor_scope" class="form-control" rows="3"
+                      placeholder="Terms of Reference or scope of work"></textarea>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Client & Domain
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="client">Client Name</label>
+                <input type="text" id="client" name="client" class="form-control"
+                       placeholder="e.g., Ministry of Finance">
+            </div>
+
+            <div class="form-group">
+                <label for="client_type">Client Type</label>
+                <select id="client_type" name="client_type" class="form-control">
+                    <option value="">Select Type</option>
+                    {% for ctype in client_type_options %}
+                    <option value="{{ ctype.option_value }}">{{ ctype.option_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="city">City</label>
+                <input type="text" id="city" name="city" class="form-control" placeholder="e.g., Delhi">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="domain">Domain / Area</label>
+                <select id="domain" name="domain" class="form-control" onchange="loadSubDomains()">
+                    <option value="">Select Domain</option>
+                    {% for domain in domain_options %}
+                    <option value="{{ domain.option_value }}">{{ domain.option_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="sub_domain">Sub-Domain</label>
+                <select id="sub_domain" name="sub_domain" class="form-control">
+                    <option value="">Select Sub-Domain</option>
+                </select>
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Timeline & Value
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="work_order_date">Work Order Date</label>
+                <input type="date" id="work_order_date" name="work_order_date" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="start_date">Start Date</label>
+                <input type="date" id="start_date" name="start_date" class="form-control">
+            </div>
+
+            <div class="form-group">
+                <label for="target_date">Target/End Date</label>
+                <input type="date" id="target_date" name="target_date" class="form-control">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="total_value">Total Value (Lakhs, w/o GST) *</label>
+                <input type="number" id="total_value" name="total_value" class="form-control"
+                       step="0.01" min="0" required placeholder="e.g., 25.50">
+            </div>
+
+            <div class="form-group">
+                <label for="team_leader_officer_id">Team Leader / Coordinator</label>
+                <select id="team_leader_officer_id" name="team_leader_officer_id" class="form-control">
+                    <option value="">Select Team Leader</option>
+                    {% for officer in officers %}
+                    <option value="{{ officer.officer_id }}">{{ officer.name }} ({{ officer.office_id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Milestones (Payment Schedule)
+        </h3>
+
+        <p class="text-muted" style="margin-bottom: 15px;">
+            Define milestones for invoice/payment tracking. Revenue % should total 100%.
+        </p>
+
+        <div id="milestonesContainer">
+            <div class="milestone-entry" data-index="0">
+                <div class="milestone-header">
+                    <h4>Milestone 1</h4>
+                    <button type="button" class="btn btn-sm btn-danger remove-milestone" style="display:none;">Remove</button>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Title *</label>
+                        <input type="text" name="milestone_0_title" class="form-control"
+                               placeholder="e.g., Inception Report" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Revenue %</label>
+                        <input type="number" name="milestone_0_revenue_percent" class="form-control revenue-percent"
+                               value="20" step="0.1" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Target Date</label>
+                        <input type="date" name="milestone_0_target_date" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="milestone_0_description" class="form-control" rows="2"
+                              placeholder="Brief description of deliverables"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <button type="button" id="addMilestone" class="btn btn-success">+ Add Milestone</button>
+        </div>
+
+        <div style="padding: 15px; background: #edf2f7; border-radius: 8px; margin: 20px 0;">
+            <strong>Total Revenue %:</strong> <span id="totalPercent">20</span>%
+            <span id="percentWarning" style="color: #e53e3e; margin-left: 15px;">
+                Warning: Total should equal 100%
+            </span>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg">Create Assignment</button>
+            <a href="/dashboard" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<template id="milestoneTemplate">
+    <div class="milestone-entry" data-index="__INDEX__">
+        <div class="milestone-header">
+            <h4>Milestone __NUM__</h4>
+            <button type="button" class="btn btn-sm btn-danger remove-milestone">Remove</button>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+                <label>Title *</label>
+                <input type="text" name="milestone___INDEX___title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Revenue %</label>
+                <input type="number" name="milestone___INDEX___revenue_percent" class="form-control revenue-percent"
+                       value="20" step="0.1" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>Target Date</label>
+                <input type="date" name="milestone___INDEX___target_date" class="form-control">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea name="milestone___INDEX___description" class="form-control" rows="2"></textarea>
+        </div>
+    </div>
+</template>
+
+<style>
+.milestone-entry {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    background: #fff;
+}
+.milestone-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.milestone-header h4 {
+    margin: 0;
+    color: #2d3748;
+}
+.form-row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+.form-row .form-group {
+    flex: 1;
+    min-width: 150px;
+}
+</style>
+
+<script>
+let milestoneIndex = 1;
+
+document.getElementById('addMilestone').addEventListener('click', function() {
+    const template = document.getElementById('milestoneTemplate').innerHTML;
+    const newMilestone = template
+        .replace(/__INDEX__/g, milestoneIndex)
+        .replace(/__NUM__/g, milestoneIndex + 1);
+
+    const container = document.getElementById('milestonesContainer');
+    const div = document.createElement('div');
+    div.innerHTML = newMilestone;
+    container.appendChild(div.firstElementChild);
+
+    milestoneIndex++;
+    updateTotalPercent();
+});
+
+document.getElementById('milestonesContainer').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-milestone')) {
+        const entries = document.querySelectorAll('.milestone-entry');
+        if (entries.length > 1) {
+            e.target.closest('.milestone-entry').remove();
+            updateTotalPercent();
+        }
+    }
+});
+
+document.getElementById('milestonesContainer').addEventListener('input', function(e) {
+    if (e.target.classList.contains('revenue-percent')) {
+        updateTotalPercent();
+    }
+});
+
+function updateTotalPercent() {
+    const inputs = document.querySelectorAll('.revenue-percent');
+    let total = 0;
+    inputs.forEach(input => {
+        total += parseFloat(input.value) || 0;
+    });
+    document.getElementById('totalPercent').textContent = total.toFixed(1);
+    document.getElementById('percentWarning').style.display =
+        Math.abs(total - 100) > 0.1 ? 'inline' : 'none';
+}
+
+updateTotalPercent();
+
+// Load sub-domains based on selected domain
+async function loadSubDomains() {
+    const domain = document.getElementById('domain').value;
+    const subDomainSelect = document.getElementById('sub_domain');
+
+    subDomainSelect.innerHTML = '<option value="">Select Sub-Domain</option>';
+
+    if (domain) {
+        try {
+            const response = await fetch(`/data/api/subdomains/${domain}`);
+            const subdomains = await response.json();
+
+            subdomains.forEach(sd => {
+                const option = document.createElement('option');
+                option.value = sd.value;
+                option.textContent = sd.label;
+                subDomainSelect.appendChild(option);
+            });
+        } catch (e) {
+            console.error('Failed to load sub-domains:', e);
+        }
+    }
+}
+</script>
+{% endblock %}

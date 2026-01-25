@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Assignments List - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Assignments List</h1>
+    <a href="/mis" class="btn btn-secondary">Back to MIS Dashboard</a>
+</div>
+
+<!-- Filters and Sorting -->
+<div class="card">
+    <form method="GET" action="/mis/assignments" class="filters">
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="filter_office">
+                <option value="">All Offices</option>
+                {% for office in offices %}
+                <option value="{{ office }}" {% if filter_office == office %}selected{% endif %}>{{ office }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Domain</label>
+            <select name="filter_domain">
+                <option value="">All Domains</option>
+                {% for domain in domains %}
+                <option value="{{ domain }}" {% if filter_domain == domain %}selected{% endif %}>{{ domain }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Status</label>
+            <select name="filter_status">
+                <option value="">All Statuses</option>
+                {% for status in statuses %}
+                <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Sort By</label>
+            <select name="sort_by">
+                <option value="revenue" {% if sort_by == 'revenue' %}selected{% endif %}>Revenue</option>
+                <option value="physical" {% if sort_by == 'physical' %}selected{% endif %}>Physical Progress</option>
+                <option value="timeline" {% if sort_by == 'timeline' %}selected{% endif %}>Timeline Progress</option>
+                <option value="value" {% if sort_by == 'value' %}selected{% endif %}>Total Value</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Order</label>
+            <select name="sort_order">
+                <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>High to Low</option>
+                <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Low to High</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="/mis/assignments" class="btn btn-secondary">Reset</a>
+    </form>
+</div>
+
+<!-- Assignments Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Assignments ({{ assignments|length }})</h2>
+    </div>
+
+    {% if assignments %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th class="text-right">Total Value</th>
+                    <th class="text-right">Revenue</th>
+                    <th class="text-right">Physical %</th>
+                    <th class="text-right">Timeline %</th>
+                    <th>Milestones</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td>
+                        <a href="/assignment/view/{{ a.id }}">{{ a.assignment_no }}</a>
+                    </td>
+                    <td>
+                        <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                            {{ a.type or '-' }}
+                        </span>
+                    </td>
+                    <td>{{ a.title[:30] }}{% if a.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td class="text-right">{{ "%.2f"|format(a.total_value or 0) }} L</td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(a.total_revenue or 0) }} L</strong></td>
+                    <td class="text-right">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <div class="mini-progress-bar">
+                                <div class="mini-progress-fill" style="width: {{ (a.physical_progress_percent or 0)|round|int }}%"></div>
+                            </div>
+                            <span class="{% if (a.physical_progress_percent or 0) >= 80 %}text-success{% elif (a.physical_progress_percent or 0) >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.0f"|format(a.physical_progress_percent or 0) }}%
+                            </span>
+                        </div>
+                    </td>
+                    <td class="text-right">
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <div class="mini-progress-bar">
+                                <div class="mini-progress-fill" style="width: {{ (a.timeline_progress_percent or 0)|round|int }}%"></div>
+                            </div>
+                            <span class="{% if (a.timeline_progress_percent or 0) >= 80 %}text-success{% elif (a.timeline_progress_percent or 0) >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.0f"|format(a.timeline_progress_percent or 0) }}%
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge badge-success">{{ a.paid_milestones }}</span> /
+                        <span class="badge badge-info">{{ a.invoiced_milestones }}</span> /
+                        <span class="badge badge-secondary">{{ a.milestone_count }}</span>
+                        <br>
+                        <small class="text-muted">Paid/Invoiced/Total</small>
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if a.status == 'Completed' %}badge-success
+                            {% elif a.status == 'In Progress' %}badge-info
+                            {% elif a.status == 'On Hold' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ a.status or '-' }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="/mis/assignment/{{ a.id }}/progress" class="btn btn-sm btn-primary">Progress</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No assignments found matching your criteria.
+    </p>
+    {% endif %}
+</div>
+
+<!-- Legend -->
+<div class="card" style="margin-top: 20px; padding: 15px;">
+    <h4>Understanding Progress:</h4>
+    <ul style="margin-top: 10px;">
+        <li><strong>Physical Progress:</strong> 100% of paid invoice value + 80% of pending invoice value</li>
+        <li><strong>Timeline Progress:</strong> Based on milestone completion vs target dates (100% on-time, reduced for delays)</li>
+        <li><strong>Milestones:</strong> <span class="badge badge-success">Paid</span> / <span class="badge badge-info">Invoice Raised</span> / <span class="badge badge-secondary">Total</span></li>
+    </ul>
+</div>
+{% endblock %}

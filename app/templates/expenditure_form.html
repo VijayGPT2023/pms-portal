@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Cost Estimate - {{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Cost Estimate / Expenditure</h1>
+    <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge {% if assignment.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                {{ assignment.type }}
+            </span>
+            {{ assignment.assignment_no }} - {{ assignment.title }}
+        </h2>
+    </div>
+
+    <div style="padding: 15px; background: #f7fafc; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 30px;">
+        <div>
+            <strong>Total Value:</strong> ₹ {{ "%.2f"|format(assignment.total_value or assignment.gross_value or 0) }} L
+        </div>
+        <div>
+            <strong>Total Revenue:</strong> ₹ {{ "%.2f"|format(assignment.total_revenue or 0) }} L
+        </div>
+    </div>
+
+    <form method="POST" action="/assignment/expenditure/{{ assignment.id }}">
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Expenditure Head</th>
+                        <th class="text-right">Estimated (₹L)</th>
+                        <th class="text-right">Actual (₹L)</th>
+                        <th>Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set current_category = namespace(value='') %}
+                    {% for head in expenditure_heads %}
+                    {% if head.category != current_category.value %}
+                    {% set current_category.value = head.category %}
+                    <tr class="category-row">
+                        <td colspan="5"><strong>Category {{ head.category }}</strong></td>
+                    </tr>
+                    {% endif %}
+                    {% set existing = existing_by_head.get(head.id, {}) %}
+                    <tr>
+                        <td>{{ head.head_code }}</td>
+                        <td>
+                            {{ head.head_name }}
+                            {% if head.description %}
+                            <br><small class="text-muted">{{ head.description }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <input type="number" name="estimated_{{ head.id }}" class="form-control text-right estimated-input"
+                                   value="{{ existing.estimated_amount or '' }}" step="0.01" min="0" placeholder="0.00">
+                        </td>
+                        <td>
+                            <input type="number" name="actual_{{ head.id }}" class="form-control text-right actual-input"
+                                   value="{{ existing.actual_amount or '' }}" step="0.01" min="0" placeholder="0.00">
+                        </td>
+                        <td>
+                            <input type="text" name="remarks_{{ head.id }}" class="form-control"
+                                   value="{{ existing.remarks or '' }}" placeholder="Remarks">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight: bold; background: #edf2f7;">
+                        <td colspan="2">TOTAL</td>
+                        <td class="text-right" id="totalEstimated">0.00</td>
+                        <td class="text-right" id="totalActual">0.00</td>
+                        <td></td>
+                    </tr>
+                    <tr style="background: #f7fafc;">
+                        <td colspan="2"><strong>Revenue - Expenditure (Surplus/Deficit)</strong></td>
+                        <td class="text-right" id="estimatedSurplus">-</td>
+                        <td class="text-right" id="actualSurplus">-</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg">Save Expenditure</button>
+            <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<style>
+.category-row {
+    background: #e2e8f0;
+}
+.category-row td {
+    padding: 10px 15px;
+}
+input.form-control {
+    padding: 6px 10px;
+}
+.text-right {
+    text-align: right;
+}
+</style>
+
+<script>
+const totalRevenue = {{ assignment.total_revenue or 0 }};
+
+function updateTotals() {
+    let totalEstimated = 0;
+    let totalActual = 0;
+
+    document.querySelectorAll('.estimated-input').forEach(input => {
+        totalEstimated += parseFloat(input.value) || 0;
+    });
+
+    document.querySelectorAll('.actual-input').forEach(input => {
+        totalActual += parseFloat(input.value) || 0;
+    });
+
+    document.getElementById('totalEstimated').textContent = totalEstimated.toFixed(2);
+    document.getElementById('totalActual').textContent = totalActual.toFixed(2);
+
+    const estimatedSurplus = totalRevenue - totalEstimated;
+    const actualSurplus = totalRevenue - totalActual;
+
+    const estEl = document.getElementById('estimatedSurplus');
+    estEl.textContent = estimatedSurplus.toFixed(2);
+    estEl.className = estimatedSurplus >= 0 ? 'text-right text-success' : 'text-right text-danger';
+
+    const actEl = document.getElementById('actualSurplus');
+    actEl.textContent = actualSurplus.toFixed(2);
+    actEl.className = actualSurplus >= 0 ? 'text-right text-success' : 'text-right text-danger';
+}
+
+document.querySelectorAll('.estimated-input, .actual-input').forEach(input => {
+    input.addEventListener('input', updateTotals);
+});
+
+updateTotals();
+</script>
+{% endblock %}

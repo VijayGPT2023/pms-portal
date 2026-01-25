@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}{{ office.office_id }} - Office Details - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Office: {{ office.office_id }}</h1>
+    <a href="/mis" class="btn btn-secondary">Back to MIS Dashboard</a>
+</div>
+
+<!-- Target vs Achievement Summary -->
+<div class="stats-grid">
+    <div class="stat-card highlight-blue">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.annual_target or 0) }} L</div>
+        <div class="stat-label">Annual Target ({{ summary.officer_count or 0 }} officers x ₹60L)</div>
+    </div>
+    <div class="stat-card highlight-orange">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.prorata_target or 0) }} L</div>
+        <div class="stat-label">Pro-rata Target ({{ (fy_progress * 100)|round|int if fy_progress else 0 }}% FY)</div>
+    </div>
+    <div class="stat-card highlight-green">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.total_revenue or 0) }} L</div>
+        <div class="stat-label">Total Revenue</div>
+    </div>
+    <div class="stat-card {% if (summary.achievement_pct or 0) >= 100 %}highlight-green{% elif (summary.achievement_pct or 0) >= 75 %}highlight-orange{% else %}highlight-red{% endif %}">
+        <div class="stat-value">{{ "%.1f"|format(summary.achievement_pct or 0) }}%</div>
+        <div class="stat-label">Achievement vs Pro-rata</div>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-top: 15px;">
+    <div class="stat-card">
+        <div class="stat-value">{{ summary.total_assignments }}</div>
+        <div class="stat-label">Total Assignments</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.total_expenditure or 0) }} L</div>
+        <div class="stat-label">Total Expenditure</div>
+    </div>
+    <div class="stat-card {% if (summary.surplus_deficit or 0) >= 0 %}highlight-green{% else %}highlight-red{% endif %}">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.surplus_deficit or 0) }} L</div>
+        <div class="stat-label">Surplus / Deficit</div>
+    </div>
+    <div class="stat-card highlight-blue">
+        <div class="stat-value">{{ "%.1f"|format(summary.avg_progress or 0) }}%</div>
+        <div class="stat-label">Avg Physical Progress</div>
+    </div>
+</div>
+
+<!-- Assignment Status Breakdown -->
+{% if status_breakdown %}
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Assignment Status Breakdown</h2>
+    </div>
+    <div class="progress-status-grid">
+        {% for status in status_breakdown %}
+        <div class="status-card status-{{ status.status|lower|replace(' ', '-') }}">
+            <div class="status-count">{{ status.count }}</div>
+            <div class="status-label">{{ status.status }}</div>
+            <div class="status-progress">
+                <span class="progress-value">{{ "%.1f"|format(status.avg_progress or 0) }}%</span>
+                <span class="progress-label">Avg Progress</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Assignments in this Office -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Assignments ({{ assignments|length }})</h2>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th class="text-right">Revenue (₹L)</th>
+                    <th class="text-right">Expenditure (₹L)</th>
+                    <th class="text-right">Surplus/Deficit</th>
+                    <th class="text-right">Progress</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td>
+                        <a href="/assignment/view/{{ a.id }}">{{ a.assignment_no }}</a>
+                    </td>
+                    <td>
+                        {% if a.type %}
+                            <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                                {{ a.type }}
+                            </span>
+                        {% else %}
+                            <span class="badge badge-secondary">Not Set</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}</td>
+                    <td class="text-right">{{ "%.2f"|format(a.total_revenue or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(a.total_expenditure or 0) }}</td>
+                    <td class="text-right">
+                        <span class="{% if (a.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format(a.surplus_deficit or 0) }}
+                        </span>
+                    </td>
+                    <td class="text-right">
+                        <div class="mini-progress-bar">
+                            <div class="mini-progress-fill" style="width: {{ (a.physical_progress_percent or 0)|round|int }}%"></div>
+                        </div>
+                        <span class="progress-text">{{ "%.0f"|format(a.physical_progress_percent or 0) }}%</span>
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if a.status == 'Completed' %}badge-success
+                            {% elif a.status == 'In Progress' %}badge-info
+                            {% elif a.status == 'On Hold' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ a.status or 'Not Set' }}
+                        </span>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted" style="padding: 30px;">
+                        No assignments found for this office.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Officers in this Office -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Officers - Target vs Achievement ({{ officers|length }})</h2>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Designation</th>
+                    <th class="text-right">Annual Target (₹L)</th>
+                    <th class="text-right">Pro-rata Target (₹L)</th>
+                    <th class="text-right">Revenue Share (₹L)</th>
+                    <th class="text-right">Achievement %</th>
+                    <th class="text-right">Assignments</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in officers %}
+                <tr>
+                    <td>
+                        <a href="/mis/officer/{{ o.officer_id }}">{{ o.name }}</a>
+                    </td>
+                    <td>{{ o.designation or '-' }}</td>
+                    <td class="text-right">{{ "%.2f"|format(o.annual_target or 60) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(o.prorata_target or 0) }}</td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(o.total_share or 0) }}</strong></td>
+                    <td class="text-right">
+                        <span class="{% if (o.achievement_pct or 0) >= 100 %}text-success{% elif (o.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}">
+                            <strong>{{ "%.1f"|format(o.achievement_pct or 0) }}%</strong>
+                        </span>
+                    </td>
+                    <td class="text-right">{{ o.assignment_count or 0 }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted" style="padding: 30px;">
+                        No officers found for this office.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

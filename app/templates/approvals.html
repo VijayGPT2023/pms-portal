@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Approvals - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Pending Approvals</h1>
+    <div>
+        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #e53e3e; margin: 0;">{{ pending_assignments|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Pending Assignments</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #dd6b20; margin: 0;">{{ pending_milestones|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Milestone Updates</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #38a169; margin: 0;">{{ pending_revenue|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Revenue Share Requests</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #3182ce; margin: 0;">{{ pending_team|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Team Leader Allocations</p>
+    </div>
+</div>
+
+<!-- Pending Assignments -->
+{% if pending_assignments %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Assignment Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Value (₹L)</th>
+                    <th>Submitted By</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_assignments %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ "%.2f"|format(item.total_value or 0) }}</td>
+                    <td>{{ item.created_by_name or '-' }}</td>
+                    <td>{{ item.created_at[:10] if item.created_at else '-' }}</td>
+                    <td>
+                        <a href="/assignment/view/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/approvals/assignment/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('assignment', {{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Team Leader Allocations -->
+{% if unallocated_assignments %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Assignments Needing Team Leader</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Value (₹L)</th>
+                    <th>Registered By</th>
+                    <th>Allocate Team Leader</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in unallocated_assignments %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ "%.2f"|format(item.total_value or 0) }}</td>
+                    <td>{{ item.created_by_name or '-' }}</td>
+                    <td>
+                        <form method="POST" action="/approvals/allocate-tl/{{ item.id }}" style="display: flex; gap: 10px;">
+                            <select name="team_leader_id" class="form-control" style="width: 200px;" required>
+                                <option value="">Select Team Leader</option>
+                                {% for officer in office_officers.get(item.office_id, []) %}
+                                <option value="{{ officer.officer_id }}">{{ officer.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Allocate</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Revenue Share Change Requests -->
+{% if pending_revenue %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Revenue Share Change Requests</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Request #</th>
+                    <th>Assignment</th>
+                    <th>Requested By</th>
+                    <th>Current Share</th>
+                    <th>Requested Change</th>
+                    <th>Remarks</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in pending_revenue %}
+                <tr>
+                    <td>#{{ req.id }}</td>
+                    <td><a href="/assignment/view/{{ req.reference_id }}">{{ req.assignment_no }}</a></td>
+                    <td>{{ req.requested_by_name }}</td>
+                    <td>{{ req.current_share }}%</td>
+                    <td>{{ req.request_data }}</td>
+                    <td>{{ req.remarks[:30] }}{% if req.remarks and req.remarks|length > 30 %}...{% endif %}</td>
+                    <td>
+                        <a href="/revenue/edit/{{ req.reference_id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/approvals/request/{{ req.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('request', {{ req.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- No Pending Items -->
+{% if not pending_assignments and not unallocated_assignments and not pending_revenue and not pending_milestones %}
+<div class="card" style="text-align: center; padding: 50px;">
+    <h3 style="color: #48bb78;">All Caught Up!</h3>
+    <p class="text-muted">No pending approvals at this time.</p>
+</div>
+{% endif %}
+
+<!-- Reject Modal -->
+<div id="rejectModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                              background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background: white; max-width: 500px; margin: 100px auto; padding: 30px; border-radius: 8px;">
+        <h3>Reject with Remarks</h3>
+        <form id="rejectForm" method="POST">
+            <div class="form-group">
+                <label>Rejection Reason</label>
+                <textarea name="rejection_remarks" class="form-control" rows="3" required
+                          placeholder="Please provide a reason for rejection"></textarea>
+            </div>
+            <div style="display: flex; gap: 15px; margin-top: 20px;">
+                <button type="submit" class="btn btn-danger">Confirm Reject</button>
+                <button type="button" class="btn btn-secondary" onclick="hideRejectModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showRejectModal(type, id) {
+    document.getElementById('rejectForm').action = '/approvals/' + type + '/' + id + '/reject';
+    document.getElementById('rejectModal').style.display = 'block';
+}
+
+function hideRejectModal() {
+    document.getElementById('rejectModal').style.display = 'none';
+}
+</script>
+{% endblock %}

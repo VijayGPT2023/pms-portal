@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block title %}Activity Log - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Activity Log</h2>
+            <p class="text-muted">Audit trail of all system actions</p>
+        </div>
+        <div class="col-auto">
+            <a href="/dashboard" class="btn btn-outline-secondary">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Action Type</label>
+                    <select name="action" class="form-select">
+                        <option value="">All Actions</option>
+                        <option value="CREATE" {% if filter_action == 'CREATE' %}selected{% endif %}>Create</option>
+                        <option value="UPDATE" {% if filter_action == 'UPDATE' %}selected{% endif %}>Update</option>
+                        <option value="DELETE" {% if filter_action == 'DELETE' %}selected{% endif %}>Delete</option>
+                        <option value="APPROVE" {% if filter_action == 'APPROVE' %}selected{% endif %}>Approve</option>
+                        <option value="REJECT" {% if filter_action == 'REJECT' %}selected{% endif %}>Reject</option>
+                        <option value="ESCALATE" {% if filter_action == 'ESCALATE' %}selected{% endif %}>Escalate</option>
+                        <option value="LOGIN" {% if filter_action == 'LOGIN' %}selected{% endif %}>Login</option>
+                        <option value="LOGOUT" {% if filter_action == 'LOGOUT' %}selected{% endif %}>Logout</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Entity Type</label>
+                    <select name="entity_type" class="form-select">
+                        <option value="">All Entities</option>
+                        <option value="assignment" {% if filter_entity == 'assignment' %}selected{% endif %}>Assignment</option>
+                        <option value="milestone" {% if filter_entity == 'milestone' %}selected{% endif %}>Milestone</option>
+                        <option value="revenue_share" {% if filter_entity == 'revenue_share' %}selected{% endif %}>Revenue Share</option>
+                        <option value="officer" {% if filter_entity == 'officer' %}selected{% endif %}>Officer</option>
+                        <option value="request" {% if filter_entity == 'request' %}selected{% endif %}>Request</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">From Date</label>
+                    <input type="date" name="from_date" class="form-control" value="{{ filter_from_date or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">To Date</label>
+                    <input type="date" name="to_date" class="form-control" value="{{ filter_to_date or '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Actor</label>
+                    <select name="actor_id" class="form-select">
+                        <option value="">All Users</option>
+                        {% for officer in officers %}
+                        <option value="{{ officer.officer_id }}" {% if filter_actor == officer.officer_id %}selected{% endif %}>
+                            {{ officer.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filter</button>
+                    <a href="/admin/activity-log" class="btn btn-outline-secondary">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Activity Log Table -->
+    <div class="card">
+        <div class="card-body">
+            {% if activities %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Actor</th>
+                            <th>Action</th>
+                            <th>Entity</th>
+                            <th>Entity ID</th>
+                            <th>Remarks</th>
+                            <th>Changes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in activities %}
+                        <tr>
+                            <td>
+                                <small>{{ activity.created_at[:19] if activity.created_at else 'N/A' }}</small>
+                            </td>
+                            <td>
+                                <strong>{{ activity.actor_name or activity.actor_id }}</strong>
+                            </td>
+                            <td>
+                                {% if activity.action == 'CREATE' %}
+                                <span class="badge bg-success">Create</span>
+                                {% elif activity.action == 'UPDATE' %}
+                                <span class="badge bg-primary">Update</span>
+                                {% elif activity.action == 'DELETE' %}
+                                <span class="badge bg-danger">Delete</span>
+                                {% elif activity.action == 'APPROVE' %}
+                                <span class="badge bg-success">Approve</span>
+                                {% elif activity.action == 'REJECT' %}
+                                <span class="badge bg-danger">Reject</span>
+                                {% elif activity.action == 'ESCALATE' %}
+                                <span class="badge bg-warning text-dark">Escalate</span>
+                                {% elif activity.action == 'LOGIN' %}
+                                <span class="badge bg-info">Login</span>
+                                {% elif activity.action == 'LOGOUT' %}
+                                <span class="badge bg-secondary">Logout</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ activity.action }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ activity.entity_type | capitalize }}</td>
+                            <td>
+                                {% if activity.entity_type == 'assignment' and activity.entity_id %}
+                                <a href="/assignment/{{ activity.entity_id }}">#{{ activity.entity_id }}</a>
+                                {% else %}
+                                {{ activity.entity_id or '-' }}
+                                {% endif %}
+                            </td>
+                            <td>
+                                <small>{{ activity.remarks or '-' }}</small>
+                            </td>
+                            <td>
+                                {% if activity.old_data or activity.new_data %}
+                                <button type="button" class="btn btn-sm btn-outline-info"
+                                        data-bs-toggle="modal" data-bs-target="#changesModal{{ activity.id }}">
+                                    View
+                                </button>
+
+                                <!-- Changes Modal -->
+                                <div class="modal fade" id="changesModal{{ activity.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">Change Details</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                {% if activity.old_data %}
+                                                <h6>Previous Value:</h6>
+                                                <pre class="bg-light p-2">{{ activity.old_data }}</pre>
+                                                {% endif %}
+                                                {% if activity.new_data %}
+                                                <h6>New Value:</h6>
+                                                <pre class="bg-light p-2">{{ activity.new_data }}</pre>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page - 1 }}&action={{ filter_action or '' }}&entity_type={{ filter_entity or '' }}&from_date={{ filter_from_date or '' }}&to_date={{ filter_to_date or '' }}&actor_id={{ filter_actor or '' }}">Previous</a>
+                    </li>
+                    {% endif %}
+
+                    {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                    <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                    {% elif p <= 3 or p > total_pages - 3 or (p >= page - 1 and p <= page + 1) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ p }}&action={{ filter_action or '' }}&entity_type={{ filter_entity or '' }}&from_date={{ filter_from_date or '' }}&to_date={{ filter_to_date or '' }}&actor_id={{ filter_actor or '' }}">{{ p }}</a>
+                    </li>
+                    {% elif p == 4 or p == total_pages - 3 %}
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                    {% endif %}
+                    {% endfor %}
+
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page + 1 }}&action={{ filter_action or '' }}&entity_type={{ filter_entity or '' }}&from_date={{ filter_from_date or '' }}&to_date={{ filter_to_date or '' }}&actor_id={{ filter_actor or '' }}">Next</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-clipboard-x" style="font-size: 3rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">No activity logs found matching your filters.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

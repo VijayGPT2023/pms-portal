@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}MIS Analytics - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>MIS / Analytics Dashboard</h1>
+    <div style="display: flex; align-items: center; gap: 20px;">
+        <a href="/mis/assignments" class="btn btn-primary">View All Assignments</a>
+        {% if fy_progress %}
+        <div class="fy-progress-indicator">
+            <span class="fy-label">FY {{ financial_year or 'Current' }} Progress:</span>
+            <div class="fy-progress-bar">
+                <div class="fy-progress-fill" style="width: {{ (fy_progress * 100)|round|int }}%"></div>
+            </div>
+            <span class="fy-percent">{{ (fy_progress * 100)|round|int }}%</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="stats-grid">
+    <div class="stat-card highlight-blue">
+        <div class="stat-value">₹ {{ "%.2f"|format(totals.total_target or 0) }} L</div>
+        <div class="stat-label">Annual Target</div>
+    </div>
+    <div class="stat-card highlight-orange">
+        <div class="stat-value">₹ {{ "%.2f"|format(totals.prorata_target or 0) }} L</div>
+        <div class="stat-label">Pro-rata Target</div>
+    </div>
+    <div class="stat-card highlight-green">
+        <div class="stat-value">₹ {{ "%.2f"|format(totals.total_revenue or 0) }} L</div>
+        <div class="stat-label">Total Revenue</div>
+    </div>
+    <div class="stat-card {% if (totals.total_revenue or 0) >= (totals.prorata_target or 1) %}highlight-green{% else %}highlight-red{% endif %}">
+        <div class="stat-value">{{ "%.1f"|format(totals.achievement_pct or 0) }}%</div>
+        <div class="stat-label">Achievement vs Pro-rata</div>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-top: 15px;">
+    <div class="stat-card">
+        <div class="stat-value">{{ totals.total_assignments }}</div>
+        <div class="stat-label">Total Assignments</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹ {{ "%.2f"|format(totals.total_expenditure or 0) }} L</div>
+        <div class="stat-label">Total Expenditure</div>
+    </div>
+    <div class="stat-card {% if (totals.surplus_deficit or 0) >= 0 %}highlight-green{% else %}highlight-red{% endif %}">
+        <div class="stat-value">₹ {{ "%.2f"|format(totals.surplus_deficit or 0) }} L</div>
+        <div class="stat-label">Surplus / Deficit</div>
+    </div>
+    <div class="stat-card highlight-blue">
+        <div class="stat-value">{{ "%.1f"|format(totals.avg_physical_progress or 0) }}%</div>
+        <div class="stat-label">Avg Physical Progress</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card">
+    <form method="GET" action="/mis" class="filters">
+        <div class="filter-group">
+            <label>Financial Year</label>
+            <select name="financial_year">
+                <option value="">All Years</option>
+                {% for fy in financial_years %}
+                <option value="{{ fy }}" {% if financial_year == fy %}selected{% endif %}>{{ fy }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="filter_office">
+                <option value="">All Offices</option>
+                {% for office in offices %}
+                <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                    {{ office.office_id }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Domain</label>
+            <select name="filter_domain">
+                <option value="">All Domains</option>
+                {% for domain in domains %}
+                <option value="{{ domain }}" {% if filter_domain == domain %}selected{% endif %}>{{ domain }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>From Date</label>
+            <input type="date" name="date_from" value="{{ date_from or '' }}">
+        </div>
+
+        <div class="filter-group">
+            <label>To Date</label>
+            <input type="date" name="date_to" value="{{ date_to or '' }}">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+        <a href="/mis" class="btn btn-secondary">Reset</a>
+    </form>
+</div>
+
+<!-- Physical Progress by Status -->
+{% if progress_by_status %}
+<div class="mis-section card">
+    <h2>Assignment Status Overview</h2>
+    <div class="progress-status-grid">
+        {% for status in progress_by_status %}
+        <div class="status-card status-{{ status.status|lower|replace(' ', '-') }}">
+            <div class="status-count">{{ status.count }}</div>
+            <div class="status-label">{{ status.status }}</div>
+            <div class="status-progress">
+                <span class="progress-value">{{ "%.1f"|format(status.avg_progress or 0) }}%</span>
+                <span class="progress-label">Avg Progress</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Office-wise Revenue with Target Comparison -->
+<div class="mis-section card">
+    <h2>Office-wise Target vs Achievement</h2>
+
+    {% if office_data %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Office</th>
+                    <th class="text-right">Officers</th>
+                    <th class="text-right">Annual Target (₹L)</th>
+                    <th class="text-right">Pro-rata Target (₹L)</th>
+                    <th class="text-right">Revenue (₹L)</th>
+                    <th class="text-right">Achievement %</th>
+                    <th class="text-right">Expenditure (₹L)</th>
+                    <th class="text-right">Surplus/Deficit (₹L)</th>
+                    <th class="text-right">Avg Progress</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for office in office_data %}
+                <tr class="{% if office.is_top %}indicator-top{% elif office.is_bottom %}indicator-bottom{% endif %}">
+                    <td>
+                        <a href="/mis/office/{{ office.office_id }}">
+                            <strong>{{ office.office_id }}</strong>
+                        </a>
+                        {% if office.is_top %}<span class="badge badge-success">Top 3</span>{% endif %}
+                        {% if office.is_bottom %}<span class="badge badge-danger">Bottom 3</span>{% endif %}
+                    </td>
+                    <td class="text-right">{{ office.officer_count or 0 }}</td>
+                    <td class="text-right">{{ "%.2f"|format(office.target or office.annual_revenue_target or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(office.prorata_target or 0) }}</td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(office.total_revenue or 0) }}</strong></td>
+                    <td class="text-right">
+                        <span class="{% if (office.achievement_pct or 0) >= 100 %}text-success{% elif (office.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}">
+                            <strong>{{ "%.1f"|format(office.achievement_pct or 0) }}%</strong>
+                        </span>
+                    </td>
+                    <td class="text-right">{{ "%.2f"|format(office.total_expenditure or 0) }}</td>
+                    <td class="text-right">
+                        <span class="{% if (office.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format(office.surplus_deficit or 0) }}
+                        </span>
+                    </td>
+                    <td class="text-right">
+                        <div class="mini-progress-bar">
+                            <div class="mini-progress-fill" style="width: {{ (office.avg_physical_progress or 0)|round|int }}%"></div>
+                        </div>
+                        <span class="progress-text">{{ "%.0f"|format(office.avg_physical_progress or 0) }}%</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="totals-row">
+                    <td><strong>TOTAL</strong></td>
+                    <td class="text-right"><strong>{{ totals.total_officers or 0 }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(totals.total_target or 0) }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(totals.prorata_target or 0) }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(totals.total_revenue or 0) }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.1f"|format(totals.achievement_pct or 0) }}%</strong></td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(totals.total_expenditure or 0) }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(totals.surplus_deficit or 0) }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.0f"|format(totals.avg_physical_progress or 0) }}%</strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">No office data available.</p>
+    {% endif %}
+</div>
+
+<!-- Domain-wise Revenue -->
+<div class="mis-section card">
+    <h2>Domain-wise Revenue</h2>
+
+    {% if domain_data %}
+    {% set max_domain_revenue = domain_data|map(attribute='total_revenue')|max or 1 %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Domain</th>
+                    <th class="text-right">Assignments</th>
+                    <th class="text-right">Total Revenue (₹L)</th>
+                    <th class="text-right">Expenditure (₹L)</th>
+                    <th class="text-right">Surplus/Deficit (₹L)</th>
+                    <th style="width: 200px;">Revenue Bar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for domain in domain_data %}
+                <tr>
+                    <td><strong>{{ domain.domain }}</strong></td>
+                    <td class="text-right">{{ domain.assignment_count }}</td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(domain.total_revenue or 0) }}</strong></td>
+                    <td class="text-right">{{ "%.2f"|format(domain.total_expenditure or 0) }}</td>
+                    <td class="text-right">
+                        <span class="{% if (domain.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format(domain.surplus_deficit or 0) }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="revenue-bar">
+                            <div class="revenue-bar-fill"
+                                 style="width: {{ ((domain.total_revenue or 0) / max_domain_revenue * 100)|round|int }}%">
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">No domain data available.</p>
+    {% endif %}
+</div>
+
+<!-- Officer-wise Target vs Achievement -->
+<div class="mis-section card">
+    <h2>Officer-wise Target vs Achievement</h2>
+    <p class="text-muted" style="margin-bottom: 15px;">
+        Showing all active officers ({{ totals.total_officers_with_share }} officers)
+    </p>
+
+    {% if officer_data %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Officer</th>
+                    <th>Office</th>
+                    <th class="text-right">Annual Target (₹L)</th>
+                    <th class="text-right">Pro-rata (₹L)</th>
+                    <th class="text-right">Total Share (₹L)</th>
+                    <th class="text-right">Achievement %</th>
+                    <th class="text-right">Assignments</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for officer in officer_data %}
+                <tr class="{% if officer.is_top %}indicator-top{% elif officer.is_bottom %}indicator-bottom{% endif %}">
+                    <td>{{ loop.index }}</td>
+                    <td>
+                        <a href="/mis/officer/{{ officer.officer_id }}">
+                            <strong>{{ officer.name }}</strong>
+                        </a>
+                        {% if officer.is_top and loop.index <= 10 %}<span class="badge badge-success">Top 10</span>{% endif %}
+                        {% if officer.is_bottom %}<span class="badge badge-danger">Bottom 10</span>{% endif %}
+                    </td>
+                    <td>{{ officer.office_id }}</td>
+                    <td class="text-right">{{ "%.2f"|format(officer.annual_target or 60) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(officer.prorata_target or 0) }}</td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(officer.total_share_amount or 0) }}</strong></td>
+                    <td class="text-right">
+                        <span class="{% if (officer.achievement_pct or 0) >= 100 %}text-success{% elif (officer.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}">
+                            <strong>{{ "%.1f"|format(officer.achievement_pct or 0) }}%</strong>
+                        </span>
+                    </td>
+                    <td class="text-right">{{ officer.assignment_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No revenue shares have been allocated yet.
+    </p>
+    {% endif %}
+</div>
+
+{% endblock %}

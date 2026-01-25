@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>User Management</h1>
+    <div>
+        <a href="/data/export" class="btn btn-info">Export/Import</a>
+        <a href="/data/admin/config" class="btn btn-secondary">Config Options</a>
+        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<!-- Role Legend -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Role Hierarchy</h2>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 15px; padding: 10px 0;">
+        <span class="badge badge-danger" style="padding: 8px 12px;">ADMIN - Full System Access</span>
+        <span class="badge badge-warning" style="padding: 8px 12px;">DG/DDG - View All, Approve Escalated</span>
+        <span class="badge badge-info" style="padding: 8px 12px;">RD/Group Head - Manage Office</span>
+        <span class="badge badge-primary" style="padding: 8px 12px;">Team Leader - Manage Projects</span>
+        <span class="badge badge-secondary" style="padding: 8px 12px;">Officer - View & Register</span>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters" style="margin-bottom: 20px;">
+    <form method="GET" action="/admin/users" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: end;">
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="filter_office">
+                <option value="">All Offices</option>
+                {% for office in offices %}
+                <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                    {{ office.office_id }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Role</label>
+            <select name="filter_role">
+                <option value="">All Roles</option>
+                {% for role_val, role_name in roles.items() %}
+                <option value="{{ role_val }}" {% if filter_role == role_val %}selected{% endif %}>
+                    {{ role_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Search</label>
+            <input type="text" name="search" value="{{ search or '' }}" placeholder="Name or Email">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm">Search</button>
+        <a href="/admin/users" class="btn btn-secondary btn-sm">Reset</a>
+    </form>
+</div>
+
+<!-- Users List -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Officers ({{ officers|length }})</h2>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Officer ID</th>
+                    <th>Name</th>
+                    <th>Designation</th>
+                    <th>Office</th>
+                    <th>Email</th>
+                    <th>Current Role</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for officer in officers %}
+                <tr>
+                    <td>{{ officer.officer_id }}</td>
+                    <td><strong>{{ officer.name }}</strong></td>
+                    <td>{{ officer.designation or '-' }}</td>
+                    <td>{{ officer.office_id }}</td>
+                    <td>{{ officer.email }}</td>
+                    <td>
+                        <form method="POST" action="/admin/users/role" style="display: inline;">
+                            <input type="hidden" name="officer_id" value="{{ officer.officer_id }}">
+                            <select name="role" class="form-control" style="width: 150px; display: inline-block;"
+                                    onchange="this.form.submit()">
+                                <option value="" {% if not officer.admin_role_id %}selected{% endif %}>OFFICER</option>
+                                <option value="TEAM_LEADER" {% if officer.admin_role_id == 'TEAM_LEADER' %}selected{% endif %}>TEAM_LEADER</option>
+                                <option value="GROUP_HEAD" {% if officer.admin_role_id == 'GROUP_HEAD' %}selected{% endif %}>GROUP_HEAD</option>
+                                <option value="RD_HEAD" {% if officer.admin_role_id == 'RD_HEAD' %}selected{% endif %}>RD_HEAD</option>
+                                <option value="DDG-II" {% if officer.admin_role_id == 'DDG-II' %}selected{% endif %}>DDG-II</option>
+                                <option value="DDG-I" {% if officer.admin_role_id == 'DDG-I' %}selected{% endif %}>DDG-I</option>
+                                <option value="DG" {% if officer.admin_role_id == 'DG' %}selected{% endif %}>DG</option>
+                                <option value="ADMIN" {% if officer.admin_role_id == 'ADMIN' %}selected{% endif %}>ADMIN</option>
+                            </select>
+                        </form>
+                    </td>
+                    <td>
+                        <a href="/admin/officer/{{ officer.officer_id }}/history" class="btn btn-sm btn-info">History</a>
+                        <form method="POST" action="/admin/users/reset-password" style="display: inline;"
+                              onsubmit="return confirm('Reset password for {{ officer.name }}?');">
+                            <input type="hidden" name="officer_id" value="{{ officer.officer_id }}">
+                            <button type="submit" class="btn btn-sm btn-warning">Reset Pwd</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if reset_result %}
+<div class="card" style="border-left: 4px solid #48bb78; margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title" style="color: #276749;">Password Reset</h2>
+    </div>
+    <p><strong>Officer:</strong> {{ reset_result.name }}</p>
+    <p><strong>New Password:</strong> <code style="background: #edf2f7; padding: 5px 10px;">{{ reset_result.password }}</code></p>
+    <p class="text-muted">Please share this password securely with the user.</p>
+</div>
+{% endif %}
+{% endblock %}

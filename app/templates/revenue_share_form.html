@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Revenue Share - {{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Revenue Share Allocation</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+{% if error %}
+<div class="alert alert-error">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            {% if assignment.type %}
+                <span class="badge {% if assignment.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                    {{ assignment.type }}
+                </span>
+            {% endif %}
+            {{ assignment.assignment_no }}
+        </h2>
+        <p>{{ assignment.title }}</p>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom: 25px;">
+        <div class="stat-card highlight-blue">
+            <div class="stat-value">{{ assignment.office_id }}</div>
+            <div class="stat-label">Office</div>
+        </div>
+        <div class="stat-card highlight-green">
+            <div class="stat-value">₹ {{ "%.2f"|format(assignment.total_revenue or assignment.gross_value or 0) }} L</div>
+            <div class="stat-label">Total Revenue for Sharing</div>
+        </div>
+        <div class="stat-card highlight-orange">
+            <div class="stat-value">₹ {{ "%.2f"|format(assignment.amount_received or 0) }} L</div>
+            <div class="stat-label">Amount Received</div>
+        </div>
+    </div>
+
+    <form method="POST" action="/revenue/edit/{{ assignment.id }}" id="share-form">
+        <h3 style="margin-bottom: 15px; color: #2d3748;">Officer-wise Revenue Share</h3>
+
+        <div class="table-container">
+            <table id="share-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">Officer</th>
+                        <th style="width: 20%;">Share %</th>
+                        <th style="width: 20%;">Share Amount (₹L)</th>
+                        <th style="width: 10%;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="share-rows">
+                    <!-- Rows will be added by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <button type="button" class="btn btn-secondary" onclick="addRow()" style="margin-top: 15px;">
+            + Add Another Officer
+        </button>
+
+        <div class="share-total" id="total-display">
+            <div>
+                <strong>Total Percentage:</strong>
+                <span id="total-percent">0.00</span>%
+            </div>
+            <div>
+                <strong>Total Amount:</strong>
+                ₹ <span id="total-amount">0.00</span> L
+            </div>
+        </div>
+
+        <div id="validation-message" class="alert alert-error" style="display: none; margin-top: 15px;">
+            Total percentage must be exactly 100% to save.
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">Save Revenue Shares</button>
+            <a href="/dashboard" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const officers = {{ officers | tojson }};
+const totalRevenue = {{ assignment.total_revenue or assignment.gross_value or 0 }};
+const existingShares = {{ existing_shares_json | safe }};
+let rowCount = 0;
+
+function createOfficerSelect(selectedId = '') {
+    let html = '<select name="officer_id_' + rowCount + '" class="form-control officer-select" required>';
+    html += '<option value="">Select Officer</option>';
+    officers.forEach(function(officer) {
+        const selected = officer.officer_id === selectedId ? 'selected' : '';
+        html += '<option value="' + officer.officer_id + '" ' + selected + '>';
+        html += officer.name + ' (' + officer.office_id + ')';
+        html += '</option>';
+    });
+    html += '</select>';
+    return html;
+}
+
+function addRow(officerId = '', sharePercent = '') {
+    const tbody = document.getElementById('share-rows');
+    const row = document.createElement('tr');
+    row.id = 'row-' + rowCount;
+
+    row.innerHTML = `
+        <td>${createOfficerSelect(officerId)}</td>
+        <td>
+            <input type="number" name="share_percent_${rowCount}" class="form-control share-percent"
+                   value="${sharePercent}" step="0.01" min="0" max="100"
+                   placeholder="0.00" oninput="updateTotals()">
+        </td>
+        <td>
+            <input type="text" class="form-control share-amount" readonly
+                   value="0.00" style="background: #f7fafc;">
+        </td>
+        <td>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(${rowCount})">Remove</button>
+        </td>
+    `;
+
+    tbody.appendChild(row);
+    rowCount++;
+    updateTotals();
+}
+
+function removeRow(id) {
+    const row = document.getElementById('row-' + id);
+    if (row) {
+        row.remove();
+        updateTotals();
+    }
+}
+
+function updateTotals() {
+    let totalPercent = 0;
+    let totalAmount = 0;
+
+    const percentInputs = document.querySelectorAll('.share-percent');
+    const amountInputs = document.querySelectorAll('.share-amount');
+
+    percentInputs.forEach(function(input, index) {
+        const percent = parseFloat(input.value) || 0;
+        const amount = (percent * totalRevenue) / 100;
+
+        totalPercent += percent;
+        totalAmount += amount;
+
+        if (amountInputs[index]) {
+            amountInputs[index].value = amount.toFixed(2);
+        }
+    });
+
+    document.getElementById('total-percent').textContent = totalPercent.toFixed(2);
+    document.getElementById('total-amount').textContent = totalAmount.toFixed(2);
+
+    // Update validation display
+    const totalDisplay = document.getElementById('total-display');
+    const validationMsg = document.getElementById('validation-message');
+    const submitBtn = document.getElementById('submit-btn');
+
+    if (Math.abs(totalPercent - 100) < 0.01 || totalPercent === 0) {
+        totalDisplay.classList.remove('invalid');
+        totalDisplay.classList.add('valid');
+        validationMsg.style.display = 'none';
+        submitBtn.disabled = false;
+    } else {
+        totalDisplay.classList.remove('valid');
+        totalDisplay.classList.add('invalid');
+        validationMsg.style.display = 'block';
+        submitBtn.disabled = true;
+    }
+}
+
+// Initialize with existing shares or empty rows
+document.addEventListener('DOMContentLoaded', function() {
+    if (existingShares && existingShares.length > 0) {
+        existingShares.forEach(function(share) {
+            addRow(share.officer_id, share.share_percent);
+        });
+    } else {
+        // Add 5 empty rows by default
+        for (let i = 0; i < 5; i++) {
+            addRow();
+        }
+    }
+});
+
+// Form validation before submit
+document.getElementById('share-form').addEventListener('submit', function(e) {
+    const totalPercent = parseFloat(document.getElementById('total-percent').textContent);
+
+    // Allow submission if total is 0 (clearing all shares) or exactly 100
+    if (totalPercent > 0 && Math.abs(totalPercent - 100) >= 0.01) {
+        e.preventDefault();
+        alert('Total percentage must be exactly 100% to save.');
+        return false;
+    }
+});
+</script>
+{% endblock %}

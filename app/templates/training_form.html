@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Training - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if is_edit %}Edit{% else %}New{% endif %} Training Details</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge badge-warning">TRAINING</span>
+            {{ assignment.assignment_no }}
+        </h2>
+    </div>
+
+    <form method="POST" action="/assignment/edit/{{ assignment.id }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="title">Training Title *</label>
+                <input type="text" id="title" name="title" class="form-control"
+                       value="{{ assignment.title or '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="status">Current Status *</label>
+                <select id="status" name="status" class="form-control" required>
+                    {% for status in status_options %}
+                    <option value="{{ status }}" {% if assignment.status == status %}selected{% endif %}>
+                        {{ status }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Training Details
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="venue">Venue</label>
+                <input type="text" id="venue" name="venue" class="form-control"
+                       value="{{ assignment.venue or '' }}" placeholder="Training venue / location">
+            </div>
+
+            <div class="form-group">
+                <label for="type_of_participants">Type of Participants</label>
+                <input type="text" id="type_of_participants" name="type_of_participants" class="form-control"
+                       value="{{ assignment.type_of_participants or '' }}"
+                       placeholder="e.g., Senior Officers, Executives">
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Duration
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="duration_start">Start Date</label>
+                <input type="date" id="duration_start" name="duration_start" class="form-control"
+                       value="{{ assignment.duration_start or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="duration_end">End Date</label>
+                <input type="date" id="duration_end" name="duration_end" class="form-control"
+                       value="{{ assignment.duration_end or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="duration_days">Number of Days</label>
+                <input type="number" id="duration_days" name="duration_days" class="form-control"
+                       value="{{ assignment.duration_days or '' }}" min="1" placeholder="e.g., 5">
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Faculty
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="faculty1_officer_id">Faculty 1 (Primary)</label>
+                <select id="faculty1_officer_id" name="faculty1_officer_id" class="form-control">
+                    <option value="">Select Faculty</option>
+                    {% for officer in officers %}
+                    <option value="{{ officer.officer_id }}"
+                            {% if assignment.faculty1_officer_id == officer.officer_id %}selected{% endif %}>
+                        {{ officer.name }} ({{ officer.office_id }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="faculty2_officer_id">Faculty 2 (Optional)</label>
+                <select id="faculty2_officer_id" name="faculty2_officer_id" class="form-control">
+                    <option value="">Select Faculty</option>
+                    {% for officer in officers %}
+                    <option value="{{ officer.officer_id }}"
+                            {% if assignment.faculty2_officer_id == officer.officer_id %}selected{% endif %}>
+                        {{ officer.name }} ({{ officer.office_id }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg">Save Details</button>
+            <a href="/dashboard" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

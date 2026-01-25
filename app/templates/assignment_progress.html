@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}{{ assignment.assignment_no }} - Progress - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ assignment.assignment_no }} - Progress</h1>
+    <div>
+        <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
+        <a href="/mis" class="btn btn-secondary">Back to MIS</a>
+    </div>
+</div>
+
+<!-- Assignment Summary -->
+<div class="card" style="margin-bottom: 20px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+        <div>
+            <strong style="color: #718096;">Title:</strong>
+            <p>{{ assignment.title }}</p>
+        </div>
+        <div>
+            <strong style="color: #718096;">Type:</strong>
+            <p>
+                <span class="badge {% if assignment.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                    {{ assignment.type or 'Not Set' }}
+                </span>
+            </p>
+        </div>
+        <div>
+            <strong style="color: #718096;">Office:</strong>
+            <p><a href="/mis/office/{{ assignment.office_id }}">{{ assignment.office_id }}</a></p>
+        </div>
+        <div>
+            <strong style="color: #718096;">Status:</strong>
+            <p>
+                <span class="badge
+                    {% if assignment.status == 'Completed' %}badge-success
+                    {% elif assignment.status == 'In Progress' %}badge-info
+                    {% elif assignment.status == 'On Hold' %}badge-warning
+                    {% else %}badge-secondary{% endif %}">
+                    {{ assignment.status or 'Not Set' }}
+                </span>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Summary -->
+<div class="stats-grid">
+    <div class="stat-card highlight-blue">
+        <div class="stat-value">{{ summary.completed_milestones }}/{{ summary.total_milestones }}</div>
+        <div class="stat-label">Milestones Completed</div>
+    </div>
+    <div class="stat-card highlight-green">
+        <div class="stat-value">{{ "%.1f"|format(summary.physical_progress or 0) }}%</div>
+        <div class="stat-label">Physical Progress</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">₹ {{ "%.2f"|format(assignment.total_revenue or 0) }} L</div>
+        <div class="stat-label">Total Revenue</div>
+    </div>
+    <div class="stat-card {% if ((assignment.total_revenue or 0) - (summary.total_actual_expenditure or 0)) >= 0 %}highlight-green{% else %}highlight-red{% endif %}">
+        <div class="stat-value">₹ {{ "%.2f"|format((assignment.total_revenue or 0) - (summary.total_actual_expenditure or 0)) }} L</div>
+        <div class="stat-label">Surplus / Deficit</div>
+    </div>
+</div>
+
+<!-- Milestones Section -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Milestones</h2>
+    </div>
+
+    {% if milestones %}
+    <ul class="milestone-list">
+        {% for m in milestones %}
+        <li class="milestone-item {{ m.status|lower|replace(' ', '-') if m.status else '' }}">
+            <div class="milestone-number">{{ m.milestone_no }}</div>
+            <div class="milestone-content">
+                <div class="milestone-title">{{ m.title }}</div>
+                <div class="milestone-meta">
+                    {% if m.description %}
+                    <p style="margin: 5px 0; color: #4a5568;">{{ m.description }}</p>
+                    {% endif %}
+                    <span>Target: {{ m.target_date or 'Not set' }}</span>
+                    {% if m.actual_completion_date %}
+                    <span> | Completed: {{ m.actual_completion_date }}</span>
+                    {% endif %}
+                    <span class="badge
+                        {% if m.status == 'Completed' %}badge-success
+                        {% elif m.status == 'In Progress' %}badge-info
+                        {% elif m.status == 'Delayed' %}badge-danger
+                        {% elif m.status == 'Cancelled' %}badge-secondary
+                        {% else %}badge-warning{% endif %}"
+                        style="margin-left: 10px;">
+                        {{ m.status or 'Pending' }}
+                    </span>
+                </div>
+                {% if m.remarks %}
+                <div class="milestone-meta" style="margin-top: 5px;">
+                    <em>Remarks: {{ m.remarks }}</em>
+                </div>
+                {% endif %}
+            </div>
+            <div class="milestone-revenue">
+                <div class="percent">{{ "%.1f"|format(m.revenue_percent or 0) }}%</div>
+                <div class="amount">₹ {{ "%.2f"|format(m.revenue_amount or 0) }} L</div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <!-- Milestone Progress Bar -->
+    <div style="margin-top: 20px; padding: 15px; background: #f7fafc; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <span>Physical Progress</span>
+            <span><strong>{{ "%.1f"|format(assignment.physical_progress_percent or 0) }}%</strong></span>
+        </div>
+        <div class="revenue-bar" style="height: 24px;">
+            <div class="revenue-bar-fill" style="width: {{ (assignment.physical_progress_percent or 0)|round|int }}%"></div>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No milestones defined for this assignment.
+    </p>
+    {% endif %}
+</div>
+
+<!-- Expenditure Section -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Expenditure Details</h2>
+    </div>
+
+    {% if expenditure_by_category %}
+    <div class="table-container expenditure-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Head Code</th>
+                    <th>Head Name</th>
+                    <th class="text-right">Estimated (₹L)</th>
+                    <th class="text-right">Actual (₹L)</th>
+                    <th class="text-right">Variance</th>
+                    <th>Remarks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cat, data in expenditure_by_category.items() %}
+                <tr class="category-row">
+                    <td colspan="2"><strong>Category {{ cat }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(data.estimated_total) }}</strong></td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(data.actual_total) }}</strong></td>
+                    <td class="text-right">
+                        <span class="{% if data.estimated_total - data.actual_total >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            <strong>{{ "%.2f"|format(data.estimated_total - data.actual_total) }}</strong>
+                        </span>
+                    </td>
+                    <td></td>
+                </tr>
+                {% for item in data['items'] %}
+                <tr>
+                    <td>{{ item.head_code }}</td>
+                    <td>{{ item.head_name }}</td>
+                    <td class="text-right">{{ "%.2f"|format(item.estimated_amount or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(item.actual_amount or 0) }}</td>
+                    <td class="text-right">
+                        <span class="{% if (item.estimated_amount or 0) - (item.actual_amount or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ "%.2f"|format((item.estimated_amount or 0) - (item.actual_amount or 0)) }}
+                        </span>
+                    </td>
+                    <td>{{ item.remarks or '-' }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Expenditure Summary -->
+    <div class="expenditure-summary">
+        <div class="summary-row">
+            <span>Total Revenue</span>
+            <span>₹ {{ "%.2f"|format(assignment.total_revenue or 0) }} L</span>
+        </div>
+        <div class="summary-row">
+            <span>Total Estimated Expenditure</span>
+            <span>₹ {{ "%.2f"|format(summary.total_estimated_expenditure or 0) }} L</span>
+        </div>
+        <div class="summary-row">
+            <span>Total Actual Expenditure</span>
+            <span>₹ {{ "%.2f"|format(summary.total_actual_expenditure or 0) }} L</span>
+        </div>
+        <div class="summary-row {% if (assignment.total_revenue or 0) - (summary.total_actual_expenditure or 0) >= 0 %}surplus{% else %}deficit{% endif %}">
+            <span>Surplus / Deficit</span>
+            <span>₹ {{ "%.2f"|format((assignment.total_revenue or 0) - (summary.total_actual_expenditure or 0)) }} L</span>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No expenditure items recorded for this assignment.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

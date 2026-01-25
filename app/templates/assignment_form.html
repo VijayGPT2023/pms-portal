@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Assignment - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if is_edit %}Edit{% else %}New{% endif %} Assignment Details</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge badge-info">ASSIGNMENT</span>
+            {{ assignment.assignment_no }}
+        </h2>
+    </div>
+
+    <form method="POST" action="/assignment/edit/{{ assignment.id }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="title">Title *</label>
+                <input type="text" id="title" name="title" class="form-control"
+                       value="{{ assignment.title or '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="status">Current Status *</label>
+                <select id="status" name="status" class="form-control" required>
+                    {% for status in status_options %}
+                    <option value="{{ status }}" {% if assignment.status == status %}selected{% endif %}>
+                        {{ status }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="tor_scope">ToRs / Scope</label>
+            <textarea id="tor_scope" name="tor_scope" class="form-control"
+                      rows="4" placeholder="Terms of Reference / Scope of Work">{{ assignment.tor_scope or '' }}</textarea>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Client Details
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="client">Client Name</label>
+                <input type="text" id="client" name="client" class="form-control"
+                       value="{{ assignment.client or '' }}" placeholder="e.g., Ministry of Finance">
+            </div>
+
+            <div class="form-group">
+                <label for="client_type">Client Type</label>
+                <select id="client_type" name="client_type" class="form-control">
+                    <option value="">Select Type</option>
+                    {% for ctype in client_type_options %}
+                    <option value="{{ ctype }}" {% if assignment.client_type == ctype %}selected{% endif %}>
+                        {{ ctype }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="city">City</label>
+                <input type="text" id="city" name="city" class="form-control"
+                       value="{{ assignment.city or '' }}" placeholder="e.g., Delhi">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="domain">Domain / Area</label>
+                <select id="domain" name="domain" class="form-control">
+                    <option value="">Select Domain</option>
+                    {% for domain in domain_options %}
+                    <option value="{{ domain }}" {% if assignment.domain == domain %}selected{% endif %}>
+                        {{ domain }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Project Timeline
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="work_order_date">Work Order Date</label>
+                <input type="date" id="work_order_date" name="work_order_date" class="form-control"
+                       value="{{ assignment.work_order_date or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="start_date">Start Date</label>
+                <input type="date" id="start_date" name="start_date" class="form-control"
+                       value="{{ assignment.start_date or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="target_date">Target Date / End Date</label>
+                <input type="date" id="target_date" name="target_date" class="form-control"
+                       value="{{ assignment.target_date or '' }}">
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Team
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="team_leader_officer_id">Team Leader</label>
+                <select id="team_leader_officer_id" name="team_leader_officer_id" class="form-control">
+                    <option value="">Select Team Leader</option>
+                    {% for officer in officers %}
+                    <option value="{{ officer.officer_id }}"
+                            {% if assignment.team_leader_officer_id == officer.officer_id %}selected{% endif %}>
+                        {{ officer.name }} ({{ officer.office_id }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg">Save Details</button>
+            <a href="/dashboard" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

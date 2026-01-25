@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+
+{% block title %}{{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Assignment Details</h1>
+    <div>
+        <a href="/mis/assignment/{{ assignment.id }}/progress" class="btn btn-success">View Progress</a>
+        <a href="/assignment/edit/{{ assignment.id }}" class="btn btn-primary">Edit Details</a>
+        <a href="/assignment/milestones/{{ assignment.id }}" class="btn btn-info">Manage Milestones</a>
+        <a href="/assignment/expenditure/{{ assignment.id }}" class="btn btn-secondary">Cost Estimate</a>
+        <a href="/revenue/edit/{{ assignment.id }}" class="btn btn-warning">Edit Revenue Share</a>
+        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            {% if assignment.type %}
+                <span class="badge {% if assignment.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                    {{ assignment.type }}
+                </span>
+            {% endif %}
+            {{ assignment.assignment_no }}
+        </h2>
+    </div>
+
+    <h3>{{ assignment.title }}</h3>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 25px;">
+        <!-- General Info -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                General Information
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096; width: 40%;">Office:</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.office_id }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Status:</td>
+                    <td style="padding: 8px 0;">
+                        <span class="badge
+                            {% if assignment.status == 'Completed' %}badge-success
+                            {% elif assignment.status == 'Ongoing' %}badge-info
+                            {% elif assignment.status == 'On Hold' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ assignment.status or 'Not Set' }}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Domain:</td>
+                    <td style="padding: 8px 0;">{{ assignment.domain or '-' }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Financial Info -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Financial Summary
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Total Value (w/o GST):</td>
+                    <td style="padding: 8px 0;"><strong>₹ {{ "%.2f"|format(assignment.total_value or assignment.gross_value or 0) }} L</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Invoice Raised:</td>
+                    <td style="padding: 8px 0;">₹ {{ "%.2f"|format(assignment.invoice_amount or 0) }} L</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Payment Received:</td>
+                    <td style="padding: 8px 0;">₹ {{ "%.2f"|format(assignment.amount_received or 0) }} L</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Revenue Shared:</td>
+                    <td style="padding: 8px 0;"><strong>₹ {{ "%.2f"|format(assignment.total_revenue or 0) }} L</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Total Expenditure:</td>
+                    <td style="padding: 8px 0;">₹ {{ "%.2f"|format(assignment.total_expenditure or 0) }} L</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Surplus / Deficit:</td>
+                    <td style="padding: 8px 0;">
+                        <span class="{% if (assignment.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            <strong>₹ {{ "%.2f"|format(assignment.surplus_deficit or 0) }} L</strong>
+                        </span>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Progress Info -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Progress Summary
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Start Date:</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.start_date or '-' }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Target Date:</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.target_date or '-' }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Physical Progress:</td>
+                    <td style="padding: 8px 0;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="mini-progress-bar" style="width: 100px;">
+                                <div class="mini-progress-fill" style="width: {{ (assignment.physical_progress_percent or 0)|round|int }}%"></div>
+                            </div>
+                            <strong class="{% if (assignment.physical_progress_percent or 0) >= 80 %}text-success{% elif (assignment.physical_progress_percent or 0) >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.1f"|format(assignment.physical_progress_percent or 0) }}%
+                            </strong>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Timeline Progress:</td>
+                    <td style="padding: 8px 0;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="mini-progress-bar" style="width: 100px;">
+                                <div class="mini-progress-fill" style="width: {{ (assignment.timeline_progress_percent or 0)|round|int }}%"></div>
+                            </div>
+                            <strong class="{% if (assignment.timeline_progress_percent or 0) >= 80 %}text-success{% elif (assignment.timeline_progress_percent or 0) >= 50 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ "%.1f"|format(assignment.timeline_progress_percent or 0) }}%
+                            </strong>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+            <div style="margin-top: 15px;">
+                <a href="/mis/assignment/{{ assignment.id }}/progress" class="btn btn-sm btn-primary">View Detailed Progress</a>
+            </div>
+        </div>
+    </div>
+
+    {% if assignment.type == 'ASSIGNMENT' %}
+    <!-- Assignment-specific details -->
+    <div style="margin-top: 30px;">
+        <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+            Project Details
+        </h4>
+
+        {% if assignment.tor_scope %}
+        <div style="margin-bottom: 20px;">
+            <strong>ToRs / Scope:</strong>
+            <p style="margin-top: 8px; padding: 15px; background: #f7fafc; border-radius: 6px;">
+                {{ assignment.tor_scope }}
+            </p>
+        </div>
+        {% endif %}
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <div>
+                <strong style="color: #718096;">Client:</strong>
+                <p>{{ assignment.client or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Client Type:</strong>
+                <p>{{ assignment.client_type or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">City:</strong>
+                <p>{{ assignment.city or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Work Order Date:</strong>
+                <p>{{ assignment.work_order_date or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Start Date:</strong>
+                <p>{{ assignment.start_date or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Target Date:</strong>
+                <p>{{ assignment.target_date or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Team Leader:</strong>
+                <p>{{ officers.get('team_leader_officer_id', '-') }}</p>
+            </div>
+        </div>
+    </div>
+    {% elif assignment.type == 'TRAINING' %}
+    <!-- Training-specific details -->
+    <div style="margin-top: 30px;">
+        <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+            Training Details
+        </h4>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <div>
+                <strong style="color: #718096;">Venue:</strong>
+                <p>{{ assignment.venue or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Type of Participants:</strong>
+                <p>{{ assignment.type_of_participants or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Duration (Start):</strong>
+                <p>{{ assignment.duration_start or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Duration (End):</strong>
+                <p>{{ assignment.duration_end or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Duration (Days):</strong>
+                <p>{{ assignment.duration_days or '-' }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Faculty 1:</strong>
+                <p>{{ officers.get('faculty1_officer_id', '-') }}</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Faculty 2:</strong>
+                <p>{{ officers.get('faculty2_officer_id', '-') }}</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Milestones Section -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Milestones</h2>
+    </div>
+
+    {% if milestones %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Target Date</th>
+                    <th class="text-right">Revenue %</th>
+                    <th class="text-center">Invoice Raised</th>
+                    <th class="text-center">Payment Received</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in milestones %}
+                <tr>
+                    <td>{{ m.milestone_no }}</td>
+                    <td>
+                        <strong>{{ m.title }}</strong>
+                        {% if m.description %}
+                        <br><small class="text-muted">{{ m.description[:50] }}{% if m.description|length > 50 %}...{% endif %}</small>
+                        {% endif %}
+                    </td>
+                    <td>{{ m.target_date or '-' }}</td>
+                    <td class="text-right">{{ "%.1f"|format(m.revenue_percent or 0) }}%</td>
+                    <td class="text-center">
+                        {% if m.invoice_raised %}
+                        <span class="badge badge-success">Yes</span>
+                        {% if m.invoice_raised_date %}<br><small>{{ m.invoice_raised_date }}</small>{% endif %}
+                        {% else %}
+                        <span class="badge badge-secondary">No</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if m.payment_received %}
+                        <span class="badge badge-success">Yes</span>
+                        {% if m.payment_received_date %}<br><small>{{ m.payment_received_date }}</small>{% endif %}
+                        {% else %}
+                        <span class="badge badge-secondary">No</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if m.status == 'Completed' %}badge-success
+                            {% elif m.status == 'In Progress' %}badge-info
+                            {% elif m.status == 'Delayed' %}badge-danger
+                            {% else %}badge-warning{% endif %}">
+                            {{ m.status or 'Pending' }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight: bold; background: #f7fafc;">
+                    <td colspan="3">Total</td>
+                    <td class="text-right">{{ "%.1f"|format(milestones|map(attribute='revenue_percent')|sum) }}%</td>
+                    <td class="text-center">{{ milestones|selectattr('invoice_raised')|list|length }}/{{ milestones|length }}</td>
+                    <td class="text-center">{{ milestones|selectattr('payment_received')|list|length }}/{{ milestones|length }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Milestone Summary -->
+    <div style="margin-top: 15px; padding: 15px; background: #f7fafc; border-radius: 8px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <div>
+                <strong style="color: #718096;">Total Value (without GST):</strong>
+                <p style="font-size: 1.2em; margin: 5px 0;">₹ {{ "%.2f"|format(assignment.total_value or assignment.gross_value or 0) }} L</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Invoice Raised Till Date:</strong>
+                <p style="font-size: 1.2em; margin: 5px 0;">₹ {{ "%.2f"|format(assignment.invoice_amount or 0) }} L</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Payment Received Till Date:</strong>
+                <p style="font-size: 1.2em; margin: 5px 0;">₹ {{ "%.2f"|format(assignment.amount_received or 0) }} L</p>
+            </div>
+            <div>
+                <strong style="color: #718096;">Revenue Shared Till Date:</strong>
+                <p style="font-size: 1.2em; margin: 5px 0;">₹ {{ "%.2f"|format(assignment.total_revenue or 0) }} L</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No milestones defined for this assignment.
+    </p>
+    {% endif %}
+</div>
+
+<!-- Revenue Shares -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Revenue Shares</h2>
+    </div>
+
+    {% if revenue_shares %}
+    <table>
+        <thead>
+            <tr>
+                <th>Officer</th>
+                <th class="text-right">Share %</th>
+                <th class="text-right">Share Amount (₹L)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for share in revenue_shares %}
+            <tr>
+                <td>{{ share.officer_name }}</td>
+                <td class="text-right">{{ "%.2f"|format(share.share_percent) }}%</td>
+                <td class="text-right">{{ "%.2f"|format(share.share_amount) }}</td>
+            </tr>
+            {% endfor %}
+            <tr style="font-weight: bold; background: #f7fafc;">
+                <td>Total</td>
+                <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_percent')|sum) }}%</td>
+                <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_amount')|sum) }}</td>
+            </tr>
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No revenue shares have been allocated yet.
+        <a href="/revenue/edit/{{ assignment.id }}">Add revenue shares</a>
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

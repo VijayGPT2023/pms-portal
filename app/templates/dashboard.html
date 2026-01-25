@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Assignment Dashboard</h1>
+    <div>
+        <a href="/assignment/new" class="btn btn-success">+ New Assignment</a>
+        <a href="/mis" class="btn btn-primary">MIS Dashboard</a>
+        {% if user.role in ['RD_HEAD', 'GROUP_HEAD', 'DG', 'DDG-I', 'DDG-II', 'ADMIN'] %}
+        <a href="/approvals" class="btn btn-warning">Pending Approvals</a>
+        {% endif %}
+        {% if user.is_admin %}
+        <a href="/data/export" class="btn btn-info">Export/Import</a>
+        <a href="/data/admin/config" class="btn btn-secondary">Config</a>
+        <a href="/admin/users" class="btn btn-dark">User Management</a>
+        <a href="/admin/roles" class="btn btn-warning">Role Management</a>
+        <a href="/admin/activity-log" class="btn btn-outline-dark">Activity Log</a>
+        {% endif %}
+        <span class="text-muted" style="margin-left: 15px;">
+            {{ user.name }} | {{ user.role_display or user.role }} | {{ user.office_id }}
+        </span>
+    </div>
+</div>
+
+<!-- 4-Stage Workflow Navigation -->
+<div class="card mt-3 mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span class="fw-bold me-3">4-Stage Workflow:</span>
+            <div class="btn-group" role="group">
+                <a href="/enquiry/" class="btn btn-outline-primary btn-sm">1. Enquiries</a>
+                <a href="/proposal-request/" class="btn btn-outline-info btn-sm">2. Proposal Requests</a>
+                <a href="/proposal/" class="btn btn-outline-warning btn-sm">3. Proposals</a>
+                <a href="/dashboard" class="btn btn-outline-success btn-sm">4. Work Orders</a>
+            </div>
+            <a href="/enquiry/new" class="btn btn-success btn-sm">+ New Enquiry</a>
+            <a href="/enquiry/metrics/pre-revenue" class="btn btn-outline-secondary btn-sm">Pre-Revenue Metrics</a>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" action="/dashboard" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: end;">
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="filter_office">
+                <option value="">All Offices</option>
+                {% for office in offices %}
+                <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                    {{ office.office_id }} - {{ office.office_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Type</label>
+            <select name="filter_type">
+                <option value="">All Types</option>
+                <option value="ASSIGNMENT" {% if filter_type == 'ASSIGNMENT' %}selected{% endif %}>Assignment</option>
+                <option value="TRAINING" {% if filter_type == 'TRAINING' %}selected{% endif %}>Training</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Status</label>
+            <select name="filter_status">
+                <option value="">All Statuses</option>
+                {% for status in statuses %}
+                <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>
+                <input type="checkbox" name="show_all" value="true" {% if show_all %}checked{% endif %}>
+                Show All Offices
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
+        <a href="/dashboard" class="btn btn-secondary btn-sm">Reset</a>
+    </form>
+</div>
+
+<!-- Assignment List -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Assignments ({{ assignments|length }})</h2>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Gross Value (₹L)</th>
+                    <th>Received (₹L)</th>
+                    <th>Status</th>
+                    <th>Details Status</th>
+                    <th>Revenue Share</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td>
+                        <a href="/assignment/view/{{ a.id }}">{{ a.assignment_no }}</a>
+                    </td>
+                    <td>
+                        {% if a.type %}
+                            <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                                {{ a.type }}
+                            </span>
+                        {% else %}
+                            <span class="badge badge-secondary">Not Set</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ a.title[:50] }}{% if a.title|length > 50 %}...{% endif %}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td class="text-right">{{ "%.2f"|format(a.gross_value or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(a.amount_received or 0) }}</td>
+                    <td>
+                        <span class="badge
+                            {% if a.status == 'Completed' %}badge-success
+                            {% elif a.status == 'Ongoing' %}badge-info
+                            {% elif a.status == 'On Hold' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ a.status or 'Not Set' }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if a.details_filled %}
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/{{ a.id }}" class="btn btn-sm btn-secondary">Update</a>
+                        {% else %}
+                            <a href="{% if a.type %}/assignment/edit/{{ a.id }}{% else %}/assignment/select-type/{{ a.id }}{% endif %}"
+                               class="btn btn-sm btn-primary">Fill Details</a>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if a.share_count > 0 %}
+                            <span class="status-filled">{{ a.share_count }} shares</span>
+                            <a href="/revenue/edit/{{ a.id }}" class="btn btn-sm btn-secondary">Update</a>
+                        {% else %}
+                            <a href="/revenue/edit/{{ a.id }}" class="btn btn-sm btn-warning">Fill Share</a>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="10" class="text-center text-muted" style="padding: 40px;">
+                        No assignments found. Try adjusting your filters.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

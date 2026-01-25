@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Export Data - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Export Data</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<!-- Workflow Pipeline Export -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title">Workflow Pipeline Export</h2>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 20px; color: #718096;">
+            Export pre-revenue workflow data (Enquiry → Proposal Request → Proposal pipeline):
+        </p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+            <div style="padding: 15px; background: #ebf4ff; border-radius: 8px; border-left: 4px solid #4472C4;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Enquiries</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    All enquiries with client details, officer allocation, and status
+                </p>
+                <a href="/data/export/enquiries" class="btn btn-sm btn-outline-primary mt-2">Download</a>
+            </div>
+
+            <div style="padding: 15px; background: #fff5eb; border-radius: 8px; border-left: 4px solid #ED7D31;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Proposal Requests</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    All PRs with linked enquiries, approval status, and progress
+                </p>
+                <a href="/data/export/proposal-requests" class="btn btn-sm btn-outline-warning mt-2">Download</a>
+            </div>
+
+            <div style="padding: 15px; background: #f0fff4; border-radius: 8px; border-left: 4px solid #70AD47;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Proposals</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    All proposals with values, submission status, and outcomes
+                </p>
+                <a href="/data/export/proposals" class="btn btn-sm btn-outline-success mt-2">Download</a>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 15px;">
+            <a href="/data/export/workflow-pipeline" class="btn btn-primary btn-lg">
+                Download Complete Pipeline (All 3 Sheets + Summary)
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Assignment Data Export -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h2 class="card-title">Assignment Data Export</h2>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 20px; color: #718096;">
+            Export work order/assignment data with financial details. The exported file contains:
+        </p>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+            <div style="padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #4299e1;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Assignments</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    All assignments and trainings with financial details
+                </p>
+            </div>
+
+            <div style="padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #48bb78;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Milestones</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    Milestone details with invoice/payment status
+                </p>
+            </div>
+
+            <div style="padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #ed8936;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Revenue Shares</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    Officer-wise revenue share allocations
+                </p>
+            </div>
+
+            <div style="padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #9f7aea;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Expenditure</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    Head-wise estimated and actual expenditure
+                </p>
+            </div>
+
+            <div style="padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #38b2ac;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Officers (Reference)</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    Officer IDs and details for reference
+                </p>
+            </div>
+
+            <div style="padding: 15px; background: #f7fafc; border-radius: 8px; border-left: 4px solid #f56565;">
+                <h4 style="margin: 0 0 10px; color: #2d3748;">Config Options</h4>
+                <p style="margin: 0; color: #718096; font-size: 0.9em;">
+                    Domains, sub-domains, client types, status options
+                </p>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 15px;">
+            <a href="/data/export/assignments" class="btn btn-primary btn-lg">
+                Download Assignment Data Export
+            </a>
+            <a href="/data/import" class="btn btn-success">
+                Import Data
+            </a>
+            <a href="/data/admin/config" class="btn btn-warning">
+                Manage Config Options
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">How to Use</h2>
+    </div>
+    <div class="card-body">
+        <ol style="line-height: 2;">
+            <li><strong>Export:</strong> Click any download button to get the current data</li>
+            <li><strong>Edit:</strong> Open the Excel file and modify the data as needed</li>
+            <li><strong>Import:</strong> Go to "Import Data" page and upload the modified file</li>
+        </ol>
+
+        <div style="padding: 15px; background: #fefcbf; border-radius: 8px; margin-top: 20px;">
+            <strong style="color: #744210;">Important Notes:</strong>
+            <ul style="margin: 10px 0 0; color: #744210;">
+                <li>Keep the <strong>ID</strong> column unchanged for existing records to update them</li>
+                <li>Leave <strong>ID</strong> blank to create new records</li>
+                <li>Do not change column headers</li>
+                <li>Use Officer IDs from the "Officers (Ref)" sheet for team leader, faculty fields</li>
+                <li>Use Head Codes from the "Expenditure" sheet for expenditure entries</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

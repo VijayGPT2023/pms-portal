@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Milestones - {{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Manage Milestones</h1>
+    <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge {% if assignment.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                {{ assignment.type }}
+            </span>
+            {{ assignment.assignment_no }} - {{ assignment.title }}
+        </h2>
+    </div>
+
+    <div style="padding: 15px; background: #f7fafc; border-radius: 8px; margin-bottom: 20px;">
+        <strong>Total Value (w/o GST):</strong> ₹ {{ "%.2f"|format(assignment.total_value or assignment.gross_value or 0) }} L
+    </div>
+
+    <form method="POST" action="/assignment/milestones/{{ assignment.id }}" id="milestonesForm">
+        <div id="milestonesContainer">
+            {% for m in milestones %}
+            <div class="milestone-entry" data-index="{{ loop.index0 }}">
+                <div class="milestone-header">
+                    <h4>Milestone {{ loop.index }}</h4>
+                    <button type="button" class="btn btn-sm btn-danger remove-milestone">Remove</button>
+                </div>
+                <input type="hidden" name="milestone_{{ loop.index0 }}_id" value="{{ m.id }}">
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Title *</label>
+                        <input type="text" name="milestone_{{ loop.index0 }}_title" class="form-control"
+                               value="{{ m.title }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Revenue %</label>
+                        <input type="number" name="milestone_{{ loop.index0 }}_revenue_percent" class="form-control revenue-percent"
+                               value="{{ m.revenue_percent or 0 }}" step="0.1" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Target Date</label>
+                        <input type="date" name="milestone_{{ loop.index0 }}_target_date" class="form-control"
+                               value="{{ m.target_date or '' }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="milestone_{{ loop.index0 }}_description" class="form-control" rows="2">{{ m.description or '' }}</textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select name="milestone_{{ loop.index0 }}_status" class="form-control">
+                            <option value="Pending" {% if m.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="In Progress" {% if m.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                            <option value="Completed" {% if m.status == 'Completed' %}selected{% endif %}>Completed</option>
+                            <option value="Delayed" {% if m.status == 'Delayed' %}selected{% endif %}>Delayed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="milestone_{{ loop.index0 }}_invoice_raised" value="1"
+                                   {% if m.invoice_raised %}checked{% endif %} class="invoice-checkbox">
+                            Invoice Raised
+                        </label>
+                        <input type="date" name="milestone_{{ loop.index0 }}_invoice_raised_date" class="form-control"
+                               value="{{ m.invoice_raised_date or '' }}" placeholder="Invoice Date">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="milestone_{{ loop.index0 }}_payment_received" value="1"
+                                   {% if m.payment_received %}checked{% endif %} class="payment-checkbox">
+                            Payment Received
+                        </label>
+                        <input type="date" name="milestone_{{ loop.index0 }}_payment_received_date" class="form-control"
+                               value="{{ m.payment_received_date or '' }}" placeholder="Payment Date">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Remarks</label>
+                    <input type="text" name="milestone_{{ loop.index0 }}_remarks" class="form-control"
+                           value="{{ m.remarks or '' }}" placeholder="Any remarks...">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div style="margin: 20px 0;">
+            <button type="button" id="addMilestone" class="btn btn-success">+ Add Milestone</button>
+        </div>
+
+        <div style="padding: 15px; background: #edf2f7; border-radius: 8px; margin: 20px 0;">
+            <strong>Total Revenue %:</strong> <span id="totalPercent">0</span>%
+            <span id="percentWarning" style="color: #e53e3e; margin-left: 15px; display: none;">
+                Warning: Total should equal 100%
+            </span>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg">Save Milestones</button>
+            <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<template id="milestoneTemplate">
+    <div class="milestone-entry" data-index="__INDEX__">
+        <div class="milestone-header">
+            <h4>Milestone __NUM__</h4>
+            <button type="button" class="btn btn-sm btn-danger remove-milestone">Remove</button>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+                <label>Title *</label>
+                <input type="text" name="milestone___INDEX___title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Revenue %</label>
+                <input type="number" name="milestone___INDEX___revenue_percent" class="form-control revenue-percent"
+                       value="0" step="0.1" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>Target Date</label>
+                <input type="date" name="milestone___INDEX___target_date" class="form-control">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Description</label>
+            <textarea name="milestone___INDEX___description" class="form-control" rows="2"></textarea>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>Status</label>
+                <select name="milestone___INDEX___status" class="form-control">
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Delayed">Delayed</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="milestone___INDEX___invoice_raised" value="1" class="invoice-checkbox">
+                    Invoice Raised
+                </label>
+                <input type="date" name="milestone___INDEX___invoice_raised_date" class="form-control" placeholder="Invoice Date">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="milestone___INDEX___payment_received" value="1" class="payment-checkbox">
+                    Payment Received
+                </label>
+                <input type="date" name="milestone___INDEX___payment_received_date" class="form-control" placeholder="Payment Date">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Remarks</label>
+            <input type="text" name="milestone___INDEX___remarks" class="form-control" placeholder="Any remarks...">
+        </div>
+    </div>
+</template>
+
+<style>
+.milestone-entry {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background: #fff;
+}
+.milestone-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.milestone-header h4 {
+    margin: 0;
+    color: #2d3748;
+}
+.form-row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+.form-row .form-group {
+    flex: 1;
+    min-width: 150px;
+}
+</style>
+
+<script>
+let milestoneIndex = {{ milestones|length }};
+
+document.getElementById('addMilestone').addEventListener('click', function() {
+    const template = document.getElementById('milestoneTemplate').innerHTML;
+    const newMilestone = template
+        .replace(/__INDEX__/g, milestoneIndex)
+        .replace(/__NUM__/g, milestoneIndex + 1);
+
+    const container = document.getElementById('milestonesContainer');
+    const div = document.createElement('div');
+    div.innerHTML = newMilestone;
+    container.appendChild(div.firstElementChild);
+
+    milestoneIndex++;
+    updateTotalPercent();
+});
+
+document.getElementById('milestonesContainer').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-milestone')) {
+        e.target.closest('.milestone-entry').remove();
+        updateTotalPercent();
+    }
+});
+
+document.getElementById('milestonesContainer').addEventListener('input', function(e) {
+    if (e.target.classList.contains('revenue-percent')) {
+        updateTotalPercent();
+    }
+});
+
+function updateTotalPercent() {
+    const inputs = document.querySelectorAll('.revenue-percent');
+    let total = 0;
+    inputs.forEach(input => {
+        total += parseFloat(input.value) || 0;
+    });
+    document.getElementById('totalPercent').textContent = total.toFixed(1);
+    document.getElementById('percentWarning').style.display =
+        (total > 0 && Math.abs(total - 100) > 0.1) ? 'inline' : 'none';
+}
+
+updateTotalPercent();
+</script>
+{% endblock %}

@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Pre-Revenue Metrics - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Pre-Revenue Activity Metrics</h3>
+        <a href="/enquiry/" class="btn btn-outline-primary">View Enquiries</a>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Financial Year</label>
+                    <select name="fy" class="form-select">
+                        <option value="2024-25" {% if filter_fy == '2024-25' %}selected{% endif %}>2024-25</option>
+                        <option value="2025-26" {% if filter_fy == '2025-26' %}selected{% endif %}>2025-26</option>
+                        <option value="2026-27" {% if filter_fy == '2026-27' %}selected{% endif %}>2026-27</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Office</label>
+                    <select name="office" class="form-select">
+                        <option value="">All Offices</option>
+                        {% for off in offices %}
+                        <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>
+                            {{ off.office_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h2>{{ metrics.total_enquiries or 0 }}</h2>
+                    <p class="mb-0">Total Enquiries</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h2>{{ metrics.total_prs or 0 }}</h2>
+                    <p class="mb-0">Proposal Requests</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h2>{{ metrics.total_proposals or 0 }}</h2>
+                    <p class="mb-0">Proposals Submitted</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h2>{{ "%.1f"|format(metrics.conversion_rate or 0) }}%</h2>
+                    <p class="mb-0">Conversion Rate</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Value Pipeline -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Estimated Pipeline Value</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <tr>
+                            <td>Open Enquiries</td>
+                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.enquiry_value or 0) }} L</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Active Proposal Requests</td>
+                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.pr_value or 0) }} L</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Submitted Proposals</td>
+                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.proposal_value or 0) }} L</strong></td>
+                        </tr>
+                        <tr class="table-success">
+                            <td><strong>Total Pipeline</strong></td>
+                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.total_pipeline_value or 0) }} L</strong></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Stage-wise Status</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Enquiry Status -->
+                    <h6>Enquiries</h6>
+                    <div class="progress mb-3" style="height: 25px;">
+                        {% set total_enq = (metrics.enquiry_open or 0) + (metrics.enquiry_converted or 0) + (metrics.enquiry_dropped or 0) %}
+                        {% if total_enq > 0 %}
+                        <div class="progress-bar bg-primary" style="width: {{ (metrics.enquiry_open or 0) / total_enq * 100 }}%">
+                            Open ({{ metrics.enquiry_open or 0 }})
+                        </div>
+                        <div class="progress-bar bg-success" style="width: {{ (metrics.enquiry_converted or 0) / total_enq * 100 }}%">
+                            Converted ({{ metrics.enquiry_converted or 0 }})
+                        </div>
+                        <div class="progress-bar bg-secondary" style="width: {{ (metrics.enquiry_dropped or 0) / total_enq * 100 }}%">
+                            Dropped ({{ metrics.enquiry_dropped or 0 }})
+                        </div>
+                        {% else %}
+                        <div class="progress-bar bg-light text-dark" style="width: 100%">No data</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- PR Status -->
+                    <h6>Proposal Requests</h6>
+                    <div class="progress mb-3" style="height: 25px;">
+                        {% set total_pr = (metrics.pr_pending or 0) + (metrics.pr_converted or 0) + (metrics.pr_cancelled or 0) %}
+                        {% if total_pr > 0 %}
+                        <div class="progress-bar bg-info" style="width: {{ (metrics.pr_pending or 0) / total_pr * 100 }}%">
+                            Pending ({{ metrics.pr_pending or 0 }})
+                        </div>
+                        <div class="progress-bar bg-success" style="width: {{ (metrics.pr_converted or 0) / total_pr * 100 }}%">
+                            Converted ({{ metrics.pr_converted or 0 }})
+                        </div>
+                        <div class="progress-bar bg-secondary" style="width: {{ (metrics.pr_cancelled or 0) / total_pr * 100 }}%">
+                            Cancelled ({{ metrics.pr_cancelled or 0 }})
+                        </div>
+                        {% else %}
+                        <div class="progress-bar bg-light text-dark" style="width: 100%">No data</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Proposal Status -->
+                    <h6>Proposals</h6>
+                    <div class="progress" style="height: 25px;">
+                        {% set total_prop = (metrics.proposal_submitted or 0) + (metrics.proposal_won or 0) + (metrics.proposal_lost or 0) %}
+                        {% if total_prop > 0 %}
+                        <div class="progress-bar bg-warning" style="width: {{ (metrics.proposal_submitted or 0) / total_prop * 100 }}%">
+                            Submitted ({{ metrics.proposal_submitted or 0 }})
+                        </div>
+                        <div class="progress-bar bg-success" style="width: {{ (metrics.proposal_won or 0) / total_prop * 100 }}%">
+                            Won ({{ metrics.proposal_won or 0 }})
+                        </div>
+                        <div class="progress-bar bg-danger" style="width: {{ (metrics.proposal_lost or 0) / total_prop * 100 }}%">
+                            Lost ({{ metrics.proposal_lost or 0 }})
+                        </div>
+                        {% else %}
+                        <div class="progress-bar bg-light text-dark" style="width: 100%">No data</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Pipeline Funnel</h5>
+        </div>
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col">
+                    <div class="p-3 bg-primary text-white rounded">
+                        <h3>{{ metrics.total_enquiries or 0 }}</h3>
+                        <p class="mb-0">Enquiries</p>
+                    </div>
+                </div>
+                <div class="col-auto d-flex align-items-center">
+                    <span class="fs-3">→</span>
+                </div>
+                <div class="col">
+                    <div class="p-3 bg-info text-white rounded">
+                        <h3>{{ metrics.total_prs or 0 }}</h3>
+                        <p class="mb-0">Proposal Requests</p>
+                    </div>
+                </div>
+                <div class="col-auto d-flex align-items-center">
+                    <span class="fs-3">→</span>
+                </div>
+                <div class="col">
+                    <div class="p-3 bg-warning text-dark rounded">
+                        <h3>{{ metrics.total_proposals or 0 }}</h3>
+                        <p class="mb-0">Proposals</p>
+                    </div>
+                </div>
+                <div class="col-auto d-flex align-items-center">
+                    <span class="fs-3">→</span>
+                </div>
+                <div class="col">
+                    <div class="p-3 bg-success text-white rounded">
+                        <h3>{{ metrics.work_orders or 0 }}</h3>
+                        <p class="mb-0">Work Orders</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

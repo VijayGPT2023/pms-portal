@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}{% if mode == 'edit' %}Edit{% else %}New{% endif %} Enquiry - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="mb-0">
+                        {% if mode == 'edit' %}
+                        Edit Enquiry: {{ enquiry.enquiry_number }}
+                        {% else %}
+                        Register New Enquiry
+                        {% endif %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{% if mode == 'edit' %}/enquiry/{{ enquiry.id }}/update{% else %}/enquiry/create{% endif %}">
+
+                        <!-- Client Information -->
+                        <h5 class="border-bottom pb-2 mb-3">Client Information</h5>
+
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Client Name <span class="text-danger">*</span></label>
+                                <input type="text" name="client_name" class="form-control" required
+                                       value="{{ enquiry.client_name if enquiry else '' }}"
+                                       placeholder="Enter client/organization name">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Client Type</label>
+                                <select name="client_type" class="form-select">
+                                    <option value="">Select Type</option>
+                                    {% for ct in client_types %}
+                                    <option value="{{ ct.option_value }}"
+                                            {% if enquiry and enquiry.client_type == ct.option_value %}selected{% endif %}>
+                                        {{ ct.option_label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Domain -->
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Domain</label>
+                                <select name="domain" id="domainSelect" class="form-select">
+                                    <option value="">Select Domain</option>
+                                    {% for d in domains %}
+                                    <option value="{{ d.option_value }}"
+                                            {% if enquiry and enquiry.domain == d.option_value %}selected{% endif %}>
+                                        {{ d.option_label }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Sub-Domain</label>
+                                <input type="text" name="sub_domain" class="form-control"
+                                       value="{{ enquiry.sub_domain if enquiry else '' }}"
+                                       placeholder="Specific area/sub-domain">
+                            </div>
+                        </div>
+
+                        <!-- Assignment -->
+                        <h5 class="border-bottom pb-2 mb-3 mt-4">Assignment Details</h5>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Office <span class="text-danger">*</span></label>
+                                <select name="office_id" class="form-select" required>
+                                    <option value="">Select Office</option>
+                                    {% for off in offices %}
+                                    <option value="{{ off.office_id }}"
+                                            {% if enquiry and enquiry.office_id == off.office_id %}selected{% endif %}
+                                            {% if not enquiry and user.office_id == off.office_id %}selected{% endif %}>
+                                        {{ off.office_name }} ({{ off.office_id }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Assigned Officer</label>
+                                <select name="officer_id" class="form-select">
+                                    <option value="">Select Officer (Optional)</option>
+                                    {% for o in officers %}
+                                    <option value="{{ o.officer_id }}"
+                                            {% if enquiry and enquiry.officer_id == o.officer_id %}selected{% endif %}>
+                                        {{ o.name }} ({{ o.office_id }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Officer responsible for follow-up</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Description / Scope</label>
+                            <textarea name="description" class="form-control" rows="3"
+                                      placeholder="Brief description of the enquiry scope">{{ enquiry.description if enquiry else '' }}</textarea>
+                        </div>
+
+                        <!-- Financial & Timeline -->
+                        <h5 class="border-bottom pb-2 mb-3 mt-4">Financial & Timeline</h5>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Estimated Value (in Lakhs)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">Rs.</span>
+                                    <input type="number" name="estimated_value" class="form-control" step="0.01"
+                                           value="{{ enquiry.estimated_value if enquiry else '' }}"
+                                           placeholder="0.00">
+                                    <span class="input-group-text">L</span>
+                                </div>
+                                <small class="text-muted">Approximate project value if known</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Target Date</label>
+                                <input type="date" name="target_date" class="form-control"
+                                       value="{{ enquiry.target_date if enquiry else '' }}">
+                                <small class="text-muted">Expected date for proposal request from client</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Remarks</label>
+                            <textarea name="remarks" class="form-control" rows="2"
+                                      placeholder="Any additional notes">{{ enquiry.remarks if enquiry else '' }}</textarea>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="d-flex justify-content-between mt-4">
+                            <a href="{% if enquiry %}/enquiry/{{ enquiry.id }}{% else %}/enquiry/{% endif %}"
+                               class="btn btn-outline-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                {% if mode == 'edit' %}Update Enquiry{% else %}Create Enquiry{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

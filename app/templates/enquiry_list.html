@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}Enquiries - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3>Enquiry Pipeline</h3>
+        <div>
+            <a href="/enquiry/new" class="btn btn-success">+ New Enquiry</a>
+            <a href="/enquiry/metrics/pre-revenue" class="btn btn-outline-info">Pre-Revenue Metrics</a>
+        </div>
+    </div>
+
+    <!-- View Filters for different users -->
+    <div class="btn-group mb-3" role="group">
+        <a href="/enquiry/" class="btn {% if not filter_view %}btn-primary{% else %}btn-outline-primary{% endif %}">All</a>
+        <a href="/enquiry/?view=my_created" class="btn {% if filter_view == 'my_created' %}btn-primary{% else %}btn-outline-primary{% endif %}">My Created</a>
+        <a href="/enquiry/?view=my_allocated" class="btn {% if filter_view == 'my_allocated' %}btn-primary{% else %}btn-outline-primary{% endif %}">Allocated to Me</a>
+        {% if is_head %}
+        <a href="/enquiry/?view=pending_approval" class="btn {% if filter_view == 'pending_approval' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+            Pending Approval {% if pending_approval_count > 0 %}<span class="badge bg-danger">{{ pending_approval_count }}</span>{% endif %}
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- Status Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card {% if filter_status == 'PENDING_APPROVAL' %}border-warning{% endif %}">
+                <div class="card-body text-center">
+                    <h3 class="text-warning">{{ status_counts.get('PENDING_APPROVAL', 0) }}</h3>
+                    <p class="mb-0 small">Pending Approval</p>
+                    <a href="?status=PENDING_APPROVAL" class="stretched-link"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card {% if filter_status == 'APPROVED' %}border-info{% endif %}">
+                <div class="card-body text-center">
+                    <h3 class="text-info">{{ status_counts.get('APPROVED', 0) }}</h3>
+                    <p class="mb-0 small">Approved</p>
+                    <a href="?status=APPROVED" class="stretched-link"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card {% if filter_status == 'IN_PROGRESS' %}border-primary{% endif %}">
+                <div class="card-body text-center">
+                    <h3 class="text-primary">{{ status_counts.get('IN_PROGRESS', 0) }}</h3>
+                    <p class="mb-0 small">In Progress</p>
+                    <a href="?status=IN_PROGRESS" class="stretched-link"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card {% if filter_status == 'CONVERTED_TO_PR' %}border-success{% endif %}">
+                <div class="card-body text-center">
+                    <h3 class="text-success">{{ status_counts.get('CONVERTED_TO_PR', 0) }}</h3>
+                    <p class="mb-0 small">Converted</p>
+                    <a href="?status=CONVERTED_TO_PR" class="stretched-link"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card {% if filter_status == 'ON_HOLD' %}border-secondary{% endif %}">
+                <div class="card-body text-center">
+                    <h3 class="text-secondary">{{ status_counts.get('ON_HOLD', 0) }}</h3>
+                    <p class="mb-0 small">On Hold</p>
+                    <a href="?status=ON_HOLD" class="stretched-link"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card {% if filter_status == 'DROPPED' or filter_status == 'REJECTED' %}border-danger{% endif %}">
+                <div class="card-body text-center">
+                    <h3 class="text-danger">{{ status_counts.get('DROPPED', 0) + status_counts.get('REJECTED', 0) }}</h3>
+                    <p class="mb-0 small">Dropped/Rejected</p>
+                    <a href="?status=DROPPED" class="stretched-link"></a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All Statuses</option>
+                        <option value="PENDING_APPROVAL" {% if filter_status == 'PENDING_APPROVAL' %}selected{% endif %}>Pending Approval</option>
+                        <option value="APPROVED" {% if filter_status == 'APPROVED' %}selected{% endif %}>Approved</option>
+                        <option value="IN_PROGRESS" {% if filter_status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+                        <option value="CONVERTED_TO_PR" {% if filter_status == 'CONVERTED_TO_PR' %}selected{% endif %}>Converted to PR</option>
+                        <option value="ON_HOLD" {% if filter_status == 'ON_HOLD' %}selected{% endif %}>On Hold</option>
+                        <option value="DROPPED" {% if filter_status == 'DROPPED' %}selected{% endif %}>Dropped</option>
+                        <option value="REJECTED" {% if filter_status == 'REJECTED' %}selected{% endif %}>Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Office</label>
+                    <select name="office" class="form-select">
+                        <option value="">All Offices</option>
+                        {% for off in offices %}
+                        <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>
+                            {{ off.office_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2">Filter</button>
+                    <a href="/enquiry/" class="btn btn-outline-secondary">Clear</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Enquiry List -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Enquiries ({{ enquiries|length }})</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Enquiry No.</th>
+                        <th>Client</th>
+                        <th>Domain</th>
+                        <th>Office</th>
+                        <th>Created By</th>
+                        <th>Allocated To</th>
+                        <th>Est. Value</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in enquiries %}
+                    <tr>
+                        <td>
+                            <a href="/enquiry/{{ e.id }}">
+                                <strong>{{ e.enquiry_number }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ e.client_name }}</td>
+                        <td>{{ e.domain or '-' }}</td>
+                        <td>{{ e.office_name or e.office_id }}</td>
+                        <td>{{ e.created_by_name or '-' }}</td>
+                        <td>
+                            {% if e.officer_name %}
+                            {{ e.officer_name }}
+                            {% else %}
+                            <span class="text-muted">Not allocated</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if e.estimated_value %}
+                            Rs. {{ "%.2f"|format(e.estimated_value) }} L
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge
+                                {% if e.status == 'PENDING_APPROVAL' %}bg-warning text-dark
+                                {% elif e.status == 'APPROVED' %}bg-info
+                                {% elif e.status == 'IN_PROGRESS' %}bg-primary
+                                {% elif e.status == 'CONVERTED_TO_PR' %}bg-success
+                                {% elif e.status == 'ON_HOLD' %}bg-secondary
+                                {% elif e.status == 'REJECTED' %}bg-danger
+                                {% else %}bg-dark{% endif %}">
+                                {{ e.status|replace('_', ' ') }}
+                            </span>
+                        </td>
+                        <td>{{ e.created_at[:10] if e.created_at else '-' }}</td>
+                        <td>
+                            <a href="/enquiry/{{ e.id }}" class="btn btn-sm btn-outline-primary">View</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-4">
+                            <p class="text-muted mb-0">No enquiries found.</p>
+                            <a href="/enquiry/new" class="btn btn-success btn-sm mt-2">Create New Enquiry</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

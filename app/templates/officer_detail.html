@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}{{ officer.name }} - Officer Details - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ officer.name }}</h1>
+    <a href="/mis" class="btn btn-secondary">Back to MIS Dashboard</a>
+</div>
+
+<div class="card" style="margin-bottom: 20px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+        <div>
+            <strong style="color: #718096;">Officer ID:</strong>
+            <p>{{ officer.officer_id }}</p>
+        </div>
+        <div>
+            <strong style="color: #718096;">Office:</strong>
+            <p><a href="/mis/office/{{ officer.office_id }}">{{ officer.office_id }}</a></p>
+        </div>
+        <div>
+            <strong style="color: #718096;">Designation:</strong>
+            <p>{{ officer.designation or '-' }}</p>
+        </div>
+        <div>
+            <strong style="color: #718096;">Email:</strong>
+            <p>{{ officer.email }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- Target vs Achievement Summary -->
+<div class="stats-grid">
+    <div class="stat-card highlight-blue">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.annual_target or 60) }} L</div>
+        <div class="stat-label">Annual Target</div>
+    </div>
+    <div class="stat-card highlight-orange">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.prorata_target or 0) }} L</div>
+        <div class="stat-label">Pro-rata Target ({{ (fy_progress * 100)|round|int if fy_progress else 0 }}% FY)</div>
+    </div>
+    <div class="stat-card highlight-green">
+        <div class="stat-value">₹ {{ "%.2f"|format(summary.total_share_amount or 0) }} L</div>
+        <div class="stat-label">Total Revenue Share</div>
+    </div>
+    <div class="stat-card {% if (summary.achievement_pct or 0) >= 100 %}highlight-green{% elif (summary.achievement_pct or 0) >= 75 %}highlight-orange{% else %}highlight-red{% endif %}">
+        <div class="stat-value">{{ "%.1f"|format(summary.achievement_pct or 0) }}%</div>
+        <div class="stat-label">Achievement vs Pro-rata</div>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-top: 15px;">
+    <div class="stat-card">
+        <div class="stat-value">{{ summary.total_assignments }}</div>
+        <div class="stat-label">Assignments with Share</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ "%.1f"|format(summary.avg_share_percent or 0) }}%</div>
+        <div class="stat-label">Average Share Percentage</div>
+    </div>
+    <div class="stat-card {% if ((summary.total_share_amount or 0) - (summary.prorata_target or 0)) >= 0 %}highlight-green{% else %}highlight-red{% endif %}">
+        <div class="stat-value">₹ {{ "%.2f"|format((summary.total_share_amount or 0) - (summary.prorata_target or 0)) }} L</div>
+        <div class="stat-label">Surplus / Deficit vs Pro-rata</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value">{{ summary.total_assignments }}</div>
+        <div class="stat-label">Total Assignments</div>
+    </div>
+</div>
+
+<!-- Revenue Shares -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Revenue Share Details</h2>
+    </div>
+
+    {% if shares %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th class="text-right">Total Revenue (₹L)</th>
+                    <th class="text-right">Share %</th>
+                    <th class="text-right">Share Amount (₹L)</th>
+                    <th class="text-right">Progress</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in shares %}
+                <tr>
+                    <td>
+                        <a href="/assignment/view/{{ s.assignment_id }}">{{ s.assignment_no }}</a>
+                    </td>
+                    <td>
+                        {% if s.type %}
+                            <span class="badge {% if s.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                                {{ s.type }}
+                            </span>
+                        {% else %}
+                            <span class="badge badge-secondary">-</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ s.title[:35] }}{% if s.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ s.office_id }}</td>
+                    <td class="text-right">{{ "%.2f"|format(s.total_revenue or s.gross_value or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(s.share_percent or 0) }}%</td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(s.share_amount or 0) }}</strong></td>
+                    <td class="text-right">
+                        <div class="mini-progress-bar">
+                            <div class="mini-progress-fill" style="width: {{ (s.physical_progress_percent or 0)|round|int }}%"></div>
+                        </div>
+                        <span class="progress-text">{{ "%.0f"|format(s.physical_progress_percent or 0) }}%</span>
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if s.status == 'Completed' %}badge-success
+                            {% elif s.status == 'In Progress' %}badge-info
+                            {% elif s.status == 'On Hold' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ s.status or '-' }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="totals-row">
+                    <td colspan="5"><strong>Total</strong></td>
+                    <td class="text-right">-</td>
+                    <td class="text-right"><strong>₹ {{ "%.2f"|format(summary.total_share_amount or 0) }} L</strong></td>
+                    <td class="text-right">-</td>
+                    <td>-</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No revenue shares have been allocated to this officer yet.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

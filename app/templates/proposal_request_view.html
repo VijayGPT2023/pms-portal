@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+
+{% block title %}{{ pr.pr_number }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header with Actions -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="mb-1">{{ pr.pr_number }}</h3>
+                    <span class="badge
+                        {% if pr.status == 'PENDING_APPROVAL' %}bg-warning
+                        {% elif pr.status == 'APPROVED' %}bg-primary
+                        {% elif pr.status == 'IN_PROGRESS' %}bg-info
+                        {% elif pr.status == 'CONVERTED_TO_PROPOSAL' %}bg-success
+                        {% elif pr.status == 'ON_HOLD' %}bg-secondary
+                        {% elif pr.status in ['DROPPED', 'REJECTED'] %}bg-danger
+                        {% else %}bg-secondary{% endif %}">
+                        {{ pr.status|replace('_', ' ') }}
+                    </span>
+                    {% if pr.enquiry_number %}
+                    <span class="ms-2 text-muted">
+                        from <a href="/enquiry/{{ pr.enquiry_id }}">{{ pr.enquiry_number }}</a>
+                    </span>
+                    {% endif %}
+                </div>
+                <div>
+                    {% if pr.status not in ['CONVERTED_TO_PROPOSAL', 'DROPPED', 'REJECTED'] %}
+                        {% if can_edit %}
+                        <a href="/proposal-request/{{ pr.id }}/edit" class="btn btn-outline-primary me-2">
+                            Edit
+                        </a>
+                        {% endif %}
+                        {% if (is_allocated_officer or is_head) and pr.status in ['APPROVED', 'IN_PROGRESS'] %}
+                        <button type="button" class="btn btn-outline-info me-2" data-bs-toggle="modal" data-bs-target="#progressModal">
+                            Update Progress
+                        </button>
+                        <form method="POST" action="/proposal-request/{{ pr.id }}/convert-to-proposal" class="d-inline">
+                            <button type="submit" class="btn btn-success me-2"
+                                    onclick="return confirm('Convert this PR to a Proposal?')">
+                                Convert to Proposal
+                            </button>
+                        </form>
+                        {% endif %}
+                        {% if is_head %}
+                        <button type="button" class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#reallocateModal">
+                            Reallocate
+                        </button>
+                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#dropModal">
+                            Drop
+                        </button>
+                        {% endif %}
+                    {% endif %}
+                    <a href="/proposal-request/" class="btn btn-outline-secondary ms-2">Back to List</a>
+                </div>
+            </div>
+
+            <!-- Pending Approval Alert (for Heads) -->
+            {% if pr.approval_status == 'PENDING' and is_head %}
+            <div class="alert alert-warning mb-4">
+                <h5 class="alert-heading">Pending Approval</h5>
+                <p>This proposal request was created by <strong>{{ pr.created_by_name or pr.created_by }}</strong> and requires your approval.</p>
+                <hr>
+                <form method="POST" action="/proposal-request/{{ pr.id }}/approve" class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Allocate to Officer <span class="text-danger">*</span></label>
+                        <select name="officer_id" class="form-select" required>
+                            <option value="">Select Officer</option>
+                            {% for o in officers %}
+                            <option value="{{ o.officer_id }}" {% if pr.created_by == o.officer_id %}selected{% endif %}>
+                                {{ o.name }} ({{ o.office_id }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <button type="submit" class="btn btn-success me-2">Approve & Allocate</button>
+                        <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                            Reject
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+
+            <!-- Rejection Notice -->
+            {% if pr.status == 'REJECTED' %}
+            <div class="alert alert-danger mb-4">
+                <h5 class="alert-heading">Proposal Request Rejected</h5>
+                <p><strong>Rejected by:</strong> {{ pr.approved_by_name or pr.approved_by }}</p>
+                <p><strong>Reason:</strong> {{ pr.rejection_reason }}</p>
+                <p class="mb-0"><strong>Date:</strong> {{ pr.approved_at }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Current Progress Update -->
+            {% if pr.current_update %}
+            <div class="alert alert-info mb-4">
+                <h6 class="alert-heading">Latest Progress Update</h6>
+                <p class="mb-0">{{ pr.current_update }}</p>
+                <small class="text-muted">Last updated: {{ pr.updated_at }}</small>
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <!-- Main Details Card -->
+                <div class="col-md-8">
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Proposal Request Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <th style="width: 30%">Client Name</th>
+                                    <td>{{ pr.client_name }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Client Type</th>
+                                    <td>{{ pr.client_type or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Domain</th>
+                                    <td>{{ pr.domain or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Sub-Domain</th>
+                                    <td>{{ pr.sub_domain or '-' }}</td>
+                                </tr>
+                                <tr>
+                                    <th>Description / Scope</th>
+                                    <td>{{ pr.description or '-' }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Financial & Timeline -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Financial & Timeline</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-muted">Estimated Value</p>
+                                    <h4>
+                                        {% if pr.estimated_value %}
+                                        Rs. {{ "%.2f"|format(pr.estimated_value) }} L
+                                        {% else %}
+                                        <span class="text-muted">Not specified</span>
+                                        {% endif %}
+                                    </h4>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-muted">Target Date</p>
+                                    <h4>
+                                        {% if pr.target_date %}
+                                        {{ pr.target_date }}
+                                        {% else %}
+                                        <span class="text-muted">Not set</span>
+                                        {% endif %}
+                                    </h4>
+                                </div>
+                            </div>
+                            {% if pr.remarks %}
+                            <hr>
+                            <p class="mb-1 text-muted">Remarks</p>
+                            <p>{{ pr.remarks }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Linked Proposal (if converted) -->
+                    {% if pr.status == 'CONVERTED_TO_PROPOSAL' and pr.linked_proposal %}
+                    <div class="card mb-4 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">Linked Proposal</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Proposal Number:</strong>
+                                <a href="/proposal/{{ pr.linked_proposal.id }}">
+                                    {{ pr.linked_proposal.proposal_number }}
+                                </a>
+                            </p>
+                            <p><strong>Status:</strong> {{ pr.linked_proposal.status }}</p>
+                            <p><strong>Created:</strong> {{ pr.linked_proposal.created_at }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Source Enquiry Details -->
+                    {% if pr.enquiry %}
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Source Enquiry</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Enquiry Number:</strong>
+                                <a href="/enquiry/{{ pr.enquiry.id }}">{{ pr.enquiry.enquiry_number }}</a>
+                            </p>
+                            <p><strong>Status:</strong> {{ pr.enquiry.status }}</p>
+                            <p><strong>Created:</strong> {{ pr.enquiry.created_at }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Activity Log -->
+                    {% if activities %}
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">Activity Log</h5>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="list-group list-group-flush">
+                                {% for act in activities %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <strong>{{ act.actor_name or act.actor_id }}</strong>
+                                            <span class="badge bg-secondary ms-2">{{ act.action }}</span>
+                                        </div>
+                                        <small class="text-muted">{{ act.created_at }}</small>
+                                    </div>
+                                    {% if act.remarks %}
+                                    <p class="mb-0 mt-1 text-muted small">{{ act.remarks }}</p>
+                                    {% endif %}
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Sidebar -->
+                <div class="col-md-4">
+                    <!-- Assignment Info -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">Assignment</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">
+                                <strong>Office:</strong><br>
+                                {{ pr.office_name or pr.office_id }}
+                            </p>
+                            <p class="mb-2">
+                                <strong>Created By:</strong><br>
+                                {{ pr.created_by_name or pr.created_by }}
+                            </p>
+                            <p class="mb-0">
+                                <strong>Allocated Officer:</strong><br>
+                                {% if pr.officer_name %}
+                                {{ pr.officer_name }}
+                                {% else %}
+                                <span class="text-muted fst-italic">Not yet assigned</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Approval Info -->
+                    {% if pr.approval_status == 'APPROVED' %}
+                    <div class="card mb-4 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0">Approval</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">
+                                <strong>Approved By:</strong><br>
+                                {{ pr.approved_by_name or pr.approved_by }}
+                            </p>
+                            <p class="mb-0">
+                                <strong>Approved At:</strong><br>
+                                {{ pr.approved_at }}
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Audit Info -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">Audit Trail</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">
+                                <strong>Created:</strong><br>
+                                {{ pr.created_at }}<br>
+                                <small class="text-muted">by {{ pr.created_by_name or pr.created_by }}</small>
+                            </p>
+                            {% if pr.updated_at %}
+                            <p class="mb-0">
+                                <strong>Last Updated:</strong><br>
+                                {{ pr.updated_at }}
+                            </p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Workflow Status -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Workflow Status</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex flex-column">
+                                <div class="p-2 mb-2 rounded bg-success text-white">
+                                    1. Enquiry ✓
+                                </div>
+                                <div class="p-2 mb-2 rounded {% if pr.status not in ['DROPPED', 'REJECTED'] %}bg-success text-white{% else %}bg-light{% endif %}">
+                                    2. Proposal Request {% if pr.status not in ['DROPPED', 'REJECTED'] %}✓{% endif %}
+                                </div>
+                                <div class="p-2 mb-2 rounded {% if pr.status == 'CONVERTED_TO_PROPOSAL' %}bg-success text-white{% else %}bg-light{% endif %}">
+                                    3. Proposal {% if pr.status == 'CONVERTED_TO_PROPOSAL' %}✓{% endif %}
+                                </div>
+                                <div class="p-2 rounded bg-light">
+                                    4. Work Order
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Update Modal -->
+<div class="modal fade" id="progressModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/proposal-request/{{ pr.id }}/update-progress">
+                <div class="modal-header">
+                    <h5 class="modal-title">Update Progress</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Progress Update <span class="text-danger">*</span></label>
+                        <textarea name="current_update" class="form-control" rows="4" required
+                                  placeholder="Describe the current status and progress...">{{ pr.current_update or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select name="status" class="form-select">
+                            <option value="IN_PROGRESS" {% if pr.status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+                            <option value="ON_HOLD" {% if pr.status == 'ON_HOLD' %}selected{% endif %}>On Hold</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reallocate Officer Modal -->
+<div class="modal fade" id="reallocateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/proposal-request/{{ pr.id }}/reallocate">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reallocate Officer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Current Officer: <strong>{{ pr.officer_name or 'Not assigned' }}</strong></p>
+                    <div class="mb-3">
+                        <label class="form-label">New Officer <span class="text-danger">*</span></label>
+                        <select name="officer_id" class="form-select" required>
+                            <option value="">Select Officer</option>
+                            {% for o in officers %}
+                            <option value="{{ o.officer_id }}" {% if pr.officer_id == o.officer_id %}selected{% endif %}>
+                                {{ o.name }} ({{ o.office_id }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Reallocate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/proposal-request/{{ pr.id }}/reject">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">Reject Proposal Request</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
+                        <textarea name="rejection_reason" class="form-control" rows="3" required
+                                  placeholder="Please provide a reason for rejection..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Reject</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Drop Modal -->
+<div class="modal fade" id="dropModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="/proposal-request/{{ pr.id }}/drop">
+                <div class="modal-header">
+                    <h5 class="modal-title">Drop Proposal Request</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to drop this proposal request?</p>
+                    <div class="mb-3">
+                        <label class="form-label">Reason for dropping <span class="text-danger">*</span></label>
+                        <textarea name="drop_reason" class="form-control" rows="3" required
+                                  placeholder="Please provide a reason..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Drop PR</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

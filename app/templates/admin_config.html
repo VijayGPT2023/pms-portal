@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration Options - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Configuration Options</h1>
+    <div>
+        <a href="/data/export" class="btn btn-primary">Export Data</a>
+        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<!-- Add New Option -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Add New Option</h2>
+    </div>
+
+    <form method="POST" action="/data/admin/config/add">
+        <div class="form-row" style="display: flex; gap: 15px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 150px;">
+                <label for="category">Category *</label>
+                <select id="category" name="category" class="form-control" required onchange="toggleParentField()">
+                    <option value="domain">Domain</option>
+                    <option value="sub_domain">Sub-Domain</option>
+                    <option value="client_type">Client Type</option>
+                    <option value="status">Status</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="flex: 1; min-width: 150px;" id="parent_group" style="display: none;">
+                <label for="parent_value">Parent Domain</label>
+                <select id="parent_value" name="parent_value" class="form-control">
+                    <option value="">Select Parent Domain</option>
+                    {% for domain in domains %}
+                    <option value="{{ domain.option_value }}">{{ domain.option_label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group" style="flex: 1; min-width: 150px;">
+                <label for="option_value">Value (Code) *</label>
+                <input type="text" id="option_value" name="option_value" class="form-control"
+                       placeholder="e.g., ES-New" required>
+            </div>
+
+            <div class="form-group" style="flex: 2; min-width: 200px;">
+                <label for="option_label">Label (Display Name) *</label>
+                <input type="text" id="option_label" name="option_label" class="form-control"
+                       placeholder="e.g., New Sub-Domain" required>
+            </div>
+
+            <div class="form-group" style="flex: 0.5; min-width: 80px;">
+                <label for="sort_order">Order</label>
+                <input type="number" id="sort_order" name="sort_order" class="form-control"
+                       value="0" min="0">
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: flex-end;">
+                <button type="submit" class="btn btn-success">Add</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Domains -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Domains</h2>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Value</th>
+                <th>Label</th>
+                <th>Order</th>
+                <th>Active</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for opt in config_by_category.get('domain', []) %}
+            <tr>
+                <form method="POST" action="/data/admin/config/update">
+                    <input type="hidden" name="category" value="domain">
+                    <input type="hidden" name="old_value" value="{{ opt.option_value }}">
+                    <td>
+                        <input type="text" name="new_value" value="{{ opt.option_value }}"
+                               class="form-control" style="width: 100px;">
+                    </td>
+                    <td>
+                        <input type="text" name="new_label" value="{{ opt.option_label }}"
+                               class="form-control" style="width: 200px;">
+                    </td>
+                    <td>
+                        <input type="number" name="sort_order" value="{{ opt.sort_order }}"
+                               class="form-control" style="width: 60px;">
+                    </td>
+                    <td>
+                        <input type="checkbox" name="is_active" value="1"
+                               {% if opt.is_active %}checked{% endif %}>
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                </form>
+                        <form method="POST" action="/data/admin/config/delete" style="display: inline;"
+                              onsubmit="return confirm('Delete this domain and all its sub-domains?');">
+                            <input type="hidden" name="category" value="domain">
+                            <input type="hidden" name="option_value" value="{{ opt.option_value }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Sub-Domains -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Sub-Domains</h2>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Parent Domain</th>
+                <th>Value</th>
+                <th>Label</th>
+                <th>Order</th>
+                <th>Active</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for opt in config_by_category.get('sub_domain', []) %}
+            <tr>
+                <form method="POST" action="/data/admin/config/update">
+                    <input type="hidden" name="category" value="sub_domain">
+                    <input type="hidden" name="old_value" value="{{ opt.option_value }}">
+                    <td>
+                        <select name="parent_value" class="form-control" style="width: 120px;">
+                            {% for domain in domains %}
+                            <option value="{{ domain.option_value }}"
+                                    {% if opt.parent_value == domain.option_value %}selected{% endif %}>
+                                {{ domain.option_value }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" name="new_value" value="{{ opt.option_value }}"
+                               class="form-control" style="width: 100px;">
+                    </td>
+                    <td>
+                        <input type="text" name="new_label" value="{{ opt.option_label }}"
+                               class="form-control" style="width: 200px;">
+                    </td>
+                    <td>
+                        <input type="number" name="sort_order" value="{{ opt.sort_order }}"
+                               class="form-control" style="width: 60px;">
+                    </td>
+                    <td>
+                        <input type="checkbox" name="is_active" value="1"
+                               {% if opt.is_active %}checked{% endif %}>
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                </form>
+                        <form method="POST" action="/data/admin/config/delete" style="display: inline;"
+                              onsubmit="return confirm('Delete this sub-domain?');">
+                            <input type="hidden" name="category" value="sub_domain">
+                            <input type="hidden" name="option_value" value="{{ opt.option_value }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Client Types -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Client Types</h2>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Value</th>
+                <th>Label</th>
+                <th>Order</th>
+                <th>Active</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for opt in config_by_category.get('client_type', []) %}
+            <tr>
+                <form method="POST" action="/data/admin/config/update">
+                    <input type="hidden" name="category" value="client_type">
+                    <input type="hidden" name="old_value" value="{{ opt.option_value }}">
+                    <td>
+                        <input type="text" name="new_value" value="{{ opt.option_value }}"
+                               class="form-control" style="width: 150px;">
+                    </td>
+                    <td>
+                        <input type="text" name="new_label" value="{{ opt.option_label }}"
+                               class="form-control" style="width: 200px;">
+                    </td>
+                    <td>
+                        <input type="number" name="sort_order" value="{{ opt.sort_order }}"
+                               class="form-control" style="width: 60px;">
+                    </td>
+                    <td>
+                        <input type="checkbox" name="is_active" value="1"
+                               {% if opt.is_active %}checked{% endif %}>
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                </form>
+                        <form method="POST" action="/data/admin/config/delete" style="display: inline;"
+                              onsubmit="return confirm('Delete this client type?');">
+                            <input type="hidden" name="category" value="client_type">
+                            <input type="hidden" name="option_value" value="{{ opt.option_value }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Status Options -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Status Options</h2>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Value</th>
+                <th>Label</th>
+                <th>Order</th>
+                <th>Active</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for opt in config_by_category.get('status', []) %}
+            <tr>
+                <form method="POST" action="/data/admin/config/update">
+                    <input type="hidden" name="category" value="status">
+                    <input type="hidden" name="old_value" value="{{ opt.option_value }}">
+                    <td>
+                        <input type="text" name="new_value" value="{{ opt.option_value }}"
+                               class="form-control" style="width: 150px;">
+                    </td>
+                    <td>
+                        <input type="text" name="new_label" value="{{ opt.option_label }}"
+                               class="form-control" style="width: 200px;">
+                    </td>
+                    <td>
+                        <input type="number" name="sort_order" value="{{ opt.sort_order }}"
+                               class="form-control" style="width: 60px;">
+                    </td>
+                    <td>
+                        <input type="checkbox" name="is_active" value="1"
+                               {% if opt.is_active %}checked{% endif %}>
+                    </td>
+                    <td>
+                        <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                </form>
+                        <form method="POST" action="/data/admin/config/delete" style="display: inline;"
+                              onsubmit="return confirm('Delete this status?');">
+                            <input type="hidden" name="category" value="status">
+                            <input type="hidden" name="option_value" value="{{ opt.option_value }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function toggleParentField() {
+    const category = document.getElementById('category').value;
+    const parentGroup = document.getElementById('parent_group');
+    const parentSelect = document.getElementById('parent_value');
+
+    if (category === 'sub_domain') {
+        parentGroup.style.display = 'block';
+        parentSelect.required = true;
+    } else {
+        parentGroup.style.display = 'none';
+        parentSelect.required = false;
+        parentSelect.value = '';
+    }
+}
+
+// Initial call
+toggleParentField();
+</script>
+
+<style>
+.form-row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: flex-end;
+}
+
+table input[type="text"],
+table input[type="number"],
+table select {
+    padding: 4px 8px;
+    font-size: 0.9em;
+}
+
+table .btn-sm {
+    padding: 4px 10px;
+    font-size: 0.85em;
+}
+</style>
+{% endblock %}

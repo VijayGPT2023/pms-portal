@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}PMS Portal{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    {% if user %}
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/dashboard">PMS Portal</a>
+        </div>
+        <div class="nav-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/enquiry/">Enquiries</a>
+            <a href="/proposal-request/">Proposals</a>
+            <a href="/mis">MIS / Analytics</a>
+        </div>
+        <div class="nav-user">
+            <span class="user-info">{{ user.name }} ({{ user.office_id }})</span>
+            <a href="/logout" class="btn btn-sm btn-secondary">Logout</a>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2024 PMS Portal - Officer Performance & Revenue Sharing System</p>
+    </footer>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

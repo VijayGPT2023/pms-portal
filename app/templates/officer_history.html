@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block title %}Officer History - {{ officer.name }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>Officer History</h2>
+            <h4 class="text-muted">{{ officer.name }} ({{ officer.officer_id }})</h4>
+            <p>
+                <strong>Current:</strong> {{ officer.designation }} | {{ officer.office_id }}
+                {% if officer.admin_role_id %}| Role: {{ officer.admin_role_id }}{% endif %}
+            </p>
+        </div>
+        <div class="col-auto">
+            <a href="/admin/users" class="btn btn-outline-secondary">Back to Users</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Role History -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Role History</h5>
+                </div>
+                <div class="card-body">
+                    {% if role_history %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Role</th>
+                                    <th>Scope</th>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for r in role_history %}
+                                <tr class="{% if not r.effective_to %}table-success{% endif %}">
+                                    <td><strong>{{ r.role_type }}</strong></td>
+                                    <td>{{ r.scope_value or 'Global' }}</td>
+                                    <td>{{ r.effective_from }}</td>
+                                    <td>{{ r.effective_to or '-' }}</td>
+                                    <td>
+                                        {% if not r.effective_to %}
+                                        <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">Ended</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No role history found</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Designation History (Promotions) -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Designation History (Promotions)</h5>
+                </div>
+                <div class="card-body">
+                    {% if designation_history %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Designation</th>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Order No</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in designation_history %}
+                                <tr class="{% if not d.effective_to %}table-success{% endif %}">
+                                    <td><strong>{{ d.designation }}</strong></td>
+                                    <td>{{ d.effective_from }}</td>
+                                    <td>{{ d.effective_to or '-' }}</td>
+                                    <td>{{ d.promotion_order_no or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No designation history found. Current: {{ officer.designation }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Transfer History -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Office Transfer History</h5>
+                </div>
+                <div class="card-body">
+                    {% if transfer_history %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>From</th>
+                                    <th>To</th>
+                                    <th>Effective</th>
+                                    <th>Order No</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for t in transfer_history %}
+                                <tr class="{% if not t.effective_to %}table-info{% endif %}">
+                                    <td>{{ t.from_office_id or 'Initial' }}</td>
+                                    <td><strong>{{ t.to_office_id }}</strong></td>
+                                    <td>{{ t.effective_from }}</td>
+                                    <td>{{ t.transfer_order_no or '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-muted">No transfer history found. Current office: {{ officer.office_id }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- All Changes Timeline -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">All Changes Timeline</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    {% if general_history %}
+                    <ul class="list-group list-group-flush">
+                        {% for h in general_history %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <span>
+                                    <span class="badge
+                                        {% if h.change_type == 'ROLE_ASSIGN' %}bg-primary
+                                        {% elif h.change_type == 'ROLE_REMOVE' %}bg-secondary
+                                        {% elif h.change_type == 'DESIGNATION' %}bg-success
+                                        {% elif h.change_type == 'OFFICE_TRANSFER' %}bg-info
+                                        {% else %}bg-dark{% endif %}">
+                                        {{ h.change_type }}
+                                    </span>
+                                    {{ h.remarks or h.field_name }}
+                                </span>
+                                <small class="text-muted">{{ h.effective_from }}</small>
+                            </div>
+                            {% if h.old_value and h.new_value %}
+                            <small class="text-muted">{{ h.old_value }} &rarr; {{ h.new_value }}</small>
+                            {% elif h.new_value %}
+                            <small class="text-muted">{{ h.new_value }}</small>
+                            {% endif %}
+                            {% if h.order_reference %}
+                            <br><small class="text-info">Order: {{ h.order_reference }}</small>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted">No change history recorded yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card mt-4">
+        <div class="card-header">
+            <h5>Quick Actions</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Transfer Officer -->
+                <div class="col-md-4">
+                    <h6>Transfer Officer</h6>
+                    <form method="POST" action="/admin/officer/transfer">
+                        <input type="hidden" name="officer_id" value="{{ officer.officer_id }}">
+                        <div class="mb-2">
+                            <select name="to_office_id" class="form-select form-select-sm" required>
+                                <option value="">Select New Office</option>
+                                {% for office in offices %}
+                                <option value="{{ office.office_id }}">{{ office.office_id }} - {{ office.office_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <input type="date" name="effective_from" class="form-control form-control-sm" placeholder="Effective From">
+                        </div>
+                        <div class="mb-2">
+                            <input type="text" name="transfer_order_no" class="form-control form-control-sm" placeholder="Order No (optional)">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-info">Transfer</button>
+                    </form>
+                </div>
+
+                <!-- Promote Officer -->
+                <div class="col-md-4">
+                    <h6>Promote/Change Designation</h6>
+                    <form method="POST" action="/admin/officer/promote">
+                        <input type="hidden" name="officer_id" value="{{ officer.officer_id }}">
+                        <div class="mb-2">
+                            <select name="new_designation" class="form-select form-select-sm" required>
+                                <option value="">Select New Designation</option>
+                                <option value="Assistant Director">Assistant Director</option>
+                                <option value="Dy. Director">Dy. Director</option>
+                                <option value="Director-II">Director-II</option>
+                                <option value="Director-I">Director-I</option>
+                                <option value="Director">Director</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <input type="date" name="effective_from" class="form-control form-control-sm" placeholder="Effective From">
+                        </div>
+                        <div class="mb-2">
+                            <input type="text" name="promotion_order_no" class="form-control form-control-sm" placeholder="Order No (optional)">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-success">Promote</button>
+                    </form>
+                </div>
+
+                <!-- Assign Role -->
+                <div class="col-md-4">
+                    <h6>Assign Additional Role</h6>
+                    <form method="POST" action="/admin/roles/assign">
+                        <input type="hidden" name="officer_id" value="{{ officer.officer_id }}">
+                        <div class="mb-2">
+                            <select name="role_type" class="form-select form-select-sm" required>
+                                <option value="">Select Role</option>
+                                <option value="DG">Director General</option>
+                                <option value="DDG-I">DDG-I</option>
+                                <option value="DDG-II">DDG-II</option>
+                                <option value="RD_HEAD">RD Head</option>
+                                <option value="GROUP_HEAD">Group Head</option>
+                                <option value="TEAM_LEADER">Team Leader</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <input type="text" name="scope_value" class="form-control form-control-sm" placeholder="Scope (Group/Office)">
+                        </div>
+                        <div class="mb-2">
+                            <input type="date" name="effective_from" class="form-control form-control-sm" placeholder="Effective From">
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-primary">Assign Role</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
