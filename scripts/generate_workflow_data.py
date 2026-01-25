@@ -176,19 +176,22 @@ def generate_proposal_number(office_id, year, serial):
 
 def generate_workflow_data():
     """Generate dummy workflow data for all offices."""
+    from app.config import USE_POSTGRES
 
     init_database()
 
+    # Clear existing workflow data first (separate transaction)
+    print("\nClearing existing workflow data...")
     with get_db() as conn:
         cursor = conn.cursor()
-
-        # Clear existing workflow data to avoid duplicate key errors
-        print("\nClearing existing workflow data...")
         cursor.execute("DELETE FROM proposals")
         cursor.execute("DELETE FROM proposal_requests")
         cursor.execute("DELETE FROM enquiries")
         conn.commit()
-        print("Existing workflow data cleared.")
+    print("Existing workflow data cleared.")
+
+    with get_db() as conn:
+        cursor = conn.cursor()
 
         # Get all offices
         cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
@@ -359,7 +362,13 @@ def generate_workflow_data():
                         created_date.isoformat() + " " + f"{random.randint(9,17):02d}:{random.randint(0,59):02d}:00"
                     ))
 
-                    enquiry_id = cursor.lastrowid
+                    # Get the enquiry ID - PostgreSQL needs different approach
+                    if USE_POSTGRES:
+                        cursor.execute("SELECT id FROM enquiries WHERE enquiry_number = ?", (enquiry_number,))
+                        row = cursor.fetchone()
+                        enquiry_id = row['id'] if row else None
+                    else:
+                        enquiry_id = cursor.lastrowid
                     total_enquiries += 1
 
                     # Log activity
@@ -436,7 +445,13 @@ def generate_workflow_data():
                             pr_created.isoformat() + " " + f"{random.randint(9,17):02d}:{random.randint(0,59):02d}:00"
                         ))
 
-                        pr_id = cursor.lastrowid
+                        # Get the PR ID - PostgreSQL needs different approach
+                        if USE_POSTGRES:
+                            cursor.execute("SELECT id FROM proposal_requests WHERE pr_number = ?", (pr_number,))
+                            row = cursor.fetchone()
+                            pr_id = row['id'] if row else None
+                        else:
+                            pr_id = cursor.lastrowid
                         total_prs += 1
 
                         # Log PR creation
@@ -553,7 +568,13 @@ def generate_workflow_data():
                                 prop_created.isoformat() + " " + f"{random.randint(9,17):02d}:{random.randint(0,59):02d}:00"
                             ))
 
-                            proposal_id = cursor.lastrowid
+                            # Get the proposal ID - PostgreSQL needs different approach
+                            if USE_POSTGRES:
+                                cursor.execute("SELECT id FROM proposals WHERE proposal_number = ?", (proposal_number,))
+                                row = cursor.fetchone()
+                                proposal_id = row['id'] if row else None
+                            else:
+                                proposal_id = cursor.lastrowid
                             total_proposals += 1
 
                             # Log proposal creation

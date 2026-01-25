@@ -331,22 +331,80 @@ def generate_expenditure(assignment_id, total_value, assignment_type, cursor):
         """, (assignment_id, head_id, estimated, actual))
 
 
+def create_single_assignment(assignment_data, assignment_type='ASSIGNMENT'):
+    """Create a single assignment with milestones and expenditure in its own transaction."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        try:
+            if assignment_type == 'ASSIGNMENT':
+                cursor.execute("""
+                    INSERT INTO assignments (
+                        assignment_no, type, title, client, client_type, city, domain,
+                        office_id, status, tor_scope, work_order_date, start_date,
+                        target_date, team_leader_officer_id, total_value, gross_value,
+                        details_filled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, assignment_data['values'])
+            else:
+                cursor.execute("""
+                    INSERT INTO assignments (
+                        assignment_no, type, title, office_id, status, venue,
+                        duration_start, duration_end, duration_days, type_of_participants,
+                        faculty1_officer_id, faculty2_officer_id, total_value, gross_value,
+                        details_filled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, assignment_data['values'])
+
+            # Get the assignment ID - PostgreSQL needs different approach
+            from app.config import USE_POSTGRES
+            if USE_POSTGRES:
+                cursor.execute("SELECT id FROM assignments WHERE assignment_no = ?",
+                             (assignment_data['assignment_no'],))
+                row = cursor.fetchone()
+                assignment_id = row['id'] if row else None
+            else:
+                assignment_id = cursor.lastrowid
+
+            if assignment_id:
+                # Generate milestones
+                generate_milestones(
+                    assignment_id, assignment_type,
+                    assignment_data['start_date'], assignment_data['end_date'],
+                    assignment_data['total_value'], cursor
+                )
+                # Generate expenditure
+                generate_expenditure(
+                    assignment_id, assignment_data['total_value'],
+                    assignment_type, cursor
+                )
+
+            conn.commit()
+            return assignment_id
+        except Exception as e:
+            conn.rollback()
+            raise e
+
+
 def generate_dummy_data():
     """Generate dummy assignments and trainings with milestones and expenditure."""
+    from app.config import USE_POSTGRES
 
     init_database()
 
+    # Clear existing assignment data first (separate transaction)
+    print("Clearing existing assignment data...")
     with get_db() as conn:
         cursor = conn.cursor()
-
-        # Clear existing assignment data to avoid duplicate key errors
-        print("Clearing existing assignment data...")
         cursor.execute("DELETE FROM expenditure_items")
         cursor.execute("DELETE FROM revenue_shares")
         cursor.execute("DELETE FROM milestones")
         cursor.execute("DELETE FROM assignments")
         conn.commit()
-        print("Existing data cleared.")
+    print("Existing data cleared.")
+
+    # Get offices and officers (separate read transaction)
+    with get_db() as conn:
+        cursor = conn.cursor()
 
         # Get all offices with their targets
         cursor.execute("SELECT office_id, officer_count, annual_revenue_target FROM offices")
@@ -396,7 +454,7 @@ def generate_dummy_data():
             if not office_officers:
                 office_officers = [o['officer_id'] for o in random.sample(officers, min(3, len(officers)))]
 
-            # Generate assignments
+            # Generate assignments - each in its own transaction for PostgreSQL compatibility
             for i in range(num_assignments):
                 domain = random.choice(DOMAIN_OPTIONS)
                 titles = ASSIGNMENT_TITLES_BY_DOMAIN.get(domain, ASSIGNMENT_TITLES_BY_DOMAIN['General'])
@@ -417,36 +475,28 @@ def generate_dummy_data():
                 team_leader = random.choice(office_officers) if office_officers else None
 
                 try:
-                    cursor.execute("""
-                        INSERT INTO assignments (
-                            assignment_no, type, title, client, client_type, city, domain,
-                            office_id, status, tor_scope, work_order_date, start_date,
-                            target_date, team_leader_officer_id, total_value, gross_value,
-                            details_filled
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        assignment_no, 'ASSIGNMENT', title, client_info[0], client_info[2],
-                        client_info[1], domain, office_id, status,
-                        f"Terms of Reference for {title}",
-                        start_date.isoformat(), start_date.isoformat(),
-                        target_date.isoformat(), team_leader, total_value, gross_value, 1
-                    ))
-
-                    assignment_id = cursor.lastrowid
-                    assignment_ids.append(assignment_id)
-
-                    # Generate milestones with invoice/payment tracking
-                    generate_milestones(assignment_id, 'ASSIGNMENT', start_date, target_date, total_value, cursor)
-                    total_milestones += random.randint(3, 5)
-
-                    # Generate expenditure (within 30% of total value for assignments)
-                    generate_expenditure(assignment_id, total_value, 'ASSIGNMENT', cursor)
-
-                    total_assignments += 1
+                    assignment_data = {
+                        'assignment_no': assignment_no,
+                        'start_date': start_date,
+                        'end_date': target_date,
+                        'total_value': total_value,
+                        'values': (
+                            assignment_no, 'ASSIGNMENT', title, client_info[0], client_info[2],
+                            client_info[1], domain, office_id, status,
+                            f"Terms of Reference for {title}",
+                            start_date.isoformat(), start_date.isoformat(),
+                            target_date.isoformat(), team_leader, total_value, gross_value, 1
+                        )
+                    }
+                    assignment_id = create_single_assignment(assignment_data, 'ASSIGNMENT')
+                    if assignment_id:
+                        assignment_ids.append(assignment_id)
+                        total_assignments += 1
+                        total_milestones += random.randint(3, 5)
                 except Exception as e:
                     print(f"  Error creating assignment {assignment_no}: {e}")
 
-            # Generate trainings
+            # Generate trainings - each in its own transaction
             num_trainings = perf_data.get('training_target', 2)
             for i in range(num_trainings):
                 office_code = office_id.replace(' ', '').replace('Group', '')[:5].upper()
@@ -465,37 +515,32 @@ def generate_dummy_data():
                 faculty2 = random.choice(office_officers) if office_officers and random.random() > 0.5 else None
 
                 try:
-                    cursor.execute("""
-                        INSERT INTO assignments (
-                            assignment_no, type, title, office_id, status, venue,
-                            duration_start, duration_end, duration_days, type_of_participants,
-                            faculty1_officer_id, faculty2_officer_id, total_value, gross_value,
-                            details_filled
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        assignment_no, 'TRAINING', title, office_id, status,
-                        random.choice(VENUES), duration_start.isoformat(),
-                        duration_end.isoformat(), duration_days,
-                        random.choice(['Senior Executives', 'Middle Management', 'Technical Staff']),
-                        faculty1, faculty2, total_value, gross_value, 1
-                    ))
-
-                    assignment_id = cursor.lastrowid
-                    assignment_ids.append(assignment_id)
-
-                    # Generate milestones
-                    generate_milestones(assignment_id, 'TRAINING', duration_start, duration_end, total_value, cursor)
-                    total_milestones += random.randint(3, 5)
-
-                    # Generate expenditure (within 55% of total value for trainings)
-                    generate_expenditure(assignment_id, total_value, 'TRAINING', cursor)
-
-                    total_trainings += 1
+                    assignment_data = {
+                        'assignment_no': assignment_no,
+                        'start_date': duration_start,
+                        'end_date': duration_end,
+                        'total_value': total_value,
+                        'values': (
+                            assignment_no, 'TRAINING', title, office_id, status,
+                            random.choice(VENUES), duration_start.isoformat(),
+                            duration_end.isoformat(), duration_days,
+                            random.choice(['Senior Executives', 'Middle Management', 'Technical Staff']),
+                            faculty1, faculty2, total_value, gross_value, 1
+                        )
+                    }
+                    assignment_id = create_single_assignment(assignment_data, 'TRAINING')
+                    if assignment_id:
+                        assignment_ids.append(assignment_id)
+                        total_trainings += 1
+                        total_milestones += random.randint(3, 5)
                 except Exception as e:
                     print(f"  Error creating training {assignment_no}: {e}")
 
         # Calculate progress for all assignments
-        print("\nCalculating physical and timeline progress...")
+    # Calculate progress for all assignments (separate transaction)
+    print("\nCalculating physical and timeline progress...")
+    with get_db() as conn:
+        cursor = conn.cursor()
         for assignment_id in assignment_ids:
             # Calculate based on milestone invoice/payment status
             cursor.execute("""
@@ -529,7 +574,7 @@ def generate_dummy_data():
                         WHEN status = 'Completed' AND actual_completion_date <= target_date THEN invoice_percent
                         WHEN status = 'Completed' THEN invoice_percent * 0.7
                         WHEN status = 'Delayed' THEN invoice_percent * 0.5
-                        WHEN target_date >= date('now') THEN invoice_percent
+                        WHEN target_date >= CURRENT_DATE THEN invoice_percent
                         ELSE invoice_percent * 0.6
                     END) as timeline_score
                 FROM milestones
@@ -561,24 +606,27 @@ def generate_dummy_data():
                     amount_received = ?,
                     total_expenditure = ?,
                     total_revenue = ?,
-                    surplus_deficit = ? - ?,
+                    surplus_deficit = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (physical_progress, timeline_progress, invoice_amount, paid_amount,
                   actual_expenditure, shareable_revenue,
-                  gross_shareable, actual_expenditure, assignment_id))
+                  gross_shareable - actual_expenditure, assignment_id))
+        conn.commit()
 
-        # Generate revenue shares
-        print("Generating revenue shares...")
+    # Generate revenue shares (separate transaction)
+    print("Generating revenue shares...")
+    share_count = 0
+    with get_db() as conn:
+        cursor = conn.cursor()
         cursor.execute("""
             SELECT id, total_revenue, office_id
             FROM assignments
             WHERE total_revenue > 0
         """)
-        assignments = [dict(row) for row in cursor.fetchall()]
+        assignments_for_shares = [dict(row) for row in cursor.fetchall()]
 
-        share_count = 0
-        for assignment in random.sample(assignments, min(len(assignments), int(len(assignments) * 0.6))):
+        for assignment in random.sample(assignments_for_shares, min(len(assignments_for_shares), int(len(assignments_for_shares) * 0.6))):
             assignment_id = assignment['id']
             shareable_revenue = assignment['total_revenue']
             office_id = assignment['office_id']
@@ -610,9 +658,12 @@ def generate_dummy_data():
                     share_count += 1
                 except Exception:
                     pass
+        conn.commit()
 
-        # Create financial year targets
-        print("Creating financial year targets...")
+    # Create financial year targets (separate transaction)
+    print("Creating financial year targets...")
+    with get_db() as conn:
+        cursor = conn.cursor()
         for office_id, office_data in offices.items():
             target = office_data['target'] or 60
             perf_data = OFFICE_PERFORMANCE_DATA.get(office_id, {})
@@ -626,6 +677,7 @@ def generate_dummy_data():
                 target * 0.25, target * 0.25, target * 0.25, target * 0.25,
                 perf_data.get('training_target', 2), perf_data.get('lecture_target', 2)
             ))
+        conn.commit()
 
     print(f"\n{'='*50}")
     print(f"Enhanced dummy data generation complete!")
