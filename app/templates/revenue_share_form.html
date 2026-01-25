@@ -87,6 +87,66 @@
     </form>
 </div>
 
+<!-- Submit for Approval Sections -->
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Approval Workflows</h2>
+    </div>
+    <div style="padding: 20px;">
+        <!-- Team Constitution Approval -->
+        <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
+            <h4>Team Constitution</h4>
+            {% if assignment.team_approval_status == 'APPROVED' %}
+            <div style="background: #f0fff4; padding: 15px; border-radius: 8px; border-left: 4px solid #38a169;">
+                <strong style="color: #38a169;">Approved</strong>
+            </div>
+            {% elif assignment.team_approval_status == 'SUBMITTED' %}
+            <div style="background: #fefcbf; padding: 15px; border-radius: 8px; border-left: 4px solid #d69e2e;">
+                <strong style="color: #d69e2e;">Pending Approval</strong>
+            </div>
+            {% elif assignment.team_approval_status == 'REJECTED' %}
+            <div style="background: #fed7d7; padding: 15px; border-radius: 8px; border-left: 4px solid #e53e3e;">
+                <strong style="color: #e53e3e;">Rejected</strong>
+                {% if assignment.remarks %}<p><em>{{ assignment.remarks }}</em></p>{% endif %}
+                <form method="POST" action="/approvals/team/{{ assignment.id }}/submit" style="margin-top: 10px;">
+                    <button type="submit" class="btn btn-warning btn-sm">Resubmit</button>
+                </form>
+            </div>
+            {% else %}
+            <form method="POST" action="/approvals/team/{{ assignment.id }}/submit">
+                <button type="submit" class="btn btn-success">Submit Team for Approval</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Revenue Share Approval -->
+        <div>
+            <h4>Revenue Shares</h4>
+            {% if assignment.revenue_approval_status == 'APPROVED' %}
+            <div style="background: #f0fff4; padding: 15px; border-radius: 8px; border-left: 4px solid #38a169;">
+                <strong style="color: #38a169;">Approved</strong>
+            </div>
+            {% elif assignment.revenue_approval_status == 'SUBMITTED' %}
+            <div style="background: #fefcbf; padding: 15px; border-radius: 8px; border-left: 4px solid #d69e2e;">
+                <strong style="color: #d69e2e;">Pending Approval</strong>
+            </div>
+            {% elif assignment.revenue_approval_status == 'REJECTED' %}
+            <div style="background: #fed7d7; padding: 15px; border-radius: 8px; border-left: 4px solid #e53e3e;">
+                <strong style="color: #e53e3e;">Rejected</strong>
+                {% if assignment.remarks %}<p><em>{{ assignment.remarks }}</em></p>{% endif %}
+                <form method="POST" action="/approvals/revenue/{{ assignment.id }}/submit" style="margin-top: 10px;">
+                    <button type="submit" class="btn btn-warning btn-sm">Resubmit</button>
+                </form>
+            </div>
+            {% else %}
+            <form method="POST" action="/approvals/revenue/{{ assignment.id }}/submit">
+                <button type="submit" class="btn btn-success">Submit Revenue Shares for Approval</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}

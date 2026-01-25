@@ -523,6 +523,108 @@ def init_database():
         except:
             pass  # Column already exists
 
+        # ============================================================
+        # Assignment Workflow Approval Columns
+        # ============================================================
+
+        # Cost Estimation Approval
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_approval_status TEXT DEFAULT 'PENDING'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_approved_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_submitted_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_submitted_at TIMESTAMP")
+        except:
+            pass
+
+        # Team Constitution Approval
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN team_approval_status TEXT DEFAULT 'PENDING'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN team_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN team_approved_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN team_submitted_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN team_submitted_at TIMESTAMP")
+        except:
+            pass
+
+        # Milestone Planning Approval
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_approval_status TEXT DEFAULT 'PENDING'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_approved_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_submitted_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_submitted_at TIMESTAMP")
+        except:
+            pass
+
+        # Revenue Share Approval
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_approval_status TEXT DEFAULT 'PENDING'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_approved_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_submitted_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_submitted_at TIMESTAMP")
+        except:
+            pass
+
+        # Add Finance verification columns to invoice_requests
+        try:
+            cursor.execute("ALTER TABLE invoice_requests ADD COLUMN finance_verified_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE invoice_requests ADD COLUMN finance_verified_at TIMESTAMP")
+        except:
+            pass
+
         # Create officer_roles table for multiple roles per officer
         # No UNIQUE constraint - allows tracking history of same role assignments
         cursor.execute("""
@@ -1162,6 +1264,94 @@ def init_database():
                 FOREIGN KEY (programme_id) REFERENCES training_programmes(id)
             )
         """)
+
+        # ============================================================
+        # Training Programme Approval Workflow Columns
+        # ============================================================
+
+        # Coordinator assignment (similar to TL for assignments)
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN coordinator_id TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN approval_status TEXT DEFAULT 'DRAFT'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN approved_at TIMESTAMP")
+        except:
+            pass
+
+        # Budget/Cost Approval
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_approval_status TEXT DEFAULT 'PENDING'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_submitted_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_submitted_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_approved_at TIMESTAMP")
+        except:
+            pass
+
+        # Trainer Allocation Approval
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_approval_status TEXT DEFAULT 'PENDING'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_submitted_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_submitted_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_approved_at TIMESTAMP")
+        except:
+            pass
+
+        # Revenue Share Approval
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_approval_status TEXT DEFAULT 'PENDING'")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_submitted_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_submitted_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_approved_at TIMESTAMP")
+        except:
+            pass
 
         # ============================================================
         # PHASE-1 UPGRADE: Cost Estimate Versioning

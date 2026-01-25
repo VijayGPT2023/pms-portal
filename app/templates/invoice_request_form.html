@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice Request - {{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Invoice Request</h1>
+    <div>
+        <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
+    </div>
+</div>
+
+<!-- Assignment Info -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Assignment: {{ assignment.assignment_no }}</h2>
+    </div>
+    <div style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <div>
+                <strong>Title:</strong><br>{{ assignment.title }}
+            </div>
+            <div>
+                <strong>Client:</strong><br>{{ assignment.client or '-' }}
+            </div>
+            <div>
+                <strong>Total Value:</strong><br>{{ "%.2f"|format(assignment.total_value or assignment.gross_value or 0) }}L
+            </div>
+            <div>
+                <strong>Invoiced So Far:</strong><br>{{ "%.2f"|format(total_invoiced or 0) }}L
+            </div>
+            <div>
+                <strong>Remaining:</strong><br>{{ "%.2f"|format(remaining_value or 0) }}L
+            </div>
+            <div>
+                <strong>Team Leader:</strong><br>{{ assignment.tl_name or '-' }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Invoice Request Form -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Submit Invoice Request</h2>
+    </div>
+    <form method="POST" action="/finance/invoice-request/{{ assignment.id }}" style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <div class="form-group">
+                <label>Invoice Type <span style="color: red;">*</span></label>
+                <select name="invoice_type" class="form-control" required>
+                    <option value="ADVANCE">Advance (before work starts)</option>
+                    <option value="SUBSEQUENT" selected>Subsequent (milestone-based)</option>
+                    <option value="FINAL">Final (project completion)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Invoice Amount (in Lakhs) <span style="color: red;">*</span></label>
+                <input type="number" name="invoice_amount" class="form-control" step="0.01"
+                       max="{{ remaining_value }}" required placeholder="e.g., 10.50">
+                <small class="text-muted">Max: {{ "%.2f"|format(remaining_value or 0) }}L remaining</small>
+            </div>
+
+            <div class="form-group">
+                <label>Financial Year <span style="color: red;">*</span></label>
+                <input type="text" name="fy_period" class="form-control" value="{{ current_fy }}"
+                       required placeholder="e.g., 2024-25">
+            </div>
+
+            <div class="form-group">
+                <label>Link to Milestone (optional)</label>
+                <select name="milestone_id" class="form-control">
+                    <option value="">-- No specific milestone --</option>
+                    {% for m in milestones %}
+                    <option value="{{ m.id }}" {% if selected_milestone_id == m.id %}selected{% endif %}>
+                        {{ m.milestone_no }}. {{ m.title }} ({{ m.revenue_percent or 0 }}%)
+                        {% if m.invoice_raised %}- Already Invoiced{% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 15px;">
+            <label>Description / Remarks</label>
+            <textarea name="description" class="form-control" rows="3"
+                      placeholder="Invoice description or remarks..."></textarea>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button type="submit" class="btn btn-primary">Submit Invoice Request</button>
+            <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<!-- Existing Invoice Requests -->
+{% if existing_requests %}
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Previous Invoice Requests</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Request #</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>Milestone</th>
+                    <th>FY</th>
+                    <th>Status</th>
+                    <th>80% Revenue</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for req in existing_requests %}
+                <tr>
+                    <td>{{ req.request_number }}</td>
+                    <td>{{ req.invoice_type }}</td>
+                    <td>{{ "%.2f"|format(req.invoice_amount or 0) }}L</td>
+                    <td>{{ req.milestone_title or '-' }}</td>
+                    <td>{{ req.fy_period }}</td>
+                    <td>
+                        <span class="badge {% if req.status == 'APPROVED' %}badge-success{% elif req.status == 'REJECTED' %}badge-danger{% else %}badge-warning{% endif %}">
+                            {{ req.status }}
+                        </span>
+                    </td>
+                    <td>{{ "%.2f"|format(req.revenue_recognized_80 or 0) }}L</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Info Box -->
+<div class="card" style="margin-top: 20px; background: #f0fff4; border-left: 4px solid #38a169;">
+    <div style="padding: 20px;">
+        <h4 style="color: #38a169; margin-top: 0;">80-20 Revenue Recognition Model</h4>
+        <ul style="margin: 0; padding-left: 20px;">
+            <li><strong>80%</strong> of revenue is recognized when Finance approves the invoice request</li>
+            <li><strong>20%</strong> of revenue is recognized when payment is received</li>
+            <li>Revenue is automatically distributed to team members based on their share percentages</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

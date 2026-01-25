@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Finance Dashboard - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Finance Dashboard</h1>
+    <div>
+        <a href="/approvals" class="btn btn-secondary">Approvals</a>
+        <a href="/dashboard" class="btn btn-secondary">Dashboard</a>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #e53e3e; margin: 0;">{{ stats.pending_count }}</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Pending Invoices</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #38a169; margin: 0;">{{ stats.approved_count }}</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Approved Invoices</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #dd6b20; margin: 0;">{{ "%.2f"|format(stats.pending_value or 0) }}L</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Pending Value</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 20px;">
+        <h3 style="color: #3182ce; margin: 0;">{{ "%.2f"|format(stats.approved_value or 0) }}L</h3>
+        <p style="margin: 5px 0 0; color: #718096;">Approved Value</p>
+    </div>
+</div>
+
+<!-- Pending Invoice Requests -->
+{% if pending_invoices %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Invoice Requests</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Request #</th>
+                    <th>Assignment</th>
+                    <th>Type</th>
+                    <th>Amount</th>
+                    <th>FY Period</th>
+                    <th>Milestone</th>
+                    <th>Requested By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_invoices %}
+                <tr>
+                    <td>{{ item.request_number }}</td>
+                    <td><a href="/assignment/view/{{ item.assignment_id }}">{{ item.assignment_no }}</a></td>
+                    <td>
+                        <span class="badge {% if item.invoice_type == 'ADVANCE' %}badge-warning{% else %}badge-info{% endif %}">
+                            {{ item.invoice_type }}
+                        </span>
+                    </td>
+                    <td>{{ "%.2f"|format(item.invoice_amount or 0) }}L</td>
+                    <td>{{ item.fy_period }}</td>
+                    <td>{{ item.milestone_title or '-' }}</td>
+                    <td>{{ item.requested_by_name }}</td>
+                    <td>
+                        <form method="POST" action="/finance/invoice/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal({{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 30px;">
+    <p class="text-muted">No pending invoice requests.</p>
+</div>
+{% endif %}
+
+<!-- Recently Approved Invoices -->
+{% if approved_invoices %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Recently Approved Invoices</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Request #</th>
+                    <th>Assignment</th>
+                    <th>Amount</th>
+                    <th>80% Revenue</th>
+                    <th>FY Period</th>
+                    <th>Approved By</th>
+                    <th>Approved At</th>
+                    <th>Payment</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in approved_invoices %}
+                <tr>
+                    <td>{{ item.request_number }}</td>
+                    <td><a href="/assignment/view/{{ item.assignment_id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ "%.2f"|format(item.invoice_amount or 0) }}L</td>
+                    <td>{{ "%.2f"|format(item.revenue_recognized_80 or 0) }}L</td>
+                    <td>{{ item.fy_period }}</td>
+                    <td>{{ item.approved_by_name or '-' }}</td>
+                    <td>{{ item.approved_at|format_date }}</td>
+                    <td>
+                        <a href="/finance/payment/{{ item.id }}" class="btn btn-sm btn-primary">Record Payment</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Reject Modal -->
+<div id="rejectModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                              background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background: white; max-width: 500px; margin: 100px auto; padding: 30px; border-radius: 8px;">
+        <h3>Reject Invoice Request</h3>
+        <form id="rejectForm" method="POST">
+            <div class="form-group">
+                <label>Rejection Reason</label>
+                <textarea name="rejection_remarks" class="form-control" rows="3" required
+                          placeholder="Please provide a reason for rejection"></textarea>
+            </div>
+            <div style="display: flex; gap: 15px; margin-top: 20px;">
+                <button type="submit" class="btn btn-danger">Confirm Reject</button>
+                <button type="button" class="btn btn-secondary" onclick="hideRejectModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showRejectModal(id) {
+    document.getElementById('rejectForm').action = '/finance/invoice/' + id + '/reject';
+    document.getElementById('rejectModal').style.display = 'block';
+}
+
+function hideRejectModal() {
+    document.getElementById('rejectModal').style.display = 'none';
+}
+</script>
+{% endblock %}

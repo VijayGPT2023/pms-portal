@@ -1,51 +1,138 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard - PMS Portal{% endblock %}
+{% block title %}Dashboard - NPC PMS Portal{% endblock %}
 
 {% block content %}
+<!-- Page Header -->
 <div class="page-header">
-    <h1>Assignment Dashboard</h1>
     <div>
-        <a href="/assignment/new" class="btn btn-success">+ New Assignment</a>
-        <a href="/mis" class="btn btn-primary">MIS Dashboard</a>
+        <h1>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px;">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            Assignment Dashboard
+        </h1>
+        <p class="text-muted" style="margin-top: 4px; font-size: 0.9375rem;">
+            Manage assignments, track progress, and monitor revenue
+        </p>
+    </div>
+    <div class="actions" style="display: flex; gap: 12px; flex-wrap: wrap;">
+        <a href="/assignment/new" class="btn btn-success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Assignment
+        </a>
+        <a href="/mis" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            Analytics
+        </a>
         {% if user.role in ['RD_HEAD', 'GROUP_HEAD', 'DG', 'DDG-I', 'DDG-II', 'ADMIN'] %}
-        <a href="/approvals" class="btn btn-warning">Pending Approvals</a>
+        <a href="/approvals" class="btn btn-warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 11l3 3L22 4"></path>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+            </svg>
+            Approvals
+        </a>
         {% endif %}
-        {% if user.is_admin %}
-        <a href="/data/export" class="btn btn-info">Export/Import</a>
-        <a href="/data/admin/config" class="btn btn-secondary">Config</a>
-        <a href="/admin/users" class="btn btn-dark">User Management</a>
-        <a href="/admin/roles" class="btn btn-warning">Role Management</a>
-        <a href="/admin/activity-log" class="btn btn-outline-dark">Activity Log</a>
-        {% endif %}
-        <span class="text-muted" style="margin-left: 15px;">
-            {{ user.name }} | {{ user.role_display or user.role }} | {{ user.office_id }}
-        </span>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="stats-grid" style="margin-bottom: 24px;">
+    <div class="stat-card highlight-blue card-hover">
+        <div class="stat-value">{{ assignments|length }}</div>
+        <div class="stat-label">Total Assignments</div>
+    </div>
+    <div class="stat-card highlight-green card-hover">
+        <div class="stat-value">{{ assignments|selectattr('status', 'equalto', 'Completed')|list|length }}</div>
+        <div class="stat-label">Completed</div>
+    </div>
+    <div class="stat-card highlight-orange card-hover">
+        <div class="stat-value">{{ assignments|selectattr('status', 'equalto', 'Ongoing')|list|length }}</div>
+        <div class="stat-label">Ongoing</div>
+    </div>
+    <div class="stat-card highlight-purple card-hover">
+        <div class="stat-value">{{ "%.1f"|format(assignments|sum(attribute='gross_value') or 0) }}L</div>
+        <div class="stat-label">Total Value</div>
     </div>
 </div>
 
 <!-- 4-Stage Workflow Navigation -->
-<div class="card mt-3 mb-3">
-    <div class="card-body py-2">
-        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <span class="fw-bold me-3">4-Stage Workflow:</span>
-            <div class="btn-group" role="group">
-                <a href="/enquiry/" class="btn btn-outline-primary btn-sm">1. Enquiries</a>
-                <a href="/proposal-request/" class="btn btn-outline-info btn-sm">2. Proposal Requests</a>
-                <a href="/proposal/" class="btn btn-outline-warning btn-sm">3. Proposals</a>
-                <a href="/dashboard" class="btn btn-outline-success btn-sm">4. Work Orders</a>
-            </div>
-            <a href="/enquiry/new" class="btn btn-success btn-sm">+ New Enquiry</a>
-            <a href="/enquiry/metrics/pre-revenue" class="btn btn-outline-secondary btn-sm">Pre-Revenue Metrics</a>
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-weight: 600; color: var(--gray-700);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                4-Stage Workflow
+            </span>
+        </div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="/enquiry/" class="btn btn-sm" style="background: var(--primary-50); color: var(--primary-700); border: 1px solid var(--primary-200);">
+                1. Enquiries
+            </a>
+            <a href="/proposal-request/" class="btn btn-sm" style="background: var(--info-bg); color: var(--info); border: 1px solid #bae6fd;">
+                2. Proposal Requests
+            </a>
+            <a href="/proposal/" class="btn btn-sm" style="background: var(--warning-bg); color: var(--warning); border: 1px solid #fde68a;">
+                3. Proposals
+            </a>
+            <a href="/dashboard" class="btn btn-sm" style="background: var(--success-bg); color: var(--success); border: 1px solid #a7f3d0;">
+                4. Work Orders
+            </a>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <a href="/enquiry/new" class="btn btn-sm btn-success">+ New Enquiry</a>
+            <a href="/enquiry/metrics/pre-revenue" class="btn btn-sm btn-secondary">Pre-Revenue Metrics</a>
         </div>
     </div>
 </div>
 
+<!-- Admin Actions -->
+{% if user.is_admin %}
+<div class="card" style="margin-bottom: 24px; background: linear-gradient(135deg, var(--gray-50), white);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+        <span style="font-weight: 600; color: var(--gray-700);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 6px;">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            Admin Tools
+        </span>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <a href="/data/export" class="btn btn-sm" style="background: var(--accent-teal-light); color: var(--accent-teal);">Export/Import</a>
+            <a href="/data/admin/config" class="btn btn-sm btn-secondary">Config</a>
+            <a href="/admin/users" class="btn btn-sm" style="background: var(--gray-800); color: white;">User Management</a>
+            <a href="/admin/roles" class="btn btn-sm" style="background: var(--accent-yellow-light); color: var(--warning);">Role Management</a>
+            <a href="/admin/activity-log" class="btn btn-sm btn-secondary">Activity Log</a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Filters -->
 <div class="filters">
-    <form method="GET" action="/dashboard" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: end;">
+    <form method="GET" action="/dashboard" style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; width: 100%;">
         <div class="filter-group">
-            <label>Office</label>
+            <label>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                Office
+            </label>
             <select name="filter_office">
                 <option value="">All Offices</option>
                 {% for office in offices %}
@@ -57,7 +144,12 @@
         </div>
 
         <div class="filter-group">
-            <label>Type</label>
+            <label>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Type
+            </label>
             <select name="filter_type">
                 <option value="">All Types</option>
                 <option value="ASSIGNMENT" {% if filter_type == 'ASSIGNMENT' %}selected{% endif %}>Assignment</option>
@@ -66,7 +158,13 @@
         </div>
 
         <div class="filter-group">
-            <label>Status</label>
+            <label>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                Status
+            </label>
             <select name="filter_status">
                 <option value="">All Statuses</option>
                 {% for status in statuses %}
@@ -75,22 +173,38 @@
             </select>
         </div>
 
-        <div class="filter-group">
-            <label>
-                <input type="checkbox" name="show_all" value="true" {% if show_all %}checked{% endif %}>
-                Show All Offices
-            </label>
+        <div class="filter-group" style="display: flex; align-items: center; gap: 8px; padding-top: 24px;">
+            <input type="checkbox" id="show_all" name="show_all" value="true" {% if show_all %}checked{% endif %}
+                   style="width: 18px; height: 18px; cursor: pointer;">
+            <label for="show_all" style="margin: 0; cursor: pointer;">Show All Offices</label>
         </div>
 
-        <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
-        <a href="/dashboard" class="btn btn-secondary btn-sm">Reset</a>
+        <div style="display: flex; gap: 8px; margin-left: auto;">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+                Apply
+            </button>
+            <a href="/dashboard" class="btn btn-secondary btn-sm">Reset</a>
+        </div>
     </form>
 </div>
 
 <!-- Assignment List -->
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">Assignments ({{ assignments|length }})</h2>
+        <h2 class="card-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            Assignments
+            <span class="badge badge-secondary" style="font-size: 0.8125rem; margin-left: 8px;">{{ assignments|length }}</span>
+        </h2>
     </div>
 
     <div class="table-container">
@@ -101,10 +215,10 @@
                     <th>Type</th>
                     <th>Title</th>
                     <th>Office</th>
-                    <th>Gross Value (₹L)</th>
-                    <th>Received (₹L)</th>
+                    <th style="text-align: right;">Value (L)</th>
+                    <th style="text-align: right;">Received (L)</th>
                     <th>Status</th>
-                    <th>Details Status</th>
+                    <th>Details</th>
                     <th>Revenue Share</th>
                     <th>Actions</th>
                 </tr>
@@ -113,21 +227,29 @@
                 {% for a in assignments %}
                 <tr>
                     <td>
-                        <a href="/assignment/view/{{ a.id }}">{{ a.assignment_no }}</a>
+                        <a href="/assignment/view/{{ a.id }}" style="font-weight: 500;">{{ a.assignment_no }}</a>
                     </td>
                     <td>
                         {% if a.type %}
-                            <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% else %}badge-warning{% endif %}">
+                            <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% elif a.type == 'NON_REVENUE' %}badge-purple{% else %}badge-warning{% endif %}">
                                 {{ a.type }}
                             </span>
                         {% else %}
-                            <span class="badge badge-secondary">Not Set</span>
+                            <span class="badge badge-secondary">-</span>
                         {% endif %}
                     </td>
-                    <td>{{ a.title[:50] }}{% if a.title|length > 50 %}...{% endif %}</td>
-                    <td>{{ a.office_id }}</td>
-                    <td class="text-right">{{ "%.2f"|format(a.gross_value or 0) }}</td>
-                    <td class="text-right">{{ "%.2f"|format(a.amount_received or 0) }}</td>
+                    <td>
+                        <span title="{{ a.title }}">{{ a.title[:45] }}{% if a.title|length > 45 %}...{% endif %}</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-secondary" style="font-weight: 500;">{{ a.office_id }}</span>
+                    </td>
+                    <td style="text-align: right; font-weight: 500; font-family: 'SF Mono', monospace;">
+                        {{ "%.2f"|format(a.gross_value or 0) }}
+                    </td>
+                    <td style="text-align: right; font-family: 'SF Mono', monospace; color: var(--success);">
+                        {{ "%.2f"|format(a.amount_received or 0) }}
+                    </td>
                     <td>
                         <span class="badge
                             {% if a.status == 'Completed' %}badge-success
@@ -139,34 +261,66 @@
                     </td>
                     <td>
                         {% if a.details_filled %}
-                            <span class="status-filled">Details filled</span>
-                            <a href="/assignment/edit/{{ a.id }}" class="btn btn-sm btn-secondary">Update</a>
+                            <span style="color: var(--success); font-size: 0.8125rem;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle;">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                                Filled
+                            </span>
                         {% else %}
                             <a href="{% if a.type %}/assignment/edit/{{ a.id }}{% else %}/assignment/select-type/{{ a.id }}{% endif %}"
-                               class="btn btn-sm btn-primary">Fill Details</a>
+                               class="btn btn-sm btn-primary" style="font-size: 0.75rem;">Fill</a>
                         {% endif %}
                     </td>
                     <td>
                         {% if a.share_count > 0 %}
-                            <span class="status-filled">{{ a.share_count }} shares</span>
-                            <a href="/revenue/edit/{{ a.id }}" class="btn btn-sm btn-secondary">Update</a>
+                            <span style="color: var(--success); font-size: 0.8125rem;">
+                                {{ a.share_count }} shares
+                            </span>
                         {% else %}
-                            <a href="/revenue/edit/{{ a.id }}" class="btn btn-sm btn-warning">Fill Share</a>
+                            <a href="/revenue/edit/{{ a.id }}" class="btn btn-sm btn-warning" style="font-size: 0.75rem;">Add</a>
                         {% endif %}
                     </td>
                     <td>
-                        <a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-secondary">View</a>
+                        <a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-secondary">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                        </a>
                     </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="10" class="text-center text-muted" style="padding: 40px;">
-                        No assignments found. Try adjusting your filters.
+                    <td colspan="10">
+                        <div class="empty-state" style="padding: 48px 20px;">
+                            <div class="icon" style="background: var(--gray-100); width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                            </div>
+                            <h3 style="color: var(--gray-700); margin-bottom: 8px;">No assignments found</h3>
+                            <p style="color: var(--gray-500); margin-bottom: 20px;">Try adjusting your filters or create a new assignment</p>
+                            <a href="/assignment/new" class="btn btn-primary">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                New Assignment
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+</div>
+
+<!-- User Info Footer -->
+<div style="text-align: center; padding: 20px; color: var(--gray-500); font-size: 0.875rem;">
+    Logged in as <strong>{{ user.name }}</strong> | {{ user.role_display or user.role }} | {{ user.office_id }}
 </div>
 {% endblock %}

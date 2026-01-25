@@ -1,120 +1,209 @@
 {% extends "base.html" %}
 
-{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Training - PMS Portal{% endblock %}
+{% block title %}{% if is_new %}New{% else %}Edit{% endif %} Training Programme - PMS Portal{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>{% if is_edit %}Edit{% else %}New{% endif %} Training Details</h1>
-    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    <h1>{% if is_new %}Create New{% else %}Edit{% endif %} Training Programme</h1>
+    <a href="/training" class="btn btn-secondary">Back to Training List</a>
 </div>
 
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">
             <span class="badge badge-warning">TRAINING</span>
-            {{ assignment.assignment_no }}
+            {% if programme %}{{ programme.programme_number }}{% else %}New Programme{% endif %}
         </h2>
     </div>
 
-    <form method="POST" action="/assignment/edit/{{ assignment.id }}">
+    <form method="POST" action="{% if is_new %}/training/create{% else %}/training/edit/{{ programme.id }}{% endif %}">
+        <!-- Basic Information -->
+        <h3 style="margin: 0 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Basic Information
+        </h3>
+
         <div class="form-row">
-            <div class="form-group">
-                <label for="title">Training Title *</label>
+            <div class="form-group" style="flex: 2;">
+                <label for="title">Programme Title *</label>
                 <input type="text" id="title" name="title" class="form-control"
-                       value="{{ assignment.title or '' }}" required>
+                       value="{{ programme.title if programme else '' }}" required
+                       placeholder="Enter training programme title">
             </div>
 
             <div class="form-group">
-                <label for="status">Current Status *</label>
-                <select id="status" name="status" class="form-control" required>
-                    {% for status in status_options %}
-                    <option value="{{ status }}" {% if assignment.status == status %}selected{% endif %}>
-                        {{ status }}
+                <label for="office_id">Office *</label>
+                <select id="office_id" name="office_id" class="form-control" required>
+                    <option value="">Select Office</option>
+                    {% for office in offices %}
+                    <option value="{{ office.office_id }}"
+                            {% if programme and programme.office_id == office.office_id %}selected{% endif %}>
+                        {{ office.office_id }} - {{ office.office_name }}
                     </option>
                     {% endfor %}
                 </select>
             </div>
         </div>
 
-        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
-            Training Details
-        </h3>
-
         <div class="form-row">
             <div class="form-group">
-                <label for="venue">Venue</label>
-                <input type="text" id="venue" name="venue" class="form-control"
-                       value="{{ assignment.venue or '' }}" placeholder="Training venue / location">
+                <label for="topic_domain">Topic / Domain</label>
+                <input type="text" id="topic_domain" name="topic_domain" class="form-control"
+                       value="{{ programme.topic_domain if programme else '' }}"
+                       placeholder="e.g., Project Management, Finance, IT">
             </div>
 
             <div class="form-group">
-                <label for="type_of_participants">Type of Participants</label>
-                <input type="text" id="type_of_participants" name="type_of_participants" class="form-control"
-                       value="{{ assignment.type_of_participants or '' }}"
-                       placeholder="e.g., Senior Officers, Executives">
+                <label for="mode">Mode *</label>
+                <select id="mode" name="mode" class="form-control" required>
+                    <option value="IN_PERSON" {% if not programme or programme.mode == 'IN_PERSON' %}selected{% endif %}>In-Person</option>
+                    <option value="ONLINE" {% if programme and programme.mode == 'ONLINE' %}selected{% endif %}>Online</option>
+                    <option value="HYBRID" {% if programme and programme.mode == 'HYBRID' %}selected{% endif %}>Hybrid</option>
+                </select>
             </div>
         </div>
 
+        <div class="form-group">
+            <label for="description">Description</label>
+            <textarea id="description" name="description" class="form-control" rows="3"
+                      placeholder="Brief description of the training programme">{{ programme.description if programme else '' }}</textarea>
+        </div>
+
+        <!-- Venue & Location -->
         <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
-            Duration
+            Venue & Location
         </h3>
 
         <div class="form-row">
             <div class="form-group">
-                <label for="duration_start">Start Date</label>
-                <input type="date" id="duration_start" name="duration_start" class="form-control"
-                       value="{{ assignment.duration_start or '' }}">
+                <label for="location">Location / City</label>
+                <input type="text" id="location" name="location" class="form-control"
+                       value="{{ programme.location if programme else '' }}"
+                       placeholder="e.g., New Delhi, Mumbai">
+            </div>
+
+            <div class="form-group" style="flex: 2;">
+                <label for="venue_details">Venue Details</label>
+                <input type="text" id="venue_details" name="venue_details" class="form-control"
+                       value="{{ programme.venue_details if programme else '' }}"
+                       placeholder="e.g., Conference Hall, Hotel Name">
+            </div>
+        </div>
+
+        <!-- Schedule -->
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Schedule
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="training_start_date">Training Start Date</label>
+                <input type="date" id="training_start_date" name="training_start_date" class="form-control"
+                       value="{{ programme.training_start_date if programme else '' }}">
             </div>
 
             <div class="form-group">
-                <label for="duration_end">End Date</label>
-                <input type="date" id="duration_end" name="duration_end" class="form-control"
-                       value="{{ assignment.duration_end or '' }}">
+                <label for="training_end_date">Training End Date</label>
+                <input type="date" id="training_end_date" name="training_end_date" class="form-control"
+                       value="{{ programme.training_end_date if programme else '' }}">
             </div>
 
             <div class="form-group">
-                <label for="duration_days">Number of Days</label>
+                <label for="duration_days">Duration (Days)</label>
                 <input type="number" id="duration_days" name="duration_days" class="form-control"
-                       value="{{ assignment.duration_days or '' }}" min="1" placeholder="e.g., 5">
+                       value="{{ programme.duration_days if programme else 1 }}" min="1">
             </div>
         </div>
 
+        <div class="form-row">
+            <div class="form-group">
+                <label for="application_start_date">Application Start Date</label>
+                <input type="date" id="application_start_date" name="application_start_date" class="form-control"
+                       value="{{ programme.application_start_date if programme else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="application_end_date">Application End Date</label>
+                <input type="date" id="application_end_date" name="application_end_date" class="form-control"
+                       value="{{ programme.application_end_date if programme else '' }}">
+            </div>
+
+            {% if not is_new %}
+            <div class="form-group">
+                <label for="stage">Stage</label>
+                <select id="stage" name="stage" class="form-control">
+                    <option value="ANNOUNCED" {% if programme and programme.stage == 'ANNOUNCED' %}selected{% endif %}>Announced</option>
+                    <option value="REGISTRATION_OPEN" {% if programme and programme.stage == 'REGISTRATION_OPEN' %}selected{% endif %}>Registration Open</option>
+                    <option value="REGISTRATION_CLOSED" {% if programme and programme.stage == 'REGISTRATION_CLOSED' %}selected{% endif %}>Registration Closed</option>
+                    <option value="CONDUCTED" {% if programme and programme.stage == 'CONDUCTED' %}selected{% endif %}>Conducted</option>
+                    <option value="CLOSED" {% if programme and programme.stage == 'CLOSED' %}selected{% endif %}>Closed</option>
+                </select>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Budget & Financials -->
         <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
-            Faculty
+            Budget & Financials
         </h3>
 
         <div class="form-row">
             <div class="form-group">
-                <label for="faculty1_officer_id">Faculty 1 (Primary)</label>
-                <select id="faculty1_officer_id" name="faculty1_officer_id" class="form-control">
-                    <option value="">Select Faculty</option>
-                    {% for officer in officers %}
-                    <option value="{{ officer.officer_id }}"
-                            {% if assignment.faculty1_officer_id == officer.officer_id %}selected{% endif %}>
-                        {{ officer.name }} ({{ officer.office_id }})
-                    </option>
-                    {% endfor %}
-                </select>
+                <label for="budgeted_participants">Budgeted Participants</label>
+                <input type="number" id="budgeted_participants" name="budgeted_participants" class="form-control"
+                       value="{{ programme.budgeted_participants if programme else 0 }}" min="0"
+                       oninput="calculateBudgetedRevenue()">
             </div>
 
             <div class="form-group">
-                <label for="faculty2_officer_id">Faculty 2 (Optional)</label>
-                <select id="faculty2_officer_id" name="faculty2_officer_id" class="form-control">
-                    <option value="">Select Faculty</option>
-                    {% for officer in officers %}
-                    <option value="{{ officer.officer_id }}"
-                            {% if assignment.faculty2_officer_id == officer.officer_id %}selected{% endif %}>
-                        {{ officer.name }} ({{ officer.office_id }})
-                    </option>
-                    {% endfor %}
-                </select>
+                <label for="fee_per_participant">Fee per Participant (Lakhs)</label>
+                <input type="number" id="fee_per_participant" name="fee_per_participant" class="form-control"
+                       value="{{ programme.fee_per_participant if programme else 0 }}" step="0.01" min="0"
+                       oninput="calculateBudgetedRevenue()">
             </div>
+
+            <div class="form-group">
+                <label>Budgeted Revenue (Lakhs)</label>
+                <div class="form-control" style="background: #f7fafc;" id="budgeted_revenue_display">
+                    {{ "%.2f"|format(programme.budgeted_revenue or 0) if programme else '0.00' }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Remarks -->
+        <div class="form-group">
+            <label for="remarks">Remarks</label>
+            <textarea id="remarks" name="remarks" class="form-control" rows="2"
+                      placeholder="Any additional remarks">{{ programme.remarks if programme else '' }}</textarea>
         </div>
 
         <div style="margin-top: 30px; display: flex; gap: 15px;">
-            <button type="submit" class="btn btn-primary btn-lg">Save Details</button>
-            <a href="/dashboard" class="btn btn-secondary btn-lg">Cancel</a>
+            <button type="submit" class="btn btn-primary btn-lg">
+                {% if is_new %}Create Programme{% else %}Save Changes{% endif %}
+            </button>
+            <a href="/training" class="btn btn-secondary btn-lg">Cancel</a>
         </div>
     </form>
 </div>
+
+<script>
+function calculateBudgetedRevenue() {
+    const participants = parseFloat(document.getElementById('budgeted_participants').value) || 0;
+    const feePerParticipant = parseFloat(document.getElementById('fee_per_participant').value) || 0;
+    const total = participants * feePerParticipant;
+    document.getElementById('budgeted_revenue_display').textContent = total.toFixed(2);
+}
+</script>
+
+<style>
+.form-row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+.form-row .form-group {
+    flex: 1;
+    min-width: 200px;
+}
+</style>
 {% endblock %}

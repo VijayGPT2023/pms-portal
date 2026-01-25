@@ -89,11 +89,45 @@
             </table>
         </div>
 
-        <div style="margin-top: 30px; display: flex; gap: 15px;">
+        <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
             <button type="submit" class="btn btn-primary btn-lg">Save Expenditure</button>
             <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary btn-lg">Cancel</a>
         </div>
     </form>
+</div>
+
+<!-- Submit for Approval Section -->
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Approval Workflow</h2>
+    </div>
+    <div style="padding: 20px;">
+        {% if assignment.cost_approval_status == 'APPROVED' %}
+        <div style="background: #f0fff4; padding: 15px; border-radius: 8px; border-left: 4px solid #38a169;">
+            <strong style="color: #38a169;">Approved</strong>
+            <p style="margin: 5px 0 0;">Cost estimation has been approved by Head.</p>
+        </div>
+        {% elif assignment.cost_approval_status == 'SUBMITTED' %}
+        <div style="background: #fefcbf; padding: 15px; border-radius: 8px; border-left: 4px solid #d69e2e;">
+            <strong style="color: #d69e2e;">Pending Approval</strong>
+            <p style="margin: 5px 0 0;">Cost estimation is awaiting Head approval.</p>
+        </div>
+        {% elif assignment.cost_approval_status == 'REJECTED' %}
+        <div style="background: #fed7d7; padding: 15px; border-radius: 8px; border-left: 4px solid #e53e3e;">
+            <strong style="color: #e53e3e;">Rejected</strong>
+            <p style="margin: 5px 0 0;">Please review the remarks and resubmit.</p>
+            {% if assignment.remarks %}<p><em>Remarks: {{ assignment.remarks }}</em></p>{% endif %}
+            <form method="POST" action="/approvals/cost/{{ assignment.id }}/submit" style="margin-top: 10px;">
+                <button type="submit" class="btn btn-warning">Resubmit for Approval</button>
+            </form>
+        </div>
+        {% else %}
+        <p>After saving the cost estimation, submit it for Head approval.</p>
+        <form method="POST" action="/approvals/cost/{{ assignment.id }}/submit">
+            <button type="submit" class="btn btn-success btn-lg">Submit for Head Approval</button>
+        </form>
+        {% endif %}
+    </div>
 </div>
 
 <style>

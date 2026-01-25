@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block title %}Record Payment - {{ invoice.request_number }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Record Payment</h1>
+    <div>
+        <a href="/finance" class="btn btn-secondary">Back to Finance</a>
+    </div>
+</div>
+
+<!-- Invoice Info -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Invoice: {{ invoice.request_number }}</h2>
+    </div>
+    <div style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <div>
+                <strong>Assignment:</strong><br>
+                <a href="/assignment/view/{{ invoice.assignment_id }}">{{ invoice.assignment_no }}</a>
+            </div>
+            <div>
+                <strong>Title:</strong><br>{{ invoice.title }}
+            </div>
+            <div>
+                <strong>Invoice Amount:</strong><br>{{ "%.2f"|format(invoice.invoice_amount or 0) }}L
+            </div>
+            <div>
+                <strong>80% Recognized:</strong><br>{{ "%.2f"|format(invoice.revenue_recognized_80 or 0) }}L
+            </div>
+            <div>
+                <strong>Total Paid:</strong><br>{{ "%.2f"|format(total_paid or 0) }}L
+            </div>
+            <div>
+                <strong>Remaining:</strong><br>{{ "%.2f"|format(remaining or 0) }}L
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Form -->
+{% if remaining > 0 %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Record Payment Receipt</h2>
+    </div>
+    <form method="POST" action="/finance/payment/{{ invoice.id }}" style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <div class="form-group">
+                <label>Amount Received (in Lakhs) <span style="color: red;">*</span></label>
+                <input type="number" name="amount_received" class="form-control" step="0.01"
+                       max="{{ remaining }}" required placeholder="e.g., 5.00">
+                <small class="text-muted">Max: {{ "%.2f"|format(remaining or 0) }}L remaining</small>
+            </div>
+
+            <div class="form-group">
+                <label>Receipt Date <span style="color: red;">*</span></label>
+                <input type="date" name="receipt_date" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label>Payment Mode <span style="color: red;">*</span></label>
+                <select name="payment_mode" class="form-control" required>
+                    <option value="">Select Mode</option>
+                    <option value="NEFT">NEFT</option>
+                    <option value="RTGS">RTGS</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="DD">Demand Draft</option>
+                    <option value="CASH">Cash</option>
+                    <option value="UPI">UPI</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Reference Number (UTR/Cheque No.)</label>
+                <input type="text" name="reference_number" class="form-control"
+                       placeholder="e.g., UTR123456789">
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 15px;">
+            <label>Remarks</label>
+            <textarea name="remarks" class="form-control" rows="2"
+                      placeholder="Any additional remarks..."></textarea>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <button type="submit" class="btn btn-primary">Record Payment</button>
+            <a href="/finance" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 30px; background: #f0fff4;">
+    <h3 style="color: #38a169;">Payment Complete</h3>
+    <p>Full payment has been received for this invoice.</p>
+</div>
+{% endif %}
+
+<!-- Payment History -->
+{% if payments %}
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Payment History</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Receipt #</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Mode</th>
+                    <th>Reference</th>
+                    <th>20% Revenue</th>
+                    <th>FY</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in payments %}
+                <tr>
+                    <td>{{ p.receipt_number }}</td>
+                    <td>{{ "%.2f"|format(p.amount_received or 0) }}L</td>
+                    <td>{{ p.receipt_date }}</td>
+                    <td>{{ p.payment_mode }}</td>
+                    <td>{{ p.reference_number or '-' }}</td>
+                    <td>{{ "%.2f"|format(p.revenue_recognized_20 or 0) }}L</td>
+                    <td>{{ p.fy_period }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Info Box -->
+<div class="card" style="margin-top: 20px; background: #ebf8ff; border-left: 4px solid #3182ce;">
+    <div style="padding: 20px;">
+        <h4 style="color: #3182ce; margin-top: 0;">20% Revenue Recognition</h4>
+        <ul style="margin: 0; padding-left: 20px;">
+            <li>Recording payment triggers 20% revenue recognition</li>
+            <li>Revenue is automatically distributed to team members based on their share percentages</li>
+            <li>Ensure payment details match bank records</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

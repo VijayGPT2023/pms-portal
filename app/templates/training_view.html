@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block title %}{{ programme.programme_number }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Training Programme Details</h1>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% if can_edit %}
+        <a href="/training/edit/{{ programme.id }}" class="btn btn-primary">Edit Details</a>
+        <a href="/training/trainers/{{ programme.id }}" class="btn btn-info">Manage Trainers</a>
+        {% endif %}
+        <a href="/training" class="btn btn-secondary">Back to List</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge badge-info">TRAINING</span>
+            {{ programme.programme_number }}
+        </h2>
+    </div>
+
+    <h3>{{ programme.title }}</h3>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-top: 25px;">
+        <!-- General Info -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                General Information
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096; width: 40%;">Office:</td>
+                    <td style="padding: 8px 0;"><strong>{{ programme.office_name or programme.office_id }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Stage:</td>
+                    <td style="padding: 8px 0;">
+                        <span class="badge
+                            {% if programme.stage == 'ANNOUNCED' %}badge-info
+                            {% elif programme.stage == 'REGISTRATION_OPEN' %}badge-warning
+                            {% elif programme.stage == 'CONDUCTED' %}badge-success
+                            {% elif programme.stage == 'CLOSED' %}badge-secondary
+                            {% else %}badge-primary{% endif %}">
+                            {{ programme.stage|replace('_', ' ') }}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Mode:</td>
+                    <td style="padding: 8px 0;">{{ programme.mode|replace('_', ' ') }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Location:</td>
+                    <td style="padding: 8px 0;">{{ programme.location or '-' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Coordinator:</td>
+                    <td style="padding: 8px 0;"><strong>{{ programme.coordinator_name or 'Not Assigned' }}</strong></td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Schedule -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Schedule
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Training Dates:</td>
+                    <td style="padding: 8px 0;">
+                        {{ programme.training_start_date or '-' }} to {{ programme.training_end_date or '-' }}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Duration:</td>
+                    <td style="padding: 8px 0;">{{ programme.duration_days or '-' }} days</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Registration Opens:</td>
+                    <td style="padding: 8px 0;">{{ programme.application_start_date or '-' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Registration Closes:</td>
+                    <td style="padding: 8px 0;">{{ programme.application_end_date or '-' }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Financial -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Financial Summary
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Budgeted Participants:</td>
+                    <td style="padding: 8px 0;"><strong>{{ programme.budgeted_participants or 0 }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Fee per Participant:</td>
+                    <td style="padding: 8px 0;">{{ "%.2f"|format(programme.fee_per_participant or 0) }}L</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Budgeted Revenue:</td>
+                    <td style="padding: 8px 0;"><strong>{{ "%.2f"|format(programme.budgeted_revenue or 0) }}L</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Actual Attended:</td>
+                    <td style="padding: 8px 0;">{{ programme.actual_attended or 0 }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Actual Revenue:</td>
+                    <td style="padding: 8px 0;"><strong>{{ "%.2f"|format(programme.actual_revenue or 0) }}L</strong></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    {% if programme.description %}
+    <div style="margin-top: 20px;">
+        <h4 style="color: #2d3748; margin-bottom: 10px;">Description</h4>
+        <p style="padding: 15px; background: #f7fafc; border-radius: 6px;">{{ programme.description }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Trainers Section -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Trainers / Faculty</h2>
+        {% if can_edit %}
+        <a href="/training/trainers/{{ programme.id }}" class="btn btn-sm btn-primary">Manage Trainers</a>
+        {% endif %}
+    </div>
+
+    {% if trainers %}
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Allocation %</th>
+                <th>Days</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in trainers %}
+            <tr>
+                <td>
+                    <strong>{{ t.trainer_name }}</strong>
+                    <br><small class="text-muted">{{ t.designation or '' }}</small>
+                </td>
+                <td>
+                    <span class="badge {% if t.trainer_role == 'PRIMARY' %}badge-success{% else %}badge-info{% endif %}">
+                        {{ t.trainer_role|replace('_', ' ') }}
+                    </span>
+                </td>
+                <td>{{ "%.1f"|format(t.allocation_percent or 0) }}%</td>
+                <td>{{ t.allocation_days or '-' }}</td>
+                <td>
+                    {% if t.accepted %}
+                    <span class="badge badge-success">Accepted</span>
+                    {% else %}
+                    <span class="badge badge-warning">Pending</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr style="font-weight: bold; background: #f7fafc;">
+                <td colspan="2">Total</td>
+                <td>{{ "%.1f"|format(trainers|map(attribute='allocation_percent')|sum) }}%</td>
+                <td>{{ trainers|map(attribute='allocation_days')|sum }}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No trainers assigned yet.
+        {% if can_edit %}<a href="/training/trainers/{{ programme.id }}">Add trainers</a>{% endif %}
+    </p>
+    {% endif %}
+</div>
+
+<!-- Approval Workflow Status -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Approval Workflow</h2>
+    </div>
+    <div style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <!-- Programme Approval -->
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
+                <h4 style="margin: 0 0 10px 0;">Programme Approval</h4>
+                {% if programme.approval_status == 'APPROVED' %}
+                <span class="badge badge-success">Approved</span>
+                {% elif programme.approval_status == 'REJECTED' %}
+                <span class="badge badge-danger">Rejected</span>
+                {% else %}
+                <span class="badge badge-warning">Draft</span>
+                {% endif %}
+            </div>
+
+            <!-- Budget Approval -->
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
+                <h4 style="margin: 0 0 10px 0;">Budget Approval</h4>
+                {% if programme.budget_approval_status == 'APPROVED' %}
+                <span class="badge badge-success">Approved</span>
+                {% elif programme.budget_approval_status == 'SUBMITTED' %}
+                <span class="badge badge-warning">Pending</span>
+                {% elif programme.budget_approval_status == 'REJECTED' %}
+                <span class="badge badge-danger">Rejected</span>
+                {% else %}
+                {% if can_edit %}
+                <form method="POST" action="/training/budget/{{ programme.id }}/submit">
+                    <button type="submit" class="btn btn-sm btn-success">Submit for Approval</button>
+                </form>
+                {% else %}
+                <span class="badge badge-secondary">Not Submitted</span>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            <!-- Trainer Allocation Approval -->
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
+                <h4 style="margin: 0 0 10px 0;">Trainer Allocation</h4>
+                {% if programme.trainer_approval_status == 'APPROVED' %}
+                <span class="badge badge-success">Approved</span>
+                {% elif programme.trainer_approval_status == 'SUBMITTED' %}
+                <span class="badge badge-warning">Pending</span>
+                {% elif programme.trainer_approval_status == 'REJECTED' %}
+                <span class="badge badge-danger">Rejected</span>
+                {% else %}
+                {% if can_edit and trainers %}
+                <form method="POST" action="/training/trainer/{{ programme.id }}/submit">
+                    <button type="submit" class="btn btn-sm btn-success">Submit for Approval</button>
+                </form>
+                {% else %}
+                <span class="badge badge-secondary">Not Submitted</span>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            <!-- Revenue Approval -->
+            <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px;">
+                <h4 style="margin: 0 0 10px 0;">Revenue Share</h4>
+                {% if programme.revenue_approval_status == 'APPROVED' %}
+                <span class="badge badge-success">Approved</span>
+                {% elif programme.revenue_approval_status == 'SUBMITTED' %}
+                <span class="badge badge-warning">Pending</span>
+                {% elif programme.revenue_approval_status == 'REJECTED' %}
+                <span class="badge badge-danger">Rejected</span>
+                {% else %}
+                {% if can_edit and trainers %}
+                <form method="POST" action="/training/revenue/{{ programme.id }}/submit">
+                    <button type="submit" class="btn btn-sm btn-success">Submit for Approval</button>
+                </form>
+                {% else %}
+                <span class="badge badge-secondary">Not Submitted</span>
+                {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Participants Section -->
+{% if participants %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Participants ({{ participants|length }})</h2>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Organization</th>
+                <th>Registration Date</th>
+                <th>Attendance</th>
+                <th>Payment</th>
+                <th>Certificate</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in participants[:20] %}
+            <tr>
+                <td>{{ p.participant_name }}</td>
+                <td>{{ p.organization or '-' }}</td>
+                <td>{{ p.registration_date or '-' }}</td>
+                <td>
+                    {% if p.attended %}
+                    <span class="badge badge-success">Present</span>
+                    {% else %}
+                    <span class="badge badge-secondary">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="badge {% if p.payment_status == 'PAID' %}badge-success{% elif p.payment_status == 'PARTIAL' %}badge-warning{% else %}badge-secondary{% endif %}">
+                        {{ p.payment_status or 'PENDING' }}
+                    </span>
+                </td>
+                <td>
+                    {% if p.certificate_issued %}
+                    <span class="badge badge-success">Issued</span>
+                    {% else %}
+                    <span class="badge badge-secondary">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if participants|length > 20 %}
+    <p class="text-muted text-center" style="padding: 10px;">
+        Showing 20 of {{ participants|length }} participants
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

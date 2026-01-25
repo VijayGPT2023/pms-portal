@@ -6,27 +6,66 @@
 <div class="page-header">
     <h1>Pending Approvals</h1>
     <div>
+        <a href="/finance" class="btn btn-primary">Finance Dashboard</a>
         <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
     </div>
 </div>
 
-<!-- Summary Cards -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
-    <div class="card" style="text-align: center; padding: 20px;">
+<!-- Summary Cards - Assignments -->
+<h3 style="margin-bottom: 15px; color: #2d3748;">Assignment Approvals</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px;">
+    <div class="card" style="text-align: center; padding: 15px;">
         <h3 style="color: #e53e3e; margin: 0;">{{ pending_assignments|length }}</h3>
-        <p style="margin: 5px 0 0; color: #718096;">Pending Assignments</p>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Assignments</p>
     </div>
-    <div class="card" style="text-align: center; padding: 20px;">
-        <h3 style="color: #dd6b20; margin: 0;">{{ pending_milestones|length }}</h3>
-        <p style="margin: 5px 0 0; color: #718096;">Milestone Updates</p>
+    <div class="card" style="text-align: center; padding: 15px;">
+        <h3 style="color: #805ad5; margin: 0;">{{ unallocated_assignments|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">TL Allocation</p>
     </div>
-    <div class="card" style="text-align: center; padding: 20px;">
-        <h3 style="color: #38a169; margin: 0;">{{ pending_revenue|length }}</h3>
-        <p style="margin: 5px 0 0; color: #718096;">Revenue Share Requests</p>
+    <div class="card" style="text-align: center; padding: 15px;">
+        <h3 style="color: #dd6b20; margin: 0;">{{ pending_cost_estimations|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Cost Estimate</p>
     </div>
-    <div class="card" style="text-align: center; padding: 20px;">
-        <h3 style="color: #3182ce; margin: 0;">{{ pending_team|length }}</h3>
-        <p style="margin: 5px 0 0; color: #718096;">Team Leader Allocations</p>
+    <div class="card" style="text-align: center; padding: 15px;">
+        <h3 style="color: #3182ce; margin: 0;">{{ pending_team_constitutions|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Team</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px;">
+        <h3 style="color: #319795; margin: 0;">{{ pending_milestone_plans|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Milestones</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px;">
+        <h3 style="color: #38a169; margin: 0;">{{ pending_revenue_shares|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Revenue Share</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px;">
+        <h3 style="color: #d69e2e; margin: 0;">{{ pending_invoices|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Invoice Req</p>
+    </div>
+</div>
+
+<!-- Summary Cards - Training -->
+<h3 style="margin-bottom: 15px; color: #2d3748;">Training Approvals</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 30px;">
+    <div class="card" style="text-align: center; padding: 15px; border-left: 4px solid #f6ad55;">
+        <h3 style="color: #dd6b20; margin: 0;">{{ pending_training_programmes|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Programmes</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px; border-left: 4px solid #f6ad55;">
+        <h3 style="color: #805ad5; margin: 0;">{{ unallocated_training|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Coordinator</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px; border-left: 4px solid #f6ad55;">
+        <h3 style="color: #3182ce; margin: 0;">{{ pending_training_budget|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Budget</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px; border-left: 4px solid #f6ad55;">
+        <h3 style="color: #38a169; margin: 0;">{{ pending_training_trainers|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Trainers</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px; border-left: 4px solid #f6ad55;">
+        <h3 style="color: #319795; margin: 0;">{{ pending_training_revenue|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Revenue Share</p>
     </div>
 </div>
 
@@ -43,8 +82,7 @@
                     <th>Assignment No</th>
                     <th>Title</th>
                     <th>Office</th>
-                    <th>Value (₹L)</th>
-                    <th>Submitted By</th>
+                    <th>Value</th>
                     <th>Date</th>
                     <th>Actions</th>
                 </tr>
@@ -55,8 +93,7 @@
                     <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
                     <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
                     <td>{{ item.office_id }}</td>
-                    <td>{{ "%.2f"|format(item.total_value or 0) }}</td>
-                    <td>{{ item.created_by_name or '-' }}</td>
+                    <td>{{ "%.2f"|format(item.total_value or 0) }}L</td>
                     <td>{{ item.created_at|format_date }}</td>
                     <td>
                         <a href="/assignment/view/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
@@ -87,8 +124,7 @@
                     <th>Assignment No</th>
                     <th>Title</th>
                     <th>Office</th>
-                    <th>Value (₹L)</th>
-                    <th>Registered By</th>
+                    <th>Value</th>
                     <th>Allocate Team Leader</th>
                 </tr>
             </thead>
@@ -98,8 +134,7 @@
                     <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
                     <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
                     <td>{{ item.office_id }}</td>
-                    <td>{{ "%.2f"|format(item.total_value or 0) }}</td>
-                    <td>{{ item.created_by_name or '-' }}</td>
+                    <td>{{ "%.2f"|format(item.total_value or 0) }}L</td>
                     <td>
                         <form method="POST" action="/approvals/allocate-tl/{{ item.id }}" style="display: flex; gap: 10px;">
                             <select name="team_leader_id" class="form-control" style="width: 200px;" required>
@@ -119,7 +154,217 @@
 </div>
 {% endif %}
 
-<!-- Revenue Share Change Requests -->
+<!-- Pending Cost Estimation Approvals -->
+{% if pending_cost_estimations %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Cost Estimation Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>TL</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_cost_estimations %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:35] }}{% if item.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.tl_name or '-' }}</td>
+                    <td>{{ item.submitted_by_name or '-' }}</td>
+                    <td>
+                        <a href="/assignment/expenditure/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/approvals/cost/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('cost', {{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Team Constitution Approvals -->
+{% if pending_team_constitutions %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Team Constitution Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Team Size</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_team_constitutions %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:35] }}{% if item.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.team_count }} members</td>
+                    <td>{{ item.submitted_by_name or '-' }}</td>
+                    <td>
+                        <a href="/revenue/edit/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/approvals/team/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('team', {{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Milestone Planning Approvals -->
+{% if pending_milestone_plans %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Milestone Planning Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Milestones</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_milestone_plans %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:35] }}{% if item.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.milestone_count }} milestones</td>
+                    <td>{{ item.submitted_by_name or '-' }}</td>
+                    <td>
+                        <a href="/assignment/milestones/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/approvals/milestone/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('milestone', {{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Revenue Share Approvals -->
+{% if pending_revenue_shares %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Revenue Share Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Officers</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_revenue_shares %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:35] }}{% if item.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.share_count }} officers</td>
+                    <td>{{ item.submitted_by_name or '-' }}</td>
+                    <td>
+                        <a href="/revenue/edit/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/approvals/revenue/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('revenue', {{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Invoice Requests (Finance) -->
+{% if pending_invoices %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Invoice Requests (Finance Approval)</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Request #</th>
+                    <th>Assignment</th>
+                    <th>Amount</th>
+                    <th>FY</th>
+                    <th>Requested By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_invoices %}
+                <tr>
+                    <td>{{ item.request_number }}</td>
+                    <td><a href="/assignment/view/{{ item.assignment_id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ "%.2f"|format(item.invoice_amount or 0) }}L</td>
+                    <td>{{ item.fy_period }}</td>
+                    <td>{{ item.requested_by_name }}</td>
+                    <td>
+                        <a href="/finance/invoice-request/{{ item.assignment_id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/finance/invoice/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('invoice', {{ item.id }}, '/finance')">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Revenue Share Change Requests (Legacy) -->
 {% if pending_revenue %}
 <div class="card">
     <div class="card-header">
@@ -134,7 +379,6 @@
                     <th>Requested By</th>
                     <th>Current Share</th>
                     <th>Requested Change</th>
-                    <th>Remarks</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -146,7 +390,6 @@
                     <td>{{ req.requested_by_name }}</td>
                     <td>{{ req.current_share }}%</td>
                     <td>{{ req.request_data }}</td>
-                    <td>{{ req.remarks[:30] }}{% if req.remarks and req.remarks|length > 30 %}...{% endif %}</td>
                     <td>
                         <a href="/revenue/edit/{{ req.reference_id }}" class="btn btn-sm btn-primary">Review</a>
                         <form method="POST" action="/approvals/request/{{ req.id }}/approve" style="display: inline;">
@@ -163,8 +406,223 @@
 </div>
 {% endif %}
 
+<!-- ============================================================ -->
+<!-- TRAINING PROGRAMME APPROVALS -->
+<!-- ============================================================ -->
+
+<!-- Pending Training Programme Approvals -->
+{% if pending_training_programmes %}
+<div class="card">
+    <div class="card-header" style="background: #fffaf0; border-left: 4px solid #dd6b20;">
+        <h2 class="card-title">Pending Training Programme Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Programme No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Budgeted Revenue</th>
+                    <th>Created By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_training_programmes %}
+                <tr>
+                    <td><a href="/training/view/{{ item.id }}">{{ item.programme_number }}</a></td>
+                    <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ "%.2f"|format(item.budgeted_revenue or 0) }}L</td>
+                    <td>{{ item.created_by_name or '-' }}</td>
+                    <td>
+                        <a href="/training/view/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/training/approve/{{ item.id }}" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('training-programme', {{ item.id }}, '/training')">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Training Programmes Needing Coordinator -->
+{% if unallocated_training %}
+<div class="card">
+    <div class="card-header" style="background: #fffaf0; border-left: 4px solid #805ad5;">
+        <h2 class="card-title">Training Programmes Needing Coordinator</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Programme No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Budgeted Revenue</th>
+                    <th>Allocate Coordinator</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in unallocated_training %}
+                <tr>
+                    <td><a href="/training/view/{{ item.id }}">{{ item.programme_number }}</a></td>
+                    <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ "%.2f"|format(item.budgeted_revenue or 0) }}L</td>
+                    <td>
+                        <form method="POST" action="/training/allocate-coordinator/{{ item.id }}" style="display: flex; gap: 10px;">
+                            <select name="coordinator_id" class="form-control" style="width: 200px;" required>
+                                <option value="">Select Coordinator</option>
+                                {% for officer in office_officers.get(item.office_id, []) %}
+                                <option value="{{ officer.officer_id }}">{{ officer.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Allocate</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Training Budget Approvals -->
+{% if pending_training_budget %}
+<div class="card">
+    <div class="card-header" style="background: #fffaf0; border-left: 4px solid #3182ce;">
+        <h2 class="card-title">Pending Training Budget Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Programme No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Coordinator</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_training_budget %}
+                <tr>
+                    <td><a href="/training/view/{{ item.id }}">{{ item.programme_number }}</a></td>
+                    <td>{{ item.title[:35] }}{% if item.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.coordinator_name or '-' }}</td>
+                    <td>{{ item.submitted_by_name or '-' }}</td>
+                    <td>
+                        <a href="/training/view/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/training/budget/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('budget', {{ item.id }}, '/training')">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Training Trainer Allocation Approvals -->
+{% if pending_training_trainers %}
+<div class="card">
+    <div class="card-header" style="background: #fffaf0; border-left: 4px solid #38a169;">
+        <h2 class="card-title">Pending Trainer Allocation Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Programme No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Trainers</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_training_trainers %}
+                <tr>
+                    <td><a href="/training/view/{{ item.id }}">{{ item.programme_number }}</a></td>
+                    <td>{{ item.title[:35] }}{% if item.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.trainer_count }} trainers</td>
+                    <td>{{ item.submitted_by_name or '-' }}</td>
+                    <td>
+                        <a href="/training/trainers/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/training/trainer/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('trainer', {{ item.id }}, '/training')">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Training Revenue Share Approvals -->
+{% if pending_training_revenue %}
+<div class="card">
+    <div class="card-header" style="background: #fffaf0; border-left: 4px solid #319795;">
+        <h2 class="card-title">Pending Training Revenue Share Approvals</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Programme No</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Trainers</th>
+                    <th>Submitted By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_training_revenue %}
+                <tr>
+                    <td><a href="/training/view/{{ item.id }}">{{ item.programme_number }}</a></td>
+                    <td>{{ item.title[:35] }}{% if item.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.trainer_count }} trainers</td>
+                    <td>{{ item.submitted_by_name or '-' }}</td>
+                    <td>
+                        <a href="/training/trainers/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
+                        <form method="POST" action="/training/revenue/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('revenue', {{ item.id }}, '/training')">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 <!-- No Pending Items -->
-{% if not pending_assignments and not unallocated_assignments and not pending_revenue and not pending_milestones %}
+{% if not pending_assignments and not unallocated_assignments and not pending_cost_estimations and not pending_team_constitutions and not pending_milestone_plans and not pending_revenue_shares and not pending_invoices and not pending_revenue and not pending_milestones and not pending_training_programmes and not unallocated_training and not pending_training_budget and not pending_training_trainers and not pending_training_revenue %}
 <div class="card" style="text-align: center; padding: 50px;">
     <h3 style="color: #48bb78;">All Caught Up!</h3>
     <p class="text-muted">No pending approvals at this time.</p>
@@ -191,8 +649,14 @@
 </div>
 
 <script>
-function showRejectModal(type, id) {
-    document.getElementById('rejectForm').action = '/approvals/' + type + '/' + id + '/reject';
+function showRejectModal(type, id, prefix) {
+    prefix = prefix || '/approvals';
+    // Handle training-specific actions
+    if (type === 'training-programme') {
+        document.getElementById('rejectForm').action = prefix + '/reject/' + id;
+    } else {
+        document.getElementById('rejectForm').action = prefix + '/' + type + '/' + id + '/reject';
+    }
     document.getElementById('rejectModal').style.display = 'block';
 }
 

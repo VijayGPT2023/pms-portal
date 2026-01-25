@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block title %}Trainer Allocation - {{ programme.programme_number }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Trainer Allocation</h1>
+    <a href="/training/view/{{ programme.id }}" class="btn btn-secondary">Back to Programme</a>
+</div>
+
+{% if request.query_params.get('error') == 'no_trainers' %}
+<div class="alert alert-error">
+    Please add at least one trainer before submitting for approval.
+</div>
+{% endif %}
+
+{% if request.query_params.get('error') == 'total_not_100' %}
+<div class="alert alert-error">
+    Total allocation percentage must equal 100% before submitting revenue shares for approval.
+</div>
+{% endif %}
+
+{% if request.query_params.get('success') == 'trainers_saved' %}
+<div class="alert alert-success">
+    Trainer allocations saved successfully.
+</div>
+{% endif %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge badge-warning">TRAINING</span>
+            {{ programme.programme_number }}
+        </h2>
+        <p>{{ programme.title }}</p>
+    </div>
+
+    <div class="stats-grid" style="margin-bottom: 25px;">
+        <div class="stat-card highlight-blue">
+            <div class="stat-value">{{ programme.office_id }}</div>
+            <div class="stat-label">Office</div>
+        </div>
+        <div class="stat-card highlight-green">
+            <div class="stat-value">{{ "%.2f"|format(programme.budgeted_revenue or 0) }} L</div>
+            <div class="stat-label">Budgeted Revenue</div>
+        </div>
+        <div class="stat-card highlight-orange">
+            <div class="stat-value">{{ programme.budgeted_participants or 0 }}</div>
+            <div class="stat-label">Budgeted Participants</div>
+        </div>
+        <div class="stat-card highlight-purple">
+            <div class="stat-value">{{ programme.duration_days or 0 }}</div>
+            <div class="stat-label">Duration (Days)</div>
+        </div>
+    </div>
+
+    <form method="POST" action="/training/trainers/{{ programme.id }}" id="trainer-form">
+        <h3 style="margin-bottom: 15px; color: #2d3748;">Trainer Allocation</h3>
+
+        <div class="table-container">
+            <table id="trainer-table">
+                <thead>
+                    <tr>
+                        <th style="width: 35%;">Trainer</th>
+                        <th style="width: 20%;">Role</th>
+                        <th style="width: 15%;">Allocation %</th>
+                        <th style="width: 10%;">Days</th>
+                        <th style="width: 10%;">Revenue Share</th>
+                        <th style="width: 10%;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="trainer-rows">
+                    <!-- Rows will be added by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <button type="button" class="btn btn-secondary" onclick="addRow()" style="margin-top: 15px;">
+            + Add Another Trainer
+        </button>
+
+        <div class="share-total" id="total-display">
+            <div>
+                <strong>Total Allocation:</strong>
+                <span id="total-percent">0.00</span>%
+            </div>
+            <div>
+                <strong>Total Revenue Share:</strong>
+                <span id="total-amount">0.00</span> L
+            </div>
+        </div>
+
+        <div id="validation-message" class="alert alert-error" style="display: none; margin-top: 15px;">
+            Total allocation must be exactly 100% to submit for approval.
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">Save Trainer Allocations</button>
+            <a href="/training/view/{{ programme.id }}" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<!-- Submit for Approval Sections -->
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Approval Workflows</h2>
+    </div>
+    <div style="padding: 20px;">
+        <!-- Trainer Allocation Approval -->
+        <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
+            <h4>Trainer Allocation</h4>
+            {% if programme.trainer_approval_status == 'APPROVED' %}
+            <div style="background: #f0fff4; padding: 15px; border-radius: 8px; border-left: 4px solid #38a169;">
+                <strong style="color: #38a169;">Approved</strong>
+            </div>
+            {% elif programme.trainer_approval_status == 'SUBMITTED' %}
+            <div style="background: #fefcbf; padding: 15px; border-radius: 8px; border-left: 4px solid #d69e2e;">
+                <strong style="color: #d69e2e;">Pending Approval</strong>
+            </div>
+            {% elif programme.trainer_approval_status == 'REJECTED' %}
+            <div style="background: #fed7d7; padding: 15px; border-radius: 8px; border-left: 4px solid #e53e3e;">
+                <strong style="color: #e53e3e;">Rejected</strong>
+                {% if programme.remarks %}<p><em>{{ programme.remarks }}</em></p>{% endif %}
+                <form method="POST" action="/training/trainer/{{ programme.id }}/submit" style="margin-top: 10px;">
+                    <button type="submit" class="btn btn-warning btn-sm">Resubmit</button>
+                </form>
+            </div>
+            {% else %}
+            <form method="POST" action="/training/trainer/{{ programme.id }}/submit">
+                <button type="submit" class="btn btn-success">Submit Trainers for Approval</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Revenue Share Approval -->
+        <div>
+            <h4>Revenue Shares</h4>
+            {% if programme.revenue_approval_status == 'APPROVED' %}
+            <div style="background: #f0fff4; padding: 15px; border-radius: 8px; border-left: 4px solid #38a169;">
+                <strong style="color: #38a169;">Approved</strong>
+            </div>
+            {% elif programme.revenue_approval_status == 'SUBMITTED' %}
+            <div style="background: #fefcbf; padding: 15px; border-radius: 8px; border-left: 4px solid #d69e2e;">
+                <strong style="color: #d69e2e;">Pending Approval</strong>
+            </div>
+            {% elif programme.revenue_approval_status == 'REJECTED' %}
+            <div style="background: #fed7d7; padding: 15px; border-radius: 8px; border-left: 4px solid #e53e3e;">
+                <strong style="color: #e53e3e;">Rejected</strong>
+                {% if programme.remarks %}<p><em>{{ programme.remarks }}</em></p>{% endif %}
+                <form method="POST" action="/training/revenue/{{ programme.id }}/submit" style="margin-top: 10px;">
+                    <button type="submit" class="btn btn-warning btn-sm">Resubmit</button>
+                </form>
+            </div>
+            {% else %}
+            <form method="POST" action="/training/revenue/{{ programme.id }}/submit">
+                <button type="submit" class="btn btn-success">Submit Revenue Shares for Approval</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const officers = {{ officers | safe_tojson | safe }};
+const budgetedRevenue = {{ programme.budgeted_revenue or 0 }};
+const durationDays = {{ programme.duration_days or 1 }};
+const existingTrainers = {{ trainers | safe_tojson | safe }};
+let rowCount = 0;
+
+const trainerRoles = [
+    { value: 'PRIMARY', label: 'Primary Trainer' },
+    { value: 'CO_TRAINER', label: 'Co-Trainer' },
+    { value: 'COORDINATOR', label: 'Coordinator' },
+    { value: 'GUEST_FACULTY', label: 'Guest Faculty' }
+];
+
+function createOfficerSelect(selectedId = '') {
+    let html = '<select name="trainer_' + rowCount + '_officer_id" class="form-control officer-select" required>';
+    html += '<option value="">Select Trainer</option>';
+    officers.forEach(function(officer) {
+        const selected = officer.officer_id === selectedId ? 'selected' : '';
+        html += '<option value="' + officer.officer_id + '" ' + selected + '>';
+        html += officer.name + ' (' + officer.office_id + ')';
+        html += '</option>';
+    });
+    html += '</select>';
+    return html;
+}
+
+function createRoleSelect(selectedRole = 'CO_TRAINER') {
+    let html = '<select name="trainer_' + rowCount + '_role" class="form-control">';
+    trainerRoles.forEach(function(role) {
+        const selected = role.value === selectedRole ? 'selected' : '';
+        html += '<option value="' + role.value + '" ' + selected + '>' + role.label + '</option>';
+    });
+    html += '</select>';
+    return html;
+}
+
+function addRow(officerId = '', role = 'CO_TRAINER', percent = '', days = '') {
+    const tbody = document.getElementById('trainer-rows');
+    const row = document.createElement('tr');
+    row.id = 'row-' + rowCount;
+
+    row.innerHTML = `
+        <td>${createOfficerSelect(officerId)}</td>
+        <td>${createRoleSelect(role)}</td>
+        <td>
+            <input type="number" name="trainer_${rowCount}_percent" class="form-control allocation-percent"
+                   value="${percent}" step="0.01" min="0" max="100"
+                   placeholder="0.00" oninput="updateTotals()">
+        </td>
+        <td>
+            <input type="number" name="trainer_${rowCount}_days" class="form-control allocation-days"
+                   value="${days}" step="0.5" min="0" max="${durationDays}"
+                   placeholder="0">
+        </td>
+        <td>
+            <input type="text" class="form-control revenue-amount" readonly
+                   value="0.00" style="background: #f7fafc;">
+        </td>
+        <td>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeRow(${rowCount})">Remove</button>
+        </td>
+    `;
+
+    tbody.appendChild(row);
+    rowCount++;
+    updateTotals();
+}
+
+function removeRow(id) {
+    const row = document.getElementById('row-' + id);
+    if (row) {
+        row.remove();
+        updateTotals();
+    }
+}
+
+function updateTotals() {
+    let totalPercent = 0;
+    let totalAmount = 0;
+
+    const percentInputs = document.querySelectorAll('.allocation-percent');
+    const amountInputs = document.querySelectorAll('.revenue-amount');
+
+    percentInputs.forEach(function(input, index) {
+        const percent = parseFloat(input.value) || 0;
+        const amount = (percent * budgetedRevenue) / 100;
+
+        totalPercent += percent;
+        totalAmount += amount;
+
+        if (amountInputs[index]) {
+            amountInputs[index].value = amount.toFixed(2);
+        }
+    });
+
+    document.getElementById('total-percent').textContent = totalPercent.toFixed(2);
+    document.getElementById('total-amount').textContent = totalAmount.toFixed(2);
+
+    // Update validation display
+    const totalDisplay = document.getElementById('total-display');
+    const validationMsg = document.getElementById('validation-message');
+
+    if (Math.abs(totalPercent - 100) < 0.01 || totalPercent === 0) {
+        totalDisplay.classList.remove('invalid');
+        totalDisplay.classList.add('valid');
+        validationMsg.style.display = 'none';
+    } else {
+        totalDisplay.classList.remove('valid');
+        totalDisplay.classList.add('invalid');
+        validationMsg.style.display = 'block';
+    }
+}
+
+// Initialize with existing trainers or empty rows
+document.addEventListener('DOMContentLoaded', function() {
+    if (existingTrainers && existingTrainers.length > 0) {
+        existingTrainers.forEach(function(trainer) {
+            addRow(
+                trainer.officer_id,
+                trainer.trainer_role || 'CO_TRAINER',
+                trainer.allocation_percent || '',
+                trainer.allocation_days || ''
+            );
+        });
+    } else {
+        // Add 3 empty rows by default
+        for (let i = 0; i < 3; i++) {
+            addRow();
+        }
+    }
+});
+</script>
+
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+.stat-card {
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+}
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #2d3748;
+}
+.stat-label {
+    font-size: 0.875rem;
+    color: #718096;
+}
+.highlight-blue { background: #ebf8ff; border-left: 4px solid #3182ce; }
+.highlight-green { background: #f0fff4; border-left: 4px solid #38a169; }
+.highlight-orange { background: #fffaf0; border-left: 4px solid #dd6b20; }
+.highlight-purple { background: #faf5ff; border-left: 4px solid #805ad5; }
+.share-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 20px;
+    background: #f7fafc;
+    border-radius: 8px;
+    margin-top: 20px;
+    font-size: 1.1rem;
+}
+.share-total.valid {
+    background: #f0fff4;
+    border: 1px solid #38a169;
+}
+.share-total.invalid {
+    background: #fed7d7;
+    border: 1px solid #e53e3e;
+}
+</style>
+{% endblock %}
