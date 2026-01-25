@@ -66,12 +66,12 @@ def create_default_admin():
 
         # Create default office if not exists
         cursor.execute("""
-            INSERT INTO offices (office_id, office_name, office_type, region)
-            VALUES ('HQ', 'Headquarters', 'HQ', 'National')
+            INSERT INTO offices (office_id, office_name)
+            VALUES ('HQ', 'Headquarters')
             ON CONFLICT (office_id) DO NOTHING
         """ if USE_POSTGRES else """
-            INSERT OR IGNORE INTO offices (office_id, office_name, office_type, region)
-            VALUES ('HQ', 'Headquarters', 'HQ', 'National')
+            INSERT OR IGNORE INTO offices (office_id, office_name)
+            VALUES ('HQ', 'Headquarters')
         """)
 
         # Create admin user
