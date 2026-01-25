@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - PMS Portal</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    
+</head>
+<body>
+    
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/dashboard">PMS Portal</a>
+        </div>
+        <div class="nav-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/enquiry/">Enquiries</a>
+            <a href="/proposal-request/">Proposals</a>
+            <a href="/mis">MIS / Analytics</a>
+        </div>
+        <div class="nav-user">
+            <span class="user-info">System Administrator (HQ)</span>
+            <a href="/logout" class="btn btn-sm btn-secondary">Logout</a>
+        </div>
+    </nav>
+    
+
+    <main class="container">
+        
+<div class="page-header">
+    <h1>Assignment Dashboard</h1>
+    <div>
+        <a href="/assignment/new" class="btn btn-success">+ New Assignment</a>
+        <a href="/mis" class="btn btn-primary">MIS Dashboard</a>
+        
+        <a href="/approvals" class="btn btn-warning">Pending Approvals</a>
+        
+        
+        <a href="/data/export" class="btn btn-info">Export/Import</a>
+        <a href="/data/admin/config" class="btn btn-secondary">Config</a>
+        <a href="/admin/users" class="btn btn-dark">User Management</a>
+        <a href="/admin/roles" class="btn btn-warning">Role Management</a>
+        <a href="/admin/activity-log" class="btn btn-outline-dark">Activity Log</a>
+        
+        <span class="text-muted" style="margin-left: 15px;">
+            System Administrator | System Administrator | HQ
+        </span>
+    </div>
+</div>
+
+<!-- 4-Stage Workflow Navigation -->
+<div class="card mt-3 mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span class="fw-bold me-3">4-Stage Workflow:</span>
+            <div class="btn-group" role="group">
+                <a href="/enquiry/" class="btn btn-outline-primary btn-sm">1. Enquiries</a>
+                <a href="/proposal-request/" class="btn btn-outline-info btn-sm">2. Proposal Requests</a>
+                <a href="/proposal/" class="btn btn-outline-warning btn-sm">3. Proposals</a>
+                <a href="/dashboard" class="btn btn-outline-success btn-sm">4. Work Orders</a>
+            </div>
+            <a href="/enquiry/new" class="btn btn-success btn-sm">+ New Enquiry</a>
+            <a href="/enquiry/metrics/pre-revenue" class="btn btn-outline-secondary btn-sm">Pre-Revenue Metrics</a>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+    <form method="GET" action="/dashboard" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: end;">
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="filter_office">
+                <option value="">All Offices</option>
+                
+                <option value="AB Group" >
+                    AB Group - AB Group Office
+                </option>
+                
+                <option value="Admin Group" >
+                    Admin Group - Admin Group Office
+                </option>
+                
+                <option value="Deputation" >
+                    Deputation - Deputation Office
+                </option>
+                
+                <option value="ECA Group" >
+                    ECA Group - ECA Group Office
+                </option>
+                
+                <option value="EM Group" >
+                    EM Group - EM Group Office
+                </option>
+                
+                <option value="ES Group" >
+                    ES Group - ES Group Office
+                </option>
+                
+                <option value="Finance Group" >
+                    Finance Group - Finance Group Office
+                </option>
+                
+                <option value="HQ" >
+                    HQ - Head Quarters
+                </option>
+                
+                <option value="HRM Group" >
+                    HRM Group - HRM Group Office
+                </option>
+                
+                <option value="IE Group" >
+                    IE Group - IE Group Office
+                </option>
+                
+                <option value="IS Group" >
+                    IS Group - IS Group Office
+                </option>
+                
+                <option value="IT Group" >
+                    IT Group - IT Group Office
+                </option>
+                
+                <option value="RD Bengaluru" >
+                    RD Bengaluru - RD Bengaluru Office
+                </option>
+                
+                <option value="RD Bhubneswar" >
+                    RD Bhubneswar - RD Bhubneswar Office
+                </option>
+                
+                <option value="RD Chandigarh" >
+                    RD Chandigarh - RD Chandigarh Office
+                </option>
+                
+                <option value="RD Chennai" >
+                    RD Chennai - RD Chennai Office
+                </option>
+                
+                <option value="RD Gandhinagar" >
+                    RD Gandhinagar - RD Gandhinagar Office
+                </option>
+                
+                <option value="RD Guwahati" >
+                    RD Guwahati - RD Guwahati Office
+                </option>
+                
+                <option value="RD Hyderabad" >
+                    RD Hyderabad - RD Hyderabad Office
+                </option>
+                
+                <option value="RD Jaipur" >
+                    RD Jaipur - RD Jaipur Office
+                </option>
+                
+                <option value="RD Kanpur" >
+                    RD Kanpur - RD Kanpur Office
+                </option>
+                
+                <option value="RD Kolkata" >
+                    RD Kolkata - RD Kolkata Office
+                </option>
+                
+                <option value="RD Mumbai" >
+                    RD Mumbai - RD Mumbai Office
+                </option>
+                
+                <option value="RD Patna" >
+                    RD Patna - RD Patna Office
+                </option>
+                
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Type</label>
+            <select name="filter_type">
+                <option value="">All Types</option>
+                <option value="ASSIGNMENT" >Assignment</option>
+                <option value="TRAINING" >Training</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Status</label>
+            <select name="filter_status">
+                <option value="">All Statuses</option>
+                
+                <option value="Cancelled" >Cancelled</option>
+                
+                <option value="Completed" >Completed</option>
+                
+                <option value="Not Started" >Not Started</option>
+                
+                <option value="On Hold" >On Hold</option>
+                
+                <option value="Ongoing" >Ongoing</option>
+                
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>
+                <input type="checkbox" name="show_all" value="true" >
+                Show All Offices
+            </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-sm">Apply Filters</button>
+        <a href="/dashboard" class="btn btn-secondary btn-sm">Reset</a>
+    </form>
+</div>
+
+<!-- Assignment List -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Assignments (13)</h2>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Gross Value (₹L)</th>
+                    <th>Received (₹L)</th>
+                    <th>Status</th>
+                    <th>Details Status</th>
+                    <th>Revenue Share</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/145">NPC/HQ/TRG/10/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Performance Management Workshop</td>
+                    <td>HQ</td>
+                    <td class="text-right">22.81</td>
+                    <td class="text-right">15.96</td>
+                    <td>
+                        <span class="badge
+                            badge-info
+                            ">
+                            Ongoing
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/145" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">3 shares</span>
+                            <a href="/revenue/edit/145" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/145" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/144">NPC/HQ/TRG/09/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Industrial Engineering Techniques</td>
+                    <td>HQ</td>
+                    <td class="text-right">8.69</td>
+                    <td class="text-right">8.69</td>
+                    <td>
+                        <span class="badge
+                            badge-secondary">
+                            Cancelled
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/144" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">3 shares</span>
+                            <a href="/revenue/edit/144" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/144" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/143">NPC/HQ/TRG/08/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Performance Management Workshop</td>
+                    <td>HQ</td>
+                    <td class="text-right">7.82</td>
+                    <td class="text-right">4.81</td>
+                    <td>
+                        <span class="badge
+                            badge-secondary">
+                            Cancelled
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/143" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <a href="/revenue/edit/143" class="btn btn-sm btn-warning">Fill Share</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/143" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/142">NPC/HQ/TRG/07/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Financial Management Training</td>
+                    <td>HQ</td>
+                    <td class="text-right">21.08</td>
+                    <td class="text-right">4.96</td>
+                    <td>
+                        <span class="badge
+                            badge-success
+                            ">
+                            Completed
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/142" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">3 shares</span>
+                            <a href="/revenue/edit/142" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/142" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/141">NPC/HQ/TRG/06/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Strategic HR Management</td>
+                    <td>HQ</td>
+                    <td class="text-right">11.22</td>
+                    <td class="text-right">0.00</td>
+                    <td>
+                        <span class="badge
+                            badge-secondary">
+                            Not Started
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/141" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <a href="/revenue/edit/141" class="btn btn-sm btn-warning">Fill Share</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/141" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/140">NPC/HQ/TRG/05/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Executive Development Program</td>
+                    <td>HQ</td>
+                    <td class="text-right">29.03</td>
+                    <td class="text-right">29.03</td>
+                    <td>
+                        <span class="badge
+                            badge-info
+                            ">
+                            Ongoing
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/140" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">3 shares</span>
+                            <a href="/revenue/edit/140" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/140" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/139">NPC/HQ/TRG/04/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Data Analytics Workshop</td>
+                    <td>HQ</td>
+                    <td class="text-right">28.00</td>
+                    <td class="text-right">13.17</td>
+                    <td>
+                        <span class="badge
+                            badge-success
+                            ">
+                            Completed
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/139" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <a href="/revenue/edit/139" class="btn btn-sm btn-warning">Fill Share</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/139" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/138">NPC/HQ/TRG/03/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Quality Control Techniques</td>
+                    <td>HQ</td>
+                    <td class="text-right">23.84</td>
+                    <td class="text-right">13.11</td>
+                    <td>
+                        <span class="badge
+                            badge-secondary">
+                            Cancelled
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/138" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">3 shares</span>
+                            <a href="/revenue/edit/138" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/138" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/137">NPC/HQ/TRG/02/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Lean Six Sigma Training</td>
+                    <td>HQ</td>
+                    <td class="text-right">23.42</td>
+                    <td class="text-right">13.77</td>
+                    <td>
+                        <span class="badge
+                            badge-secondary">
+                            Cancelled
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/137" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">2 shares</span>
+                            <a href="/revenue/edit/137" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/137" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/136">NPC/HQ/TRG/01/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-warning">
+                                TRAINING
+                            </span>
+                        
+                    </td>
+                    <td>Digital Skills Enhancement</td>
+                    <td>HQ</td>
+                    <td class="text-right">19.67</td>
+                    <td class="text-right">6.56</td>
+                    <td>
+                        <span class="badge
+                            badge-warning
+                            ">
+                            On Hold
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/136" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <a href="/revenue/edit/136" class="btn btn-sm btn-warning">Fill Share</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/136" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/134">NPC/HQ/HRM/P02/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-info">
+                                ASSIGNMENT
+                            </span>
+                        
+                    </td>
+                    <td>Human Resource Development Plan</td>
+                    <td>HQ</td>
+                    <td class="text-right">51.28</td>
+                    <td class="text-right">12.82</td>
+                    <td>
+                        <span class="badge
+                            badge-warning
+                            ">
+                            On Hold
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/134" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <a href="/revenue/edit/134" class="btn btn-sm btn-warning">Fill Share</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/134" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/133">NPC/HQ/General/P01/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-info">
+                                ASSIGNMENT
+                            </span>
+                        
+                    </td>
+                    <td>Advisory Services</td>
+                    <td>HQ</td>
+                    <td class="text-right">32.82</td>
+                    <td class="text-right">0.00</td>
+                    <td>
+                        <span class="badge
+                            badge-success
+                            ">
+                            Completed
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/133" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <a href="/revenue/edit/133" class="btn btn-sm btn-warning">Fill Share</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/133" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+                <tr>
+                    <td>
+                        <a href="/assignment/view/135">NPC/HQ/ES/P03/2025-26</a>
+                    </td>
+                    <td>
+                        
+                            <span class="badge badge-info">
+                                ASSIGNMENT
+                            </span>
+                        
+                    </td>
+                    <td>Impact Assessment Study of Development Program</td>
+                    <td>HQ</td>
+                    <td class="text-right">26.09</td>
+                    <td class="text-right">22.17</td>
+                    <td>
+                        <span class="badge
+                            badge-info
+                            ">
+                            Ongoing
+                        </span>
+                    </td>
+                    <td>
+                        
+                            <span class="status-filled">Details filled</span>
+                            <a href="/assignment/edit/135" class="btn btn-sm btn-secondary">Update</a>
+                        
+                    </td>
+                    <td>
+                        
+                            <a href="/revenue/edit/135" class="btn btn-sm btn-warning">Fill Share</a>
+                        
+                    </td>
+                    <td>
+                        <a href="/assignment/view/135" class="btn btn-sm btn-secondary">View</a>
+                    </td>
+                </tr>
+                
+            </tbody>
+        </table>
+    </div>
+</div>
+
+    </main>
+
+    <footer class="footer">
+        <p>&copy; 2024 PMS Portal - Officer Performance & Revenue Sharing System</p>
+    </footer>
+
+    
+</body>
+</html>
