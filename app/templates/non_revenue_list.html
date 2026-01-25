@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Non-Revenue Activities - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1>Non-Revenue Activities</h1>
+        <p class="page-subtitle">Manage capacity building, knowledge sharing, and internal projects</p>
+    </div>
+    <div class="page-actions">
+        <a href="/non-revenue/create" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Suggestion
+        </a>
+    </div>
+</div>
+
+<!-- Pipeline Summary -->
+<div class="pipeline-section">
+    <div class="pipeline-header">
+        <h2>Activity Pipeline</h2>
+    </div>
+    <div class="pipeline-stages">
+        <a href="/non-revenue/?status=PENDING_APPROVAL" class="pipeline-stage stage-pending">
+            <div class="stage-count">{{ status_counts.get('PENDING_APPROVAL', 0) }}</div>
+            <div class="stage-label">Pending Approval</div>
+        </a>
+        <a href="/non-revenue/?status=IN_PROGRESS" class="pipeline-stage stage-progress">
+            <div class="stage-count">{{ status_counts.get('IN_PROGRESS', 0) }}</div>
+            <div class="stage-label">In Progress</div>
+        </a>
+        <a href="/non-revenue/?status=COMPLETED" class="pipeline-stage stage-completed">
+            <div class="stage-count">{{ status_counts.get('COMPLETED', 0) }}</div>
+            <div class="stage-label">Completed</div>
+        </a>
+        <a href="/non-revenue/?status=ON_HOLD" class="pipeline-stage stage-hold">
+            <div class="stage-count">{{ status_counts.get('ON_HOLD', 0) }}</div>
+            <div class="stage-label">On Hold</div>
+        </a>
+        <a href="/non-revenue/?status=DROPPED" class="pipeline-stage stage-dropped">
+            <div class="stage-count">{{ status_counts.get('DROPPED', 0) + status_counts.get('REJECTED', 0) }}</div>
+            <div class="stage-label">Dropped/Rejected</div>
+        </a>
+    </div>
+</div>
+
+<!-- Quick Filters -->
+<div class="filter-tabs">
+    <a href="/non-revenue/" class="filter-tab {% if not filter_view %}active{% endif %}">All</a>
+    <a href="/non-revenue/?view=my_created" class="filter-tab {% if filter_view == 'my_created' %}active{% endif %}">My Created</a>
+    <a href="/non-revenue/?view=my_allocated" class="filter-tab {% if filter_view == 'my_allocated' %}active{% endif %}">Allocated to Me</a>
+    {% if is_head %}
+    <a href="/non-revenue/?view=pending_approval" class="filter-tab {% if filter_view == 'pending_approval' %}active{% endif %}">
+        Pending Approval
+        {% if pending_approval_count > 0 %}<span class="badge badge-warning">{{ pending_approval_count }}</span>{% endif %}
+    </a>
+    {% endif %}
+</div>
+
+<!-- Filters -->
+<div class="card filter-card">
+    <form method="GET" action="/non-revenue/" class="filter-form">
+        <div class="filter-row">
+            <div class="filter-group">
+                <label>Status</label>
+                <select name="status" class="form-control">
+                    <option value="">All Statuses</option>
+                    <option value="PENDING_APPROVAL" {% if filter_status == 'PENDING_APPROVAL' %}selected{% endif %}>Pending Approval</option>
+                    <option value="IN_PROGRESS" {% if filter_status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+                    <option value="COMPLETED" {% if filter_status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+                    <option value="ON_HOLD" {% if filter_status == 'ON_HOLD' %}selected{% endif %}>On Hold</option>
+                    <option value="DROPPED" {% if filter_status == 'DROPPED' %}selected{% endif %}>Dropped</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Office</label>
+                <select name="office" class="form-control">
+                    <option value="">All Offices</option>
+                    {% for office in offices %}
+                    <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                        {{ office.office_id }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-actions">
+                <button type="submit" class="btn btn-primary">Filter</button>
+                <a href="/non-revenue/" class="btn btn-secondary">Clear</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- Suggestions List -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Suggestions ({{ suggestions|length }})</h2>
+    </div>
+    {% if suggestions %}
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Suggestion No.</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Office</th>
+                    <th>Created By</th>
+                    <th>Allocated To</th>
+                    <th>Notional Value</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in suggestions %}
+                <tr>
+                    <td>
+                        <a href="/non-revenue/view/{{ s.id }}" class="link-primary">{{ s.suggestion_number }}</a>
+                    </td>
+                    <td class="truncate-text">{{ s.title[:40] }}{% if s.title|length > 40 %}...{% endif %}</td>
+                    <td>
+                        <span class="badge badge-purple">{{ (s.activity_type or 'OTHER')|replace('_', ' ') }}</span>
+                    </td>
+                    <td>{{ s.office_id }}</td>
+                    <td>{{ s.created_by_name or '-' }}</td>
+                    <td>{{ s.officer_name or 'Not allocated' }}</td>
+                    <td>Rs. {{ "%.2f"|format(s.notional_value or 0) }} L</td>
+                    <td>
+                        <span class="badge
+                            {% if s.status == 'PENDING_APPROVAL' %}badge-warning
+                            {% elif s.status == 'IN_PROGRESS' %}badge-info
+                            {% elif s.status == 'COMPLETED' %}badge-success
+                            {% elif s.status == 'REJECTED' %}badge-danger
+                            {% else %}badge-secondary{% endif %}">
+                            {{ s.status|replace('_', ' ') }}
+                        </span>
+                    </td>
+                    <td>{{ s.created_at[:10] if s.created_at else '-' }}</td>
+                    <td>
+                        <a href="/non-revenue/view/{{ s.id }}" class="btn btn-sm btn-primary">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">
+            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 17l10 5 10-5"></path>
+                <path d="M2 12l10 5 10-5"></path>
+            </svg>
+        </div>
+        <h3>No suggestions found</h3>
+        <p>Create your first non-revenue activity suggestion</p>
+        <a href="/non-revenue/create" class="btn btn-primary">New Suggestion</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

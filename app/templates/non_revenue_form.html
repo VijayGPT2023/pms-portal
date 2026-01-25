@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_new %}New{% else %}Edit{% endif %} Non-Revenue Suggestion - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1>{% if is_new %}Create New{% else %}Edit{% endif %} Non-Revenue Suggestion</h1>
+        <p class="page-subtitle">Suggest capacity building, knowledge sharing, or internal projects</p>
+    </div>
+    <a href="/non-revenue/" class="btn btn-secondary">Back to List</a>
+</div>
+
+<div class="card form-card">
+    <form method="POST" action="{% if is_new %}/non-revenue/create{% else %}/non-revenue/edit/{{ suggestion.id }}{% endif %}">
+
+        <!-- Basic Information -->
+        <div class="form-section">
+            <h3 class="form-section-title">Basic Information</h3>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="title">Suggestion Title *</label>
+                    <input type="text" id="title" name="title" class="form-control"
+                           value="{{ suggestion.title if suggestion else '' }}" required
+                           placeholder="Enter a descriptive title for this activity">
+                </div>
+
+                <div class="form-group">
+                    <label for="activity_type">Activity Type *</label>
+                    <select id="activity_type" name="activity_type" class="form-control" required>
+                        <option value="">Select Type</option>
+                        {% for type in activity_types %}
+                        <option value="{{ type.value }}"
+                                {% if suggestion and suggestion.activity_type == type.value %}selected{% endif %}>
+                            {{ type.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="office_id">Office *</label>
+                    <select id="office_id" name="office_id" class="form-control" required>
+                        <option value="">Select Office</option>
+                        {% for office in offices %}
+                        <option value="{{ office.office_id }}"
+                                {% if (suggestion and suggestion.office_id == office.office_id) or (not suggestion and user.office_id == office.office_id) %}selected{% endif %}>
+                            {{ office.office_id }} - {{ office.office_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Details -->
+        <div class="form-section">
+            <h3 class="form-section-title">Activity Details</h3>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" class="form-control" rows="3"
+                              placeholder="Detailed description of the activity">{{ suggestion.description if suggestion else '' }}</textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="beneficiary">Beneficiary</label>
+                    <input type="text" id="beneficiary" name="beneficiary" class="form-control"
+                           value="{{ suggestion.beneficiary if suggestion else '' }}"
+                           placeholder="Who will benefit from this activity?">
+                </div>
+
+                <div class="form-group">
+                    <label for="notional_value">Notional Value (Lakhs)</label>
+                    <input type="number" id="notional_value" name="notional_value" class="form-control"
+                           value="{{ suggestion.notional_value if suggestion else 0 }}"
+                           step="0.01" min="0" placeholder="0.00">
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="justification">Justification</label>
+                    <textarea id="justification" name="justification" class="form-control" rows="2"
+                              placeholder="Why is this activity important?">{{ suggestion.justification if suggestion else '' }}</textarea>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="expected_outcome">Expected Outcome</label>
+                    <textarea id="expected_outcome" name="expected_outcome" class="form-control" rows="2"
+                              placeholder="What are the expected outcomes?">{{ suggestion.expected_outcome if suggestion else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="form-section">
+            <h3 class="form-section-title">Timeline</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="target_start_date">Target Start Date</label>
+                    <input type="date" id="target_start_date" name="target_start_date" class="form-control"
+                           value="{{ suggestion.target_start_date if suggestion else '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="target_end_date">Target End Date</label>
+                    <input type="date" id="target_end_date" name="target_end_date" class="form-control"
+                           value="{{ suggestion.target_end_date if suggestion else '' }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- Remarks -->
+        <div class="form-section">
+            <div class="form-group">
+                <label for="remarks">Remarks</label>
+                <textarea id="remarks" name="remarks" class="form-control" rows="2"
+                          placeholder="Any additional remarks">{{ suggestion.remarks if suggestion else '' }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                {% if is_new %}Submit Suggestion{% else %}Save Changes{% endif %}
+            </button>
+            <a href="/non-revenue/" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

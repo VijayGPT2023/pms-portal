@@ -797,6 +797,49 @@ def init_database():
             )
         """)
 
+        # Non-Revenue Suggestions Table (Stage 1 of Non-Revenue workflow)
+        # Workflow: Suggestion → PR → Proposal → Execution
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS non_revenue_suggestions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                suggestion_number TEXT UNIQUE NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                activity_type TEXT,
+                -- Type: CAPACITY_BUILDING, KNOWLEDGE_SHARING, INTERNAL_PROJECT, RESEARCH, OTHER
+                beneficiary TEXT,
+                -- Who benefits from this activity
+                domain TEXT,
+                office_id TEXT NOT NULL,
+                officer_id TEXT,
+                -- Allocated officer
+                justification TEXT,
+                -- Why this is important
+                expected_outcome TEXT,
+                notional_value REAL DEFAULT 0,
+                -- Estimated notional value
+                target_start_date DATE,
+                target_end_date DATE,
+                status TEXT DEFAULT 'PENDING_APPROVAL',
+                -- PENDING_APPROVAL, APPROVED, IN_PROGRESS, ON_HOLD, CONVERTED_TO_PR, COMPLETED, DROPPED, REJECTED
+                approval_status TEXT DEFAULT 'PENDING',
+                -- PENDING, APPROVED, REJECTED
+                approved_by TEXT,
+                approved_at TIMESTAMP,
+                rejection_reason TEXT,
+                current_update TEXT,
+                drop_reason TEXT,
+                remarks TEXT,
+                created_by TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (office_id) REFERENCES offices(office_id),
+                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
+                FOREIGN KEY (created_by) REFERENCES officers(officer_id),
+                FOREIGN KEY (approved_by) REFERENCES officers(officer_id)
+            )
+        """)
+
         # Proposal Request Stage (Stage 2 of 4-stage workflow)
         # Same approval workflow as enquiries
         cursor.execute("""
@@ -1889,6 +1932,22 @@ def generate_pr_number(office_id: str) -> str:
         next_num = cursor.fetchone()['next_num']
 
     return f"PR/{office_id}/{year}/{next_num:04d}"
+
+
+def generate_suggestion_number(office_id: str) -> str:
+    """Generate unique non-revenue suggestion number: NRS/OFFICE/YYYY/NNNN"""
+    from datetime import date
+    year = date.today().year
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) + 1 as next_num FROM non_revenue_suggestions
+            WHERE suggestion_number LIKE ?
+        """, (f"NRS/{office_id}/{year}/%",))
+        next_num = cursor.fetchone()['next_num']
+
+    return f"NRS/{office_id}/{year}/{next_num:04d}"
 
 
 def generate_proposal_number(office_id: str) -> str:
