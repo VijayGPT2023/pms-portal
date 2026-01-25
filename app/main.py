@@ -26,7 +26,11 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
-    init_database()
+    import sys
+    import os
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from scripts.init_db import init_database as full_init
+    full_init()
 
 
 # Root redirect
