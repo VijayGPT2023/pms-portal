@@ -82,8 +82,10 @@ def validate_session(session_id: str) -> Optional[dict]:
         if not row:
             return None
 
-        # Check expiration
-        expires_at = datetime.fromisoformat(row['expires_at'])
+        # Check expiration - PostgreSQL returns datetime objects, SQLite returns strings
+        expires_at = row['expires_at']
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
         if datetime.now() > expires_at:
             # Session expired, delete it
             cursor.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))

@@ -91,7 +91,7 @@
 
 {% block extra_scripts %}
 <script>
-const officers = {{ officers | tojson }};
+const officers = {{ officers | safe_tojson | safe }};
 const totalRevenue = {{ assignment.total_revenue or assignment.gross_value or 0 }};
 const existingShares = {{ existing_shares_json | safe }};
 let rowCount = 0;

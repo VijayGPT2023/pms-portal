@@ -197,7 +197,7 @@
                                 {{ pr.status|replace('_', ' ') }}
                             </span>
                         </td>
-                        <td>{{ pr.created_at[:10] if pr.created_at else '-' }}</td>
+                        <td>{{ pr.created_at|format_date }}</td>
                         <td>
                             <a href="/proposal-request/{{ pr.id }}" class="btn btn-sm btn-outline-primary">View</a>
                         </td>

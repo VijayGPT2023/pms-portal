@@ -1,17 +1,15 @@
 """
 Authentication routes: login, logout.
 """
-from pathlib import Path
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from app.auth import authenticate_officer, create_session, delete_session, serialize_session, deserialize_session
 from app.config import SESSION_COOKIE_NAME
 from app.dependencies import get_current_user
+from app.templates_config import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).resolve().parent.parent / "templates")
 
 
 @router.get("/login", response_class=HTMLResponse)

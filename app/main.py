@@ -5,10 +5,10 @@ PMS Portal - Performance Management System
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse
 
 from app.database import init_database
+from app.templates_config import templates
 from app.routes import auth_routes, dashboard_routes, assignment_routes, revenue_routes, mis_routes, data_routes, admin_routes, approval_routes, enquiry_routes, proposal_request_routes, proposal_routes
 
 # Create FastAPI app
@@ -18,10 +18,9 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Setup static files and templates
+# Setup static files
 BASE_DIR = Path(__file__).resolve().parent
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 
 # Initialize database on startup

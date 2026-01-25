@@ -177,7 +177,7 @@
                                 {{ e.status|replace('_', ' ') }}
                             </span>
                         </td>
-                        <td>{{ e.created_at[:10] if e.created_at else '-' }}</td>
+                        <td>{{ e.created_at|format_date }}</td>
                         <td>
                             <a href="/enquiry/{{ e.id }}" class="btn btn-sm btn-outline-primary">View</a>
                         </td>

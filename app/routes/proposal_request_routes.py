@@ -6,14 +6,12 @@ Enquiry → Proposal Request → Proposal → Work Order
 """
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from app.database import get_db, generate_proposal_number
 from app.dependencies import get_current_user
-from app.config import TEMPLATES_DIR
+from app.templates_config import templates
 
 router = APIRouter(prefix="/proposal-request", tags=["proposal-request"])
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 def is_office_head(user, office_id):

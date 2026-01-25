@@ -57,7 +57,7 @@
                     <td>{{ item.office_id }}</td>
                     <td>{{ "%.2f"|format(item.total_value or 0) }}</td>
                     <td>{{ item.created_by_name or '-' }}</td>
-                    <td>{{ item.created_at[:10] if item.created_at else '-' }}</td>
+                    <td>{{ item.created_at|format_date }}</td>
                     <td>
                         <a href="/assignment/view/{{ item.id }}" class="btn btn-sm btn-primary">Review</a>
                         <form method="POST" action="/approvals/assignment/{{ item.id }}/approve" style="display: inline;">

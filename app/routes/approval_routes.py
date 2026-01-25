@@ -1,10 +1,8 @@
 """
 Approval workflow routes for managing assignment approvals, team allocations, etc.
 """
-from pathlib import Path
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
 from app.dependencies import get_current_user, is_admin, is_head, is_senior_management
@@ -12,9 +10,9 @@ from app.roles import (
     ROLE_ADMIN, ROLE_DG, ROLE_DDG_I, ROLE_DDG_II,
     ROLE_RD_HEAD, ROLE_GROUP_HEAD, ROLE_TEAM_LEADER
 )
+from app.templates_config import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def require_approver_access(request: Request):

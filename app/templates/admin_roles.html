@@ -450,12 +450,12 @@ function updateScopeValues(scopeType) {
     scopeValueSelect.innerHTML = '<option value="">Select...</option>';
 
     if (scopeType === 'GROUP') {
-        const groups = {{ groups | tojson | safe }};
+        const groups = {{ groups | safe_tojson | safe }};
         groups.forEach(g => {
             scopeValueSelect.innerHTML += `<option value="${g.group_code}">${g.group_code} - ${g.group_name}</option>`;
         });
     } else if (scopeType === 'OFFICE') {
-        const offices = {{ offices | tojson | safe }};
+        const offices = {{ offices | safe_tojson | safe }};
         offices.forEach(o => {
             scopeValueSelect.innerHTML += `<option value="${o.office_id}">${o.office_id} - ${o.office_name}</option>`;
         });

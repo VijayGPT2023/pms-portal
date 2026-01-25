@@ -1,18 +1,16 @@
 """
 Revenue sharing routes: fill and update revenue shares.
 """
-from pathlib import Path
 from typing import List
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
 import json
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.templates_config import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).resolve().parent.parent / "templates")
 
 
 def get_assignment(assignment_id: int):

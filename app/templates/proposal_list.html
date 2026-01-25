@@ -216,7 +216,7 @@
                                 {{ p.status|replace('_', ' ') }}
                             </span>
                         </td>
-                        <td>{{ p.created_at[:10] if p.created_at else '-' }}</td>
+                        <td>{{ p.created_at|format_date }}</td>
                         <td>
                             <a href="/proposal/{{ p.id }}" class="btn btn-sm btn-outline-primary">View</a>
                         </td>

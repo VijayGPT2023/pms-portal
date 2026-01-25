@@ -4,8 +4,6 @@ Admin-only access for data management.
 """
 from fastapi import APIRouter, Request, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
-from pathlib import Path
 import io
 from datetime import datetime
 
@@ -16,9 +14,9 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 
 from app.database import get_db, init_database
 from app.dependencies import get_current_user, is_admin
+from app.templates_config import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")
 
 
 def require_admin_access(request: Request):

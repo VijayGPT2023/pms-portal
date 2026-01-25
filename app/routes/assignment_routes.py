@@ -1,19 +1,17 @@
 """
 Assignment routes: view, create, update assignment details.
 """
-from pathlib import Path
 from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.config import ASSIGNMENT_STATUS_OPTIONS, CLIENT_TYPE_OPTIONS, DOMAIN_OPTIONS
+from app.templates_config import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).resolve().parent.parent / "templates")
 
 
 def get_config_options(category: str):

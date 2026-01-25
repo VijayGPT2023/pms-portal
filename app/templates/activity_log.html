@@ -91,7 +91,7 @@
                         {% for activity in activities %}
                         <tr>
                             <td>
-                                <small>{{ activity.created_at[:19] if activity.created_at else 'N/A' }}</small>
+                                <small>{{ activity.created_at|format_datetime }}</small>
                             </td>
                             <td>
                                 <strong>{{ activity.actor_name or activity.actor_id }}</strong>

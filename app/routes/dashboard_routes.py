@@ -1,17 +1,15 @@
 """
 Dashboard routes: assignment list and main dashboard.
 """
-from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.templates_config import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=Path(__file__).resolve().parent.parent / "templates")
 
 
 @router.get("", response_class=HTMLResponse)

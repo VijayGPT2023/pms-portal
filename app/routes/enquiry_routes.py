@@ -6,7 +6,6 @@ Enquiry → Proposal Request → Proposal → Work Order
 """
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from datetime import date
 
 from app.database import (
@@ -14,10 +13,9 @@ from app.database import (
     get_pre_revenue_metrics
 )
 from app.dependencies import get_current_user
-from app.config import TEMPLATES_DIR
+from app.templates_config import templates
 
 router = APIRouter(prefix="/enquiry", tags=["enquiry"])
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 def is_office_head(user, office_id):
