@@ -7,9 +7,16 @@ from pathlib import Path
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Database
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR}/pms_portal.db")
+# Database - Support both SQLite (local) and PostgreSQL (production)
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 DATABASE_PATH = BASE_DIR / "pms_portal.db"
+
+# Determine if using PostgreSQL
+USE_POSTGRES = DATABASE_URL.startswith("postgres")
+
+# Render.com uses postgres:// but psycopg2 needs postgresql://
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Security
 SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production-123!")

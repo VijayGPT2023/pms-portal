@@ -6,3 +6,4 @@ python-multipart==0.0.21
 starlette==0.50.0
 uvicorn==0.40.0
 itsdangerous
+psycopg2-binary==2.9.9

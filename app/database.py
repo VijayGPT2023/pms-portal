@@ -1,19 +1,98 @@
 """
-Database connection and session management using SQLite.
+Database connection and session management.
+Supports both SQLite (local development) and PostgreSQL (production on Render).
 Enhanced with version history, invoice/payment tracking, and timeline progress.
 """
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from app.config import DATABASE_PATH
+from app.config import DATABASE_PATH, DATABASE_URL, USE_POSTGRES
+
+# PostgreSQL support
+if USE_POSTGRES:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+
+
+class DictRow:
+    """Wrapper to make psycopg2 results behave like sqlite3.Row"""
+    def __init__(self, data):
+        self._data = data
+        self._keys = list(data.keys()) if data else []
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._data[self._keys[key]]
+        return self._data[key]
+
+    def __iter__(self):
+        return iter(self._data.values())
+
+    def keys(self):
+        return self._keys
 
 
 def get_db_connection():
     """Create a database connection with row factory."""
-    conn = sqlite3.connect(str(DATABASE_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    else:
+        conn = sqlite3.connect(str(DATABASE_PATH))
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
+
+
+class PostgresCursorWrapper:
+    """Wrapper to make PostgreSQL cursor behave like SQLite cursor"""
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def execute(self, query, params=None):
+        # Convert SQLite ? placeholders to PostgreSQL %s
+        query = query.replace('?', '%s')
+        # Convert AUTOINCREMENT to SERIAL for PostgreSQL
+        query = query.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
+        # Convert SQLite PRAGMA (ignore in PostgreSQL)
+        if query.strip().upper().startswith('PRAGMA'):
+            return self
+        # Handle ALTER TABLE ADD COLUMN syntax differences
+        if 'ALTER TABLE' in query.upper() and 'ADD COLUMN' in query.upper():
+            # PostgreSQL uses ADD COLUMN (same as SQLite 3.x)
+            pass
+        if params:
+            self._cursor.execute(query, params)
+        else:
+            self._cursor.execute(query)
+        return self
+
+    def executemany(self, query, params_list):
+        query = query.replace('?', '%s')
+        for params in params_list:
+            self._cursor.execute(query, params)
+        return self
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return DictRow(row) if row else None
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        return [DictRow(row) for row in rows]
+
+    @property
+    def lastrowid(self):
+        # PostgreSQL uses RETURNING, but for compatibility we try to get it
+        try:
+            self._cursor.execute("SELECT lastval()")
+            return self._cursor.fetchone()['lastval']
+        except:
+            return None
+
+    @property
+    def rowcount(self):
+        return self._cursor.rowcount
 
 
 @contextmanager
@@ -21,7 +100,29 @@ def get_db():
     """Context manager for database connections."""
     conn = get_db_connection()
     try:
-        yield conn
+        if USE_POSTGRES:
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            # Return a wrapper that provides both connection and cursor-like interface
+            class PostgresConnection:
+                def __init__(self, conn, cursor):
+                    self._conn = conn
+                    self._cursor = PostgresCursorWrapper(cursor)
+
+                def cursor(self):
+                    return self._cursor
+
+                def execute(self, *args, **kwargs):
+                    return self._cursor.execute(*args, **kwargs)
+
+                def commit(self):
+                    return self._conn.commit()
+
+                def rollback(self):
+                    return self._conn.rollback()
+
+            yield PostgresConnection(conn, cursor)
+        else:
+            yield conn
         conn.commit()
     except Exception:
         conn.rollback()
