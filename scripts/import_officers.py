@@ -39,17 +39,16 @@ def import_officers():
     # Prepare password file
     passwords = []
 
-    with get_db() as conn:
-        cursor = conn.cursor()
+    # First, create all offices in separate transactions to avoid PostgreSQL transaction issues
+    office_ids = df['OFFICE ID'].dropna().unique()
+    print(f"\nCreating {len(office_ids)} offices...")
 
-        # First, collect unique office IDs and create offices
-        office_ids = df['OFFICE ID'].dropna().unique()
-        print(f"\nCreating {len(office_ids)} offices...")
-
-        for office_id in office_ids:
-            office_id = str(office_id).strip()
-            if office_id:
-                try:
+    for office_id in office_ids:
+        office_id = str(office_id).strip()
+        if office_id:
+            try:
+                with get_db() as conn:
+                    cursor = conn.cursor()
                     if USE_POSTGRES:
                         cursor.execute(
                             """INSERT INTO offices (office_id, office_name)
@@ -64,38 +63,40 @@ def import_officers():
                                VALUES (?, ?)""",
                             (office_id, f"{office_id} Office")
                         )
-                except Exception as e:
-                    print(f"  Error creating office {office_id}: {e}")
+            except Exception as e:
+                print(f"  Error creating office {office_id}: {e}")
 
-        # Now import officers
-        print(f"\nImporting officers...")
-        success_count = 0
-        skip_count = 0
+    # Now import officers - each in its own transaction to avoid cascade failures
+    print(f"\nImporting officers...")
+    success_count = 0
+    skip_count = 0
 
-        for idx, row in df.iterrows():
-            try:
-                officer_id = str(row['EMP ID']).strip() if pd.notna(row['EMP ID']) else None
-                name = str(row['Employee Name']).strip() if pd.notna(row['Employee Name']) else None
-                email = str(row['EMAIL']).strip().lower() if pd.notna(row['EMAIL']) else None
-                office_id = str(row['OFFICE ID']).strip() if pd.notna(row['OFFICE ID']) else None
-                designation = str(row['Designation']).strip() if pd.notna(row['Designation']) else None
-                discipline = str(row['Discipline']).strip() if pd.notna(row['Discipline']) else None
-                admin_role = str(row['Admin_Role ID']).strip() if pd.notna(row.get('Admin_Role ID')) else None
+    for idx, row in df.iterrows():
+        try:
+            officer_id = str(row['EMP ID']).strip() if pd.notna(row['EMP ID']) else None
+            name = str(row['Employee Name']).strip() if pd.notna(row['Employee Name']) else None
+            email = str(row['EMAIL']).strip().lower() if pd.notna(row['EMAIL']) else None
+            office_id = str(row['OFFICE ID']).strip() if pd.notna(row['OFFICE ID']) else None
+            designation = str(row['Designation']).strip() if pd.notna(row['Designation']) else None
+            discipline = str(row['Discipline']).strip() if pd.notna(row['Discipline']) else None
+            admin_role = str(row['Admin_Role ID']).strip() if pd.notna(row.get('Admin_Role ID')) else None
 
-                # Skip if missing required fields
-                if not officer_id or not name or not email or not office_id:
-                    print(f"  Skipping row {idx}: Missing required fields")
-                    skip_count += 1
-                    continue
+            # Skip if missing required fields
+            if not officer_id or not name or not email or not office_id:
+                print(f"  Skipping row {idx}: Missing required fields")
+                skip_count += 1
+                continue
 
-                # Use fixed password for all users
-                password = "npc123@#"
-                password_hash = hash_password(password)
+            # Use fixed password for all users
+            password = "npc123@#"
+            password_hash = hash_password(password)
 
-                # Get target based on designation
-                annual_target = get_target_for_designation(designation)
+            # Get target based on designation
+            annual_target = get_target_for_designation(designation)
 
-                # Insert officer with designation-based target
+            # Insert officer in its own transaction
+            with get_db() as conn:
+                cursor = conn.cursor()
                 if USE_POSTGRES:
                     cursor.execute("""
                         INSERT INTO officers
@@ -123,25 +124,27 @@ def import_officers():
                     """, (officer_id, name, email, designation, discipline, office_id, admin_role,
                           password_hash, annual_target))
 
-                # Store password for CSV output
-                passwords.append({
-                    'officer_id': officer_id,
-                    'name': name,
-                    'email': email,
-                    'office_id': office_id,
-                    'designation': designation,
-                    'annual_target': annual_target,
-                    'password': password
-                })
+            # Store password for CSV output
+            passwords.append({
+                'officer_id': officer_id,
+                'name': name,
+                'email': email,
+                'office_id': office_id,
+                'designation': designation,
+                'annual_target': annual_target,
+                'password': password
+            })
 
-                success_count += 1
+            success_count += 1
 
-            except Exception as e:
-                print(f"  Error importing row {idx}: {e}")
-                skip_count += 1
+        except Exception as e:
+            print(f"  Error importing row {idx}: {e}")
+            skip_count += 1
 
-        # Update office officer counts and calculate annual targets based on officers
-        print(f"\nUpdating office targets...")
+    # Update office officer counts and calculate annual targets based on officers
+    print(f"\nUpdating office targets...")
+    with get_db() as conn:
+        cursor = conn.cursor()
         cursor.execute("""
             UPDATE offices SET
                 officer_count = (
