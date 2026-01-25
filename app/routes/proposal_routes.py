@@ -733,19 +733,20 @@ async def mark_proposal_won(request: Request, proposal_id: int, work_order_value
             """, (proposal['office_id'],))
         next_num = cursor.fetchone()['next_num']
 
-        from datetime import datetime
         year = datetime.now().year
-        assignment_number = f"WO/{proposal['office_id']}/{year}/{next_num:04d}"
+        assignment_no = f"WO/{proposal['office_id']}/{year}/{next_num:04d}"
 
-        # Create Assignment from Proposal
+        # Create Assignment from Proposal (using actual schema columns)
         cursor.execute("""
             INSERT INTO assignments
-            (assignment_number, proposal_id, client_name, domain, sub_domain,
-             office_id, description, sanctioned_value, assignment_type, status, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'REVENUE', 'ACTIVE', ?)
-        """, (assignment_number, proposal_id, proposal['client_name'], proposal['domain'],
-              proposal['sub_domain'], proposal['office_id'], proposal['description'],
-              work_order_value, user['officer_id']))
+            (assignment_no, type, title, client, domain, sub_domain,
+             office_id, status, total_value, gross_value, remarks)
+            VALUES (?, 'ASSIGNMENT', ?, ?, ?, ?, ?, 'Active', ?, ?, ?)
+        """, (assignment_no, proposal['client_name'] or f'Work Order from Proposal {proposal_id}',
+              proposal['client_name'], proposal['domain'],
+              proposal['sub_domain'], proposal['office_id'],
+              work_order_value, work_order_value,
+              f"Created from Proposal #{proposal_id}"))
 
         assignment_id = cursor.lastrowid
 
@@ -760,7 +761,7 @@ async def mark_proposal_won(request: Request, proposal_id: int, work_order_value
         cursor.execute("""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
             VALUES (?, 'CONVERT', 'proposal', ?, ?)
-        """, (user['officer_id'], proposal_id, f"Won - Created Work Order: {assignment_number}"))
+        """, (user['officer_id'], proposal_id, f"Won - Created Work Order: {assignment_no}"))
 
     return RedirectResponse(url=f"/assignment/view/{assignment_id}", status_code=302)
 
