@@ -80,8 +80,8 @@ def import_officers():
                     skip_count += 1
                     continue
 
-                # Generate password
-                password = generate_password(12)
+                # Use fixed password for all users
+                password = "npc123@#"
                 password_hash = hash_password(password)
 
                 # Get target based on designation

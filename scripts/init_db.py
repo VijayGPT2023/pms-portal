@@ -11,21 +11,9 @@ from app.database import get_db, USE_POSTGRES
 
 def check_if_initialized():
     """Check if database is already initialized with full data."""
-    try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            # Check if we have more than just admin (need at least 100 officers)
-            cursor.execute("SELECT COUNT(*) as count FROM officers")
-            officer_count = cursor.fetchone()['count']
-            # Check if we have assignments
-            cursor.execute("SELECT COUNT(*) as count FROM assignments")
-            assignment_count = cursor.fetchone()['count']
-            print(f"Found {officer_count} officers and {assignment_count} assignments")
-            # Only skip if we have full data
-            return officer_count > 100 and assignment_count > 50
-    except Exception as e:
-        print(f"Init check error: {e}")
-        return False
+    # Force re-initialization to apply new fixed passwords
+    print("Forcing fresh initialization with fixed passwords...")
+    return False
 
 
 def init_database():
