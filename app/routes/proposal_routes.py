@@ -721,10 +721,16 @@ async def mark_proposal_won(request: Request, proposal_id: int, work_order_value
             return RedirectResponse(url=f"/proposal/{proposal_id}?error=already_won", status_code=302)
 
         # Generate assignment number
-        cursor.execute("""
-            SELECT COUNT(*) + 1 as next_num FROM assignments
-            WHERE office_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
-        """, (proposal['office_id'],))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT COUNT(*) + 1 as next_num FROM assignments
+                WHERE office_id = %s AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+            """, (proposal['office_id'],))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) + 1 as next_num FROM assignments
+                WHERE office_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
+            """, (proposal['office_id'],))
         next_num = cursor.fetchone()['next_num']
 
         from datetime import datetime

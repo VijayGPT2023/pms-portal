@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 
-from app.database import get_db
+from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.config import ASSIGNMENT_STATUS_OPTIONS, CLIENT_TYPE_OPTIONS, DOMAIN_OPTIONS
 from app.templates_config import templates
@@ -532,10 +532,16 @@ async def create_assignment(request: Request):
         cursor = conn.cursor()
 
         # Generate assignment number
-        cursor.execute("""
-            SELECT COUNT(*) + 1 as next_no FROM assignments
-            WHERE office_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
-        """, (office_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT COUNT(*) + 1 as next_no FROM assignments
+                WHERE office_id = %s AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+            """, (office_id,))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) + 1 as next_no FROM assignments
+                WHERE office_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
+            """, (office_id,))
         next_no = cursor.fetchone()['next_no']
 
         import datetime
