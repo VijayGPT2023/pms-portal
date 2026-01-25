@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: pms-portal
+    env: python
+    buildCommand: pip install -r requirements.txt && python scripts/setup_all.py
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
