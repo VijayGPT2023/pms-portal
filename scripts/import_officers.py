@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pandas as pd
 import csv
-from app.database import init_database, get_db, get_target_for_designation, DESIGNATION_TARGETS
-from app.auth import generate_password, hash_password
+from app.database import init_database, get_db, get_target_for_designation, DESIGNATION_TARGETS, USE_POSTGRES
+from app.auth import hash_password
 from app.config import OFFICER_DATA_FILE, INITIAL_PASSWORDS_FILE
 
 
@@ -50,12 +50,20 @@ def import_officers():
             office_id = str(office_id).strip()
             if office_id:
                 try:
-                    cursor.execute(
-                        """INSERT OR IGNORE INTO offices
-                           (office_id, office_name)
-                           VALUES (?, ?)""",
-                        (office_id, f"{office_id} Office")
-                    )
+                    if USE_POSTGRES:
+                        cursor.execute(
+                            """INSERT INTO offices (office_id, office_name)
+                               VALUES (%s, %s)
+                               ON CONFLICT (office_id) DO NOTHING""",
+                            (office_id, f"{office_id} Office")
+                        )
+                    else:
+                        cursor.execute(
+                            """INSERT OR IGNORE INTO offices
+                               (office_id, office_name)
+                               VALUES (?, ?)""",
+                            (office_id, f"{office_id} Office")
+                        )
                 except Exception as e:
                     print(f"  Error creating office {office_id}: {e}")
 
@@ -88,13 +96,32 @@ def import_officers():
                 annual_target = get_target_for_designation(designation)
 
                 # Insert officer with designation-based target
-                cursor.execute("""
-                    INSERT OR REPLACE INTO officers
-                    (officer_id, name, email, designation, discipline, office_id, admin_role_id,
-                     password_hash, is_active, annual_target)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-                """, (officer_id, name, email, designation, discipline, office_id, admin_role,
-                      password_hash, annual_target))
+                if USE_POSTGRES:
+                    cursor.execute("""
+                        INSERT INTO officers
+                        (officer_id, name, email, designation, discipline, office_id, admin_role_id,
+                         password_hash, is_active, annual_target)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 1, %s)
+                        ON CONFLICT (officer_id) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            email = EXCLUDED.email,
+                            designation = EXCLUDED.designation,
+                            discipline = EXCLUDED.discipline,
+                            office_id = EXCLUDED.office_id,
+                            admin_role_id = EXCLUDED.admin_role_id,
+                            password_hash = EXCLUDED.password_hash,
+                            is_active = 1,
+                            annual_target = EXCLUDED.annual_target
+                    """, (officer_id, name, email, designation, discipline, office_id, admin_role,
+                          password_hash, annual_target))
+                else:
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO officers
+                        (officer_id, name, email, designation, discipline, office_id, admin_role_id,
+                         password_hash, is_active, annual_target)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    """, (officer_id, name, email, designation, discipline, office_id, admin_role,
+                          password_hash, annual_target))
 
                 # Store password for CSV output
                 passwords.append({
