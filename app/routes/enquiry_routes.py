@@ -6,7 +6,7 @@ Enquiry → Proposal Request → Proposal → Work Order
 """
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
-from datetime import date
+from datetime import date, datetime
 
 from app.database import (
     get_db, generate_enquiry_number, generate_pr_number,
@@ -243,7 +243,7 @@ async def create_enquiry(
               office_id, officer_id if is_head else None, description, estimated_value, target_date,
               remarks, initial_status, approval_status,
               user['officer_id'] if is_head else None,
-              'CURRENT_TIMESTAMP' if is_head else None,
+              datetime.now() if is_head else None,
               user['officer_id']))
 
         enquiry_id = cursor.lastrowid

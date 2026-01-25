@@ -6,8 +6,9 @@ Enquiry → Proposal Request → Proposal → Work Order
 """
 from fastapi import APIRouter, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
+from datetime import datetime
 
-from app.database import get_db
+from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.templates_config import templates
 
@@ -16,34 +17,41 @@ router = APIRouter(prefix="/proposal", tags=["proposal"])
 
 def is_office_head(user, office_id):
     """Check if user is Head of the given office."""
-    admin_role = user.get('admin_role_id', '')
-    if admin_role in ['ADMIN', 'DG', 'DDG']:
+    admin_role = (user.get('admin_role_id', '') or '').upper()
+
+    # Check admin_role_id for head roles (from Excel import)
+    head_roles = ['ADMIN', 'DG', 'DDG', 'DDG-I', 'DDG-II', 'RD_HEAD', 'GROUP_HEAD', 'HEAD', 'TEAM_LEADER']
+    if admin_role in head_roles:
         return True
 
-    # Check if user is head of this office
+    # Parameter placeholder based on database type
+    ph = '%s' if USE_POSTGRES else '?'
+    date_func = 'CURRENT_DATE' if USE_POSTGRES else "DATE('now')"
+
+    # Also check officer_roles table for dynamic role assignments
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT 1 FROM officer_roles
-            WHERE officer_id = ?
+            WHERE officer_id = {ph}
             AND role_type IN ('DG', 'DDG-I', 'DDG-II', 'RD_HEAD', 'GROUP_HEAD')
-            AND (effective_to IS NULL OR effective_to >= DATE('now'))
+            AND (effective_to IS NULL OR effective_to >= {date_func})
         """, (user['officer_id'],))
         if cursor.fetchone():
             return True
 
         # Check if user's office matches and they have head role
         if user.get('office_id') == office_id:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT 1 FROM officer_roles
-                WHERE officer_id = ?
+                WHERE officer_id = {ph}
                 AND role_type IN ('RD_HEAD', 'GROUP_HEAD', 'TEAM_LEADER')
-                AND (effective_to IS NULL OR effective_to >= DATE('now'))
+                AND (effective_to IS NULL OR effective_to >= {date_func})
             """, (user['officer_id'],))
             if cursor.fetchone():
                 return True
 
-    return admin_role == 'HEAD'
+    return False
 
 
 def can_edit_proposal(user, proposal):
@@ -252,7 +260,7 @@ async def create_proposal(
               office_id, officer_id if is_head else None, description, estimated_value, proposed_value,
               target_date, remarks, initial_status, approval_status,
               user['officer_id'] if is_head else None,
-              'CURRENT_TIMESTAMP' if is_head else None,
+              datetime.now() if is_head else None,
               user['officer_id']))
 
         proposal_id = cursor.lastrowid
