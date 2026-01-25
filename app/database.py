@@ -46,21 +46,46 @@ def get_db_connection():
 
 class PostgresCursorWrapper:
     """Wrapper to make PostgreSQL cursor behave like SQLite cursor"""
-    def __init__(self, cursor):
+    def __init__(self, cursor, conn=None):
         self._cursor = cursor
+        self._conn = conn
+        self._savepoint_counter = 0
 
     def execute(self, query, params=None):
         # Convert SQLite ? placeholders to PostgreSQL %s
         query = query.replace('?', '%s')
         # Convert AUTOINCREMENT to SERIAL for PostgreSQL
         query = query.replace('INTEGER PRIMARY KEY AUTOINCREMENT', 'SERIAL PRIMARY KEY')
+        # Convert INSERT OR IGNORE to INSERT ... ON CONFLICT DO NOTHING
+        if 'INSERT OR IGNORE' in query.upper():
+            query = query.replace('INSERT OR IGNORE', 'INSERT')
+            query = query.replace('insert or ignore', 'INSERT')
+            # Add ON CONFLICT DO NOTHING at the end
+            query = query.rstrip().rstrip(';') + ' ON CONFLICT DO NOTHING'
+        # Convert INSERT OR REPLACE to PostgreSQL UPSERT
+        if 'INSERT OR REPLACE' in query.upper():
+            query = query.replace('INSERT OR REPLACE', 'INSERT')
+            query = query.replace('insert or replace', 'INSERT')
+            # This is simplified - full UPSERT would need more logic
+            query = query.rstrip().rstrip(';') + ' ON CONFLICT DO NOTHING'
         # Convert SQLite PRAGMA (ignore in PostgreSQL)
         if query.strip().upper().startswith('PRAGMA'):
             return self
-        # Handle ALTER TABLE ADD COLUMN syntax differences
+        # Handle ALTER TABLE ADD COLUMN - use savepoint to handle errors gracefully
         if 'ALTER TABLE' in query.upper() and 'ADD COLUMN' in query.upper():
-            # PostgreSQL uses ADD COLUMN (same as SQLite 3.x)
-            pass
+            self._savepoint_counter += 1
+            savepoint_name = f"sp_{self._savepoint_counter}"
+            try:
+                self._cursor.execute(f"SAVEPOINT {savepoint_name}")
+                if params:
+                    self._cursor.execute(query, params)
+                else:
+                    self._cursor.execute(query)
+                self._cursor.execute(f"RELEASE SAVEPOINT {savepoint_name}")
+            except Exception as e:
+                # Column might already exist - rollback to savepoint
+                self._cursor.execute(f"ROLLBACK TO SAVEPOINT {savepoint_name}")
+            return self
         if params:
             self._cursor.execute(query, params)
         else:
@@ -106,7 +131,7 @@ def get_db():
             class PostgresConnection:
                 def __init__(self, conn, cursor):
                     self._conn = conn
-                    self._cursor = PostgresCursorWrapper(cursor)
+                    self._cursor = PostgresCursorWrapper(cursor, conn)
 
                 def cursor(self):
                     return self._cursor

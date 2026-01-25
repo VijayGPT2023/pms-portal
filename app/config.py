@@ -7,6 +7,16 @@ from pathlib import Path
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load .env file if it exists (for local development)
+env_file = BASE_DIR / ".env"
+if env_file.exists():
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#') and '=' in line:
+                key, value = line.split('=', 1)
+                os.environ.setdefault(key.strip(), value.strip())
+
 # Database - Support both SQLite (local) and PostgreSQL (production)
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 DATABASE_PATH = BASE_DIR / "pms_portal.db"

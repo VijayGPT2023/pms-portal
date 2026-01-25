@@ -339,6 +339,15 @@ def generate_dummy_data():
     with get_db() as conn:
         cursor = conn.cursor()
 
+        # Clear existing assignment data to avoid duplicate key errors
+        print("Clearing existing assignment data...")
+        cursor.execute("DELETE FROM expenditure_items")
+        cursor.execute("DELETE FROM revenue_shares")
+        cursor.execute("DELETE FROM milestones")
+        cursor.execute("DELETE FROM assignments")
+        conn.commit()
+        print("Existing data cleared.")
+
         # Get all offices with their targets
         cursor.execute("SELECT office_id, officer_count, annual_revenue_target FROM offices")
         offices = {row['office_id']: {
