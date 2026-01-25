@@ -10,23 +10,30 @@ from app.database import get_db, USE_POSTGRES
 
 
 def check_if_initialized():
-    """Check if database is already initialized."""
+    """Check if database is already initialized with full data."""
     try:
         with get_db() as conn:
             cursor = conn.cursor()
+            # Check if we have more than just admin (need at least 100 officers)
             cursor.execute("SELECT COUNT(*) as count FROM officers")
-            row = cursor.fetchone()
-            return row['count'] > 0
-    except Exception:
+            officer_count = cursor.fetchone()['count']
+            # Check if we have assignments
+            cursor.execute("SELECT COUNT(*) as count FROM assignments")
+            assignment_count = cursor.fetchone()['count']
+            print(f"Found {officer_count} officers and {assignment_count} assignments")
+            # Only skip if we have full data
+            return officer_count > 100 and assignment_count > 50
+    except Exception as e:
+        print(f"Init check error: {e}")
         return False
 
 
 def init_database():
     """Initialize the database with tables, officers, and sample data."""
-    print("=" * 60)
-    print("PMS Portal - Database Initialization")
-    print(f"Database: {'PostgreSQL' if USE_POSTGRES else 'SQLite'}")
-    print("=" * 60)
+    print("=" * 60, flush=True)
+    print("PMS Portal - Database Initialization", flush=True)
+    print(f"Database: {'PostgreSQL' if USE_POSTGRES else 'SQLite'}", flush=True)
+    print("=" * 60, flush=True)
 
     # Check if already initialized
     if check_if_initialized():
