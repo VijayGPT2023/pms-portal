@@ -152,7 +152,12 @@ async def revenue_share_submit(request: Request, assignment_id: int):
                 VALUES (?, ?, ?, ?)
             """, (assignment_id, share['officer_id'], share['share_percent'], share['share_amount']))
 
-    return RedirectResponse(url="/dashboard", status_code=302)
+    # Check if user wants to finish wizard
+    next_step = form_data.get('next_step', '')
+    if next_step == 'finish':
+        return RedirectResponse(url=f"/assignment/view/{assignment_id}?completed=1", status_code=302)
+
+    return RedirectResponse(url=f"/assignment/view/{assignment_id}", status_code=302)
 
 
 @router.get("/api/officers", response_class=JSONResponse)

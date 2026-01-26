@@ -1,0 +1,126 @@
+<!-- Workflow Steps Indicator -->
+<div class="workflow-steps">
+    <div class="step {% if current_step == 1 %}active{% elif current_step > 1 %}completed{% endif %}">
+        <div class="step-number">
+            {% if current_step > 1 %}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            {% else %}1{% endif %}
+        </div>
+        <div class="step-label">Milestones</div>
+    </div>
+    <div class="step-line {% if current_step > 1 %}completed{% endif %}"></div>
+    <div class="step {% if current_step == 2 %}active{% elif current_step > 2 %}completed{% endif %}">
+        <div class="step-number">
+            {% if current_step > 2 %}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            {% else %}2{% endif %}
+        </div>
+        <div class="step-label">Cost Estimate</div>
+    </div>
+    <div class="step-line {% if current_step > 2 %}completed{% endif %}"></div>
+    <div class="step {% if current_step == 3 %}active{% elif current_step > 3 %}completed{% endif %}">
+        <div class="step-number">
+            {% if current_step > 3 %}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            {% else %}3{% endif %}
+        </div>
+        <div class="step-label">Team & Revenue</div>
+    </div>
+</div>
+
+<style>
+.workflow-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    margin-bottom: 20px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.step-number {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.step.active .step-number {
+    background: #3b82f6;
+    color: white;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+.step.completed .step-number {
+    background: #10b981;
+    color: white;
+}
+
+.step-label {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.step.active .step-label {
+    color: #3b82f6;
+    font-weight: 600;
+}
+
+.step.completed .step-label {
+    color: #10b981;
+}
+
+.step-line {
+    width: 80px;
+    height: 3px;
+    background: #e2e8f0;
+    margin: 0 10px;
+    margin-bottom: 28px;
+    transition: all 0.3s ease;
+}
+
+.step-line.completed {
+    background: #10b981;
+}
+
+@media (max-width: 600px) {
+    .workflow-steps {
+        padding: 15px 10px;
+    }
+    .step-line {
+        width: 30px;
+    }
+    .step-label {
+        font-size: 0.75rem;
+    }
+    .step-number {
+        width: 32px;
+        height: 32px;
+        font-size: 0.875rem;
+    }
+}
+</style>

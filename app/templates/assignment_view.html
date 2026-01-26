@@ -8,13 +8,148 @@
     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
         <a href="/mis/assignment/{{ assignment.id }}/progress" class="btn btn-success">View Progress</a>
         <a href="/assignment/edit/{{ assignment.id }}" class="btn btn-primary">Edit Details</a>
-        <a href="/assignment/milestones/{{ assignment.id }}" class="btn btn-info">Milestones</a>
-        <a href="/assignment/expenditure/{{ assignment.id }}" class="btn btn-secondary">Cost Estimate</a>
-        <a href="/revenue/edit/{{ assignment.id }}" class="btn btn-warning">Team & Revenue</a>
         <a href="/finance/invoice-request/{{ assignment.id }}" class="btn btn-success">Raise Invoice</a>
         <a href="/dashboard" class="btn btn-secondary">Dashboard</a>
     </div>
 </div>
+
+<!-- Wizard Completion Message -->
+{% if request.query_params.get('completed') == '1' %}
+<div class="alert alert-success" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
+    <strong>Assignment setup complete!</strong> All details have been saved successfully.
+</div>
+{% endif %}
+
+<!-- Workflow Progress Card -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Setup Progress</h2>
+    </div>
+    <div style="padding: 20px;">
+        <div class="workflow-progress">
+            <a href="/assignment/milestones/{{ assignment.id }}" class="workflow-item {% if milestones and milestones|length > 0 %}completed{% endif %}">
+                <div class="workflow-icon">
+                    {% if milestones and milestones|length > 0 %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    {% else %}
+                    <span>1</span>
+                    {% endif %}
+                </div>
+                <div class="workflow-label">
+                    <strong>Milestones</strong>
+                    <small>{{ milestones|length if milestones else 0 }} defined</small>
+                </div>
+            </a>
+            <div class="workflow-line"></div>
+            <a href="/assignment/expenditure/{{ assignment.id }}" class="workflow-item {% if assignment.total_expenditure and assignment.total_expenditure > 0 %}completed{% endif %}">
+                <div class="workflow-icon">
+                    {% if assignment.total_expenditure and assignment.total_expenditure > 0 %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    {% else %}
+                    <span>2</span>
+                    {% endif %}
+                </div>
+                <div class="workflow-label">
+                    <strong>Cost Estimate</strong>
+                    <small>₹{{ "%.1f"|format(assignment.total_expenditure or 0) }}L</small>
+                </div>
+            </a>
+            <div class="workflow-line"></div>
+            <a href="/revenue/edit/{{ assignment.id }}" class="workflow-item {% if revenue_shares and revenue_shares|length > 0 %}completed{% endif %}">
+                <div class="workflow-icon">
+                    {% if revenue_shares and revenue_shares|length > 0 %}
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    {% else %}
+                    <span>3</span>
+                    {% endif %}
+                </div>
+                <div class="workflow-label">
+                    <strong>Team & Revenue</strong>
+                    <small>{{ revenue_shares|length if revenue_shares else 0 }} members</small>
+                </div>
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.workflow-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+}
+.workflow-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: #f7fafc;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #4a5568;
+    transition: all 0.2s ease;
+    border: 2px solid #e2e8f0;
+}
+.workflow-item:hover {
+    background: #edf2f7;
+    border-color: #cbd5e0;
+}
+.workflow-item.completed {
+    background: #f0fff4;
+    border-color: #68d391;
+}
+.workflow-item.completed .workflow-icon {
+    background: #48bb78;
+    color: white;
+}
+.workflow-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #4a5568;
+}
+.workflow-label {
+    display: flex;
+    flex-direction: column;
+}
+.workflow-label strong {
+    font-size: 0.9rem;
+}
+.workflow-label small {
+    color: #718096;
+    font-size: 0.75rem;
+}
+.workflow-line {
+    width: 40px;
+    height: 2px;
+    background: #e2e8f0;
+}
+@media (max-width: 768px) {
+    .workflow-progress {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .workflow-line {
+        width: 2px;
+        height: 20px;
+    }
+    .workflow-item {
+        width: 100%;
+    }
+}
+</style>
 
 <div class="card">
     <div class="card-header">

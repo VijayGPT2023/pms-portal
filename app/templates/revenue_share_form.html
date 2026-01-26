@@ -4,9 +4,13 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>Revenue Share Allocation</h1>
-    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    <h1>Team & Revenue Share Allocation</h1>
+    <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
 </div>
+
+<!-- Workflow Steps -->
+{% set current_step = 3 %}
+{% include "includes/workflow_steps.html" %}
 
 {% if error %}
 <div class="alert alert-error">
@@ -80,9 +84,14 @@
             Total percentage must be exactly 100% to save.
         </div>
 
-        <div style="margin-top: 30px; display: flex; gap: 15px;">
-            <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">Save Revenue Shares</button>
-            <a href="/dashboard" class="btn btn-secondary btn-lg">Cancel</a>
+        <input type="hidden" name="next_step" id="nextStepInput" value="">
+
+        <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+            <a href="/assignment/expenditure/{{ assignment.id }}" class="btn btn-outline-secondary btn-lg">← Back to Cost Estimate</a>
+            <button type="submit" class="btn btn-secondary btn-lg" id="submit-btn">Save Only</button>
+            <button type="submit" class="btn btn-success btn-lg" id="finish-btn" onclick="document.getElementById('nextStepInput').value='finish'">
+                Save & Finish ✓
+            </button>
         </div>
     </form>
 </div>

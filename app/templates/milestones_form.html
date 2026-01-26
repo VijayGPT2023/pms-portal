@@ -8,6 +8,10 @@
     <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
 </div>
 
+<!-- Workflow Steps -->
+{% set current_step = 1 %}
+{% include "includes/workflow_steps.html" %}
+
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">
@@ -118,9 +122,14 @@
             </span>
         </div>
 
-        <div style="margin-top: 30px; display: flex; gap: 15px;">
-            <button type="submit" class="btn btn-primary btn-lg">Save Milestones</button>
-            <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary btn-lg">Cancel</a>
+        <input type="hidden" name="next_step" id="nextStepInput" value="">
+
+        <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+            <button type="submit" class="btn btn-secondary btn-lg">Save Only</button>
+            <button type="submit" class="btn btn-primary btn-lg" onclick="document.getElementById('nextStepInput').value='cost_estimate'">
+                Save & Continue to Cost Estimate →
+            </button>
+            <a href="/assignment/view/{{ assignment.id }}" class="btn btn-outline-secondary btn-lg">Cancel</a>
         </div>
     </form>
 </div>

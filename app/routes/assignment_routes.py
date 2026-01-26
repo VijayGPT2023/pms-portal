@@ -561,6 +561,11 @@ async def save_milestones(request: Request, assignment_id: int):
             WHERE id = ?
         """, (physical_progress, timeline_progress, invoice_amount, amount_received, total_revenue, assignment_id))
 
+    # Check if user wants to continue to next step in wizard
+    next_step = form_data.get('next_step', '')
+    if next_step == 'cost_estimate':
+        return RedirectResponse(url=f"/assignment/expenditure/{assignment_id}?wizard=1", status_code=302)
+
     return RedirectResponse(url=f"/assignment/view/{assignment_id}", status_code=302)
 
 
@@ -729,7 +734,8 @@ async def create_assignment(request: Request):
                 ))
                 milestone_no += 1
 
-    return RedirectResponse(url=f"/assignment/view/{assignment_id}", status_code=302)
+    # Redirect to milestones form to start the wizard flow
+    return RedirectResponse(url=f"/assignment/milestones/{assignment_id}?wizard=1", status_code=302)
 
 
 @router.get("/expenditure/{assignment_id}", response_class=HTMLResponse)
@@ -847,5 +853,10 @@ async def save_expenditure(request: Request, assignment_id: int):
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (total_actual, total_actual, assignment_id))
+
+    # Check if user wants to continue to next step in wizard
+    next_step = form_data.get('next_step', '')
+    if next_step == 'team_revenue':
+        return RedirectResponse(url=f"/revenue/edit/{assignment_id}?wizard=1", status_code=302)
 
     return RedirectResponse(url=f"/assignment/view/{assignment_id}", status_code=302)
