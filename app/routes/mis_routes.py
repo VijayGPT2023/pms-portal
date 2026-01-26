@@ -1108,12 +1108,13 @@ async def office_financial_mis(
             }
 
         # Get total assignment value in hand (active assignments)
+        # Status values: 'Not Started', 'In Progress', 'Completed', 'Delayed', 'Cancelled'
         cursor.execute(f"""
             SELECT a.office_id,
                    COUNT(*) as assignment_count,
                    COALESCE(SUM(a.gross_value), 0) as total_value
             FROM assignments a
-            WHERE a.status IN ('ACTIVE', 'IN_PROGRESS', 'APPROVED')
+            WHERE a.status IN ('Not Started', 'In Progress', 'Delayed')
             {office_filter}
             GROUP BY a.office_id
         """, office_params)
