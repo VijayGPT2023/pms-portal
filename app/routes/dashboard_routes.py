@@ -113,9 +113,12 @@ async def dashboard(
             role_offices = get_offices_for_ddg(cursor, active_role)
             role_groups = get_groups_for_ddg(cursor, active_role)
 
-            if role_offices or role_groups:
-                office_placeholders = ','.join(['?' for _ in role_offices]) if role_offices else "''"
-                group_placeholders = ','.join(['?' for _ in role_groups]) if role_groups else "''"
+            # Both offices and groups are matched against office_id
+            # e.g., "RD Chennai", "RD Mumbai" for offices and "IE Group", "AB Group" for groups
+            all_office_ids = role_offices + role_groups
+
+            if all_office_ids:
+                placeholders = ','.join(['?' for _ in all_office_ids])
 
                 query = f"""
                     SELECT
@@ -124,9 +127,9 @@ async def dashboard(
                         a.total_revenue, a.details_filled, a.team_leader_officer_id, a.domain,
                         (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as share_count
                     FROM assignments a
-                    WHERE (a.office_id IN ({office_placeholders}) OR a.domain IN ({group_placeholders}))
+                    WHERE a.office_id IN ({placeholders})
                 """
-                params = role_offices + role_groups
+                params = all_office_ids
             else:
                 query = """
                     SELECT
@@ -408,9 +411,11 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
 
     elif view_type == 'ddg':
         # DDG view stats - aggregate of offices and groups reporting to DDG
-        if role_offices or role_groups:
-            office_placeholders = ','.join(['?' for _ in role_offices]) if role_offices else "''"
-            group_placeholders = ','.join(['?' for _ in role_groups]) if role_groups else "''"
+        # Both offices and groups are matched against office_id (groups are stored as office_id too)
+        all_office_ids = role_offices + role_groups
+
+        if all_office_ids:
+            placeholders = ','.join(['?' for _ in all_office_ids])
 
             cursor.execute(f"""
                 SELECT
@@ -418,16 +423,17 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
                     COALESCE(SUM(total_revenue), 0) as total_revenue,
                     COALESCE(SUM(gross_value), 0) as total_value
                 FROM assignments
-                WHERE office_id IN ({office_placeholders}) OR domain IN ({group_placeholders})
-            """, role_offices + role_groups)
+                WHERE office_id IN ({placeholders})
+            """, all_office_ids)
             row = cursor.fetchone()
             if row:
                 summary = dict(row)
             else:
                 summary = {'assignment_count': 0, 'total_revenue': 0, 'total_value': 0}
 
-            # Get target from offices
+            # Get target from offices (only actual offices, not groups)
             if role_offices:
+                office_placeholders = ','.join(['?' for _ in role_offices])
                 cursor.execute(f"""
                     SELECT COALESCE(SUM(annual_revenue_target), 0) as target,
                            COUNT(*) as office_count,
@@ -442,9 +448,12 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
                 summary['target'] = 0
                 summary['office_count'] = 0
                 summary['officer_count'] = 0
+
+            # Add group count
+            summary['group_count'] = len(role_groups)
         else:
             summary = {'assignment_count': 0, 'total_revenue': 0, 'total_value': 0,
-                      'target': 0, 'office_count': 0, 'officer_count': 0}
+                      'target': 0, 'office_count': 0, 'officer_count': 0, 'group_count': 0}
 
         summary['prorata_target'] = round(summary.get('target', 0) * fy_progress, 2)
         summary['achievement_pct'] = round((summary['total_revenue'] / summary['target'] * 100), 1) if summary.get('target', 0) > 0 else 0
