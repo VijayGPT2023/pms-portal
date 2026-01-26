@@ -3,216 +3,241 @@
 {% block title %}Proposal Requests - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3>Proposal Requests Pipeline</h3>
-        <div>
-            <a href="/proposal-request/new" class="btn btn-primary me-2">New Proposal Request</a>
-            <a href="/enquiry/" class="btn btn-outline-secondary me-2">View Enquiries</a>
-            <a href="/enquiry/metrics/pre-revenue" class="btn btn-outline-info">Pre-Revenue Metrics</a>
+<div class="tab-container">
+    <!-- Header -->
+    <div class="tab-header">
+        <h1>Proposal Requests</h1>
+        <div class="tab-actions">
+            <a href="/proposal-request/new" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New PR
+            </a>
+            <a href="/enquiry/" class="btn btn-secondary btn-sm">Enquiries</a>
+            <a href="/enquiry/metrics/pre-revenue" class="btn btn-secondary btn-sm">Metrics</a>
         </div>
     </div>
 
-    <!-- View Filters (Quick access) -->
-    <div class="mb-4">
-        <div class="btn-group" role="group">
-            <a href="/proposal-request/" class="btn {% if not filter_view %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                All PRs
-            </a>
-            <a href="?view=my_created" class="btn {% if filter_view == 'my_created' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                My Created
-            </a>
-            <a href="?view=my_allocated" class="btn {% if filter_view == 'my_allocated' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-                Allocated to Me
-            </a>
-            {% if is_head %}
-            <a href="?view=pending_approval" class="btn {% if filter_view == 'pending_approval' %}btn-warning{% else %}btn-outline-warning{% endif %}">
-                Pending Approval
-                {% if pending_approval_count > 0 %}
-                <span class="badge bg-danger">{{ pending_approval_count }}</span>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab-btn="pr" onclick="switchTab('tab-all', 'pr')">
+            All <span class="count">{{ proposal_requests|length }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="pr" onclick="switchTab('tab-pending', 'pr')">
+            Pending <span class="count">{{ status_counts.get('PENDING_APPROVAL', 0) }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="pr" onclick="switchTab('tab-approved', 'pr')">
+            Approved <span class="count">{{ status_counts.get('APPROVED', 0) }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="pr" onclick="switchTab('tab-progress', 'pr')">
+            In Progress <span class="count">{{ status_counts.get('IN_PROGRESS', 0) }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="pr" onclick="switchTab('tab-converted', 'pr')">
+            Converted <span class="count">{{ status_counts.get('CONVERTED_TO_PROPOSAL', 0) }}</span>
+        </button>
+    </div>
+
+    <!-- Tab Content: All -->
+    <div id="tab-all" class="tab-content active" data-tab-group="pr">
+        <div class="filter-bar">
+            <div class="filter-pills">
+                <a href="/proposal-request/" class="filter-pill {% if not filter_view %}active{% endif %}">All</a>
+                <a href="/proposal-request/?view=my_created" class="filter-pill {% if filter_view == 'my_created' %}active{% endif %}">My Created</a>
+                <a href="/proposal-request/?view=my_allocated" class="filter-pill {% if filter_view == 'my_allocated' %}active{% endif %}">Allocated to Me</a>
+                {% if is_head %}
+                <a href="/proposal-request/?view=pending_approval" class="filter-pill {% if filter_view == 'pending_approval' %}active{% endif %}">Pending ({{ pending_approval_count }})</a>
                 {% endif %}
-            </a>
-            {% endif %}
+            </div>
+            <select name="office" onchange="window.location.href='/proposal-request/?office='+this.value" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
+                <option value="">All Offices</option>
+                {% for off in offices %}
+                <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>{{ off.office_id }}</option>
+                {% endfor %}
+            </select>
         </div>
+
+        {% if proposal_requests %}
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>PR Number</th>
+                    <th>Source</th>
+                    <th>Client</th>
+                    <th>Domain</th>
+                    <th>Office</th>
+                    <th>Created By</th>
+                    <th>Allocated To</th>
+                    <th>Est. Value</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pr in proposal_requests %}
+                <tr>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="link-primary">{{ pr.pr_number }}</a></td>
+                    <td>
+                        {% if pr.enquiry_number %}
+                        <a href="/enquiry/{{ pr.enquiry_id }}" class="link-secondary">{{ pr.enquiry_number }}</a>
+                        {% else %}
+                        <span class="text-muted">Direct</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ pr.client_name[:25] }}{% if pr.client_name|length > 25 %}...{% endif %}</td>
+                    <td>{{ pr.domain or '-' }}</td>
+                    <td>{{ pr.office_id }}</td>
+                    <td>{{ pr.created_by_name or '-' }}</td>
+                    <td>{{ pr.officer_name or '-' }}</td>
+                    <td>{% if pr.estimated_value %}{{ "%.1f"|format(pr.estimated_value) }}L{% else %}-{% endif %}</td>
+                    <td>
+                        <span class="badge
+                            {% if pr.status == 'PENDING_APPROVAL' %}badge-warning
+                            {% elif pr.status == 'APPROVED' %}badge-info
+                            {% elif pr.status == 'IN_PROGRESS' %}badge-primary
+                            {% elif pr.status == 'CONVERTED_TO_PROPOSAL' %}badge-success
+                            {% elif pr.status in ['DROPPED', 'REJECTED'] %}badge-danger
+                            {% else %}badge-secondary{% endif %}">
+                            {{ pr.status|replace('_', ' ')|replace('PENDING APPROVAL', 'PENDING')|replace('CONVERTED TO PROPOSAL', 'CONVERTED') }}
+                        </span>
+                    </td>
+                    <td>{{ pr.created_at|format_date }}</td>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="btn btn-sm btn-secondary">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No proposal requests found</h3>
+            <p>Create your first proposal request to get started</p>
+            <a href="/proposal-request/new" class="btn btn-primary">New Proposal Request</a>
+        </div>
+        {% endif %}
     </div>
 
-    <!-- Status Cards -->
-    <div class="row mb-4">
-        <div class="col-md-2">
-            <div class="card {% if filter_status == 'PENDING_APPROVAL' %}border-warning{% endif %}">
-                <div class="card-body text-center py-3">
-                    <h4 class="text-warning mb-1">{{ status_counts.get('PENDING_APPROVAL', 0) }}</h4>
-                    <small>Pending Approval</small>
-                    <a href="?status=PENDING_APPROVAL" class="stretched-link"></a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="card {% if filter_status == 'APPROVED' %}border-primary{% endif %}">
-                <div class="card-body text-center py-3">
-                    <h4 class="text-primary mb-1">{{ status_counts.get('APPROVED', 0) }}</h4>
-                    <small>Approved</small>
-                    <a href="?status=APPROVED" class="stretched-link"></a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="card {% if filter_status == 'IN_PROGRESS' %}border-info{% endif %}">
-                <div class="card-body text-center py-3">
-                    <h4 class="text-info mb-1">{{ status_counts.get('IN_PROGRESS', 0) }}</h4>
-                    <small>In Progress</small>
-                    <a href="?status=IN_PROGRESS" class="stretched-link"></a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="card {% if filter_status == 'CONVERTED_TO_PROPOSAL' %}border-success{% endif %}">
-                <div class="card-body text-center py-3">
-                    <h4 class="text-success mb-1">{{ status_counts.get('CONVERTED_TO_PROPOSAL', 0) }}</h4>
-                    <small>Converted</small>
-                    <a href="?status=CONVERTED_TO_PROPOSAL" class="stretched-link"></a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="card {% if filter_status == 'ON_HOLD' %}border-secondary{% endif %}">
-                <div class="card-body text-center py-3">
-                    <h4 class="text-secondary mb-1">{{ status_counts.get('ON_HOLD', 0) }}</h4>
-                    <small>On Hold</small>
-                    <a href="?status=ON_HOLD" class="stretched-link"></a>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-2">
-            <div class="card {% if filter_status in ['DROPPED', 'REJECTED'] %}border-danger{% endif %}">
-                <div class="card-body text-center py-3">
-                    <h4 class="text-danger mb-1">{{ status_counts.get('DROPPED', 0) + status_counts.get('REJECTED', 0) }}</h4>
-                    <small>Dropped/Rejected</small>
-                    <a href="?status=DROPPED" class="stretched-link"></a>
-                </div>
-            </div>
-        </div>
+    <!-- Tab Content: Pending -->
+    <div id="tab-pending" class="tab-content" data-tab-group="pr">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>PR Number</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Created By</th>
+                    <th>Est. Value</th>
+                    <th>Created</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pr in proposal_requests if pr.status == 'PENDING_APPROVAL' %}
+                <tr>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="link-primary">{{ pr.pr_number }}</a></td>
+                    <td>{{ pr.client_name[:30] }}{% if pr.client_name|length > 30 %}...{% endif %}</td>
+                    <td>{{ pr.office_id }}</td>
+                    <td>{{ pr.created_by_name or '-' }}</td>
+                    <td>{% if pr.estimated_value %}{{ "%.1f"|format(pr.estimated_value) }}L{% else %}-{% endif %}</td>
+                    <td>{{ pr.created_at|format_date }}</td>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="btn btn-sm btn-warning">Review</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align: center; padding: 40px; color: #888;">No pending approvals</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
-    <!-- Filter Bar -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Status</label>
-                    <select name="status" class="form-select">
-                        <option value="">All Statuses</option>
-                        <option value="PENDING_APPROVAL" {% if filter_status == 'PENDING_APPROVAL' %}selected{% endif %}>Pending Approval</option>
-                        <option value="APPROVED" {% if filter_status == 'APPROVED' %}selected{% endif %}>Approved</option>
-                        <option value="IN_PROGRESS" {% if filter_status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
-                        <option value="CONVERTED_TO_PROPOSAL" {% if filter_status == 'CONVERTED_TO_PROPOSAL' %}selected{% endif %}>Converted</option>
-                        <option value="ON_HOLD" {% if filter_status == 'ON_HOLD' %}selected{% endif %}>On Hold</option>
-                        <option value="DROPPED" {% if filter_status == 'DROPPED' %}selected{% endif %}>Dropped</option>
-                        <option value="REJECTED" {% if filter_status == 'REJECTED' %}selected{% endif %}>Rejected</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Office</label>
-                    <select name="office" class="form-select">
-                        <option value="">All Offices</option>
-                        {% for off in offices %}
-                        <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>
-                            {{ off.office_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary me-2">Filter</button>
-                    <a href="/proposal-request/" class="btn btn-outline-secondary">Clear</a>
-                </div>
-            </form>
-        </div>
+    <!-- Tab Content: Approved -->
+    <div id="tab-approved" class="tab-content" data-tab-group="pr">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>PR Number</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Allocated To</th>
+                    <th>Est. Value</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pr in proposal_requests if pr.status == 'APPROVED' %}
+                <tr>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="link-primary">{{ pr.pr_number }}</a></td>
+                    <td>{{ pr.client_name[:30] }}{% if pr.client_name|length > 30 %}...{% endif %}</td>
+                    <td>{{ pr.office_id }}</td>
+                    <td>{{ pr.officer_name or 'Not assigned' }}</td>
+                    <td>{% if pr.estimated_value %}{{ "%.1f"|format(pr.estimated_value) }}L{% else %}-{% endif %}</td>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="btn btn-sm btn-primary">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">No approved PRs</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
-    <!-- PR List -->
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Proposal Requests ({{ proposal_requests|length }})</h5>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-hover mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>PR Number</th>
-                        <th>Source Enquiry</th>
-                        <th>Client</th>
-                        <th>Domain</th>
-                        <th>Office</th>
-                        <th>Created By</th>
-                        <th>Allocated To</th>
-                        <th>Est. Value</th>
-                        <th>Status</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for pr in proposal_requests %}
-                    <tr>
-                        <td>
-                            <a href="/proposal-request/{{ pr.id }}">
-                                <strong>{{ pr.pr_number }}</strong>
-                            </a>
-                        </td>
-                        <td>
-                            {% if pr.enquiry_number %}
-                            <a href="/enquiry/{{ pr.enquiry_id }}">{{ pr.enquiry_number }}</a>
-                            {% else %}
-                            <span class="text-muted">Direct</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ pr.client_name }}</td>
-                        <td>{{ pr.domain or '-' }}</td>
-                        <td>{{ pr.office_name or pr.office_id }}</td>
-                        <td>{{ pr.created_by_name or '-' }}</td>
-                        <td>
-                            {% if pr.officer_name %}
-                            {{ pr.officer_name }}
-                            {% else %}
-                            <span class="text-muted fst-italic">Not assigned</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if pr.estimated_value %}
-                            Rs. {{ "%.2f"|format(pr.estimated_value) }} L
-                            {% else %}
-                            -
-                            {% endif %}
-                        </td>
-                        <td>
-                            <span class="badge
-                                {% if pr.status == 'PENDING_APPROVAL' %}bg-warning
-                                {% elif pr.status == 'APPROVED' %}bg-primary
-                                {% elif pr.status == 'IN_PROGRESS' %}bg-info
-                                {% elif pr.status == 'CONVERTED_TO_PROPOSAL' %}bg-success
-                                {% elif pr.status == 'ON_HOLD' %}bg-secondary
-                                {% elif pr.status in ['DROPPED', 'REJECTED'] %}bg-danger
-                                {% else %}bg-secondary{% endif %}">
-                                {{ pr.status|replace('_', ' ') }}
-                            </span>
-                        </td>
-                        <td>{{ pr.created_at|format_date }}</td>
-                        <td>
-                            <a href="/proposal-request/{{ pr.id }}" class="btn btn-sm btn-outline-primary">View</a>
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="11" class="text-center py-4">
-                            <p class="text-muted mb-0">No proposal requests found.</p>
-                            <a href="/proposal-request/new" class="btn btn-primary mt-2">Create New Proposal Request</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+    <!-- Tab Content: In Progress -->
+    <div id="tab-progress" class="tab-content" data-tab-group="pr">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>PR Number</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Working Officer</th>
+                    <th>Est. Value</th>
+                    <th>Target Date</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pr in proposal_requests if pr.status == 'IN_PROGRESS' %}
+                <tr>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="link-primary">{{ pr.pr_number }}</a></td>
+                    <td>{{ pr.client_name[:30] }}{% if pr.client_name|length > 30 %}...{% endif %}</td>
+                    <td>{{ pr.office_id }}</td>
+                    <td>{{ pr.officer_name or '-' }}</td>
+                    <td>{% if pr.estimated_value %}{{ "%.1f"|format(pr.estimated_value) }}L{% else %}-{% endif %}</td>
+                    <td>{{ pr.target_date|format_date if pr.target_date else '-' }}</td>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="btn btn-sm btn-primary">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align: center; padding: 40px; color: #888;">No PRs in progress</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tab Content: Converted -->
+    <div id="tab-converted" class="tab-content" data-tab-group="pr">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>PR Number</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Est. Value</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pr in proposal_requests if pr.status == 'CONVERTED_TO_PROPOSAL' %}
+                <tr>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="link-primary">{{ pr.pr_number }}</a></td>
+                    <td>{{ pr.client_name[:30] }}{% if pr.client_name|length > 30 %}...{% endif %}</td>
+                    <td>{{ pr.office_id }}</td>
+                    <td>{% if pr.estimated_value %}{{ "%.1f"|format(pr.estimated_value) }}L{% else %}-{% endif %}</td>
+                    <td><a href="/proposal-request/{{ pr.id }}" class="btn btn-sm btn-success">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="text-align: center; padding: 40px; color: #888;">No converted PRs</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

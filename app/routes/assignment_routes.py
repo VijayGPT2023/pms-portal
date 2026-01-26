@@ -65,6 +65,80 @@ def get_assignment(assignment_id: int):
         return dict(row) if row else None
 
 
+@router.get("/workorders", response_class=HTMLResponse)
+async def workorders_list(request: Request):
+    """Display Work Orders list."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    filter_view = request.query_params.get('view', '')
+    filter_office = request.query_params.get('office', '')
+    filter_status = request.query_params.get('status', '')
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Base query for work orders (assignments)
+        query = """
+            SELECT a.*,
+                   o.name as team_leader_name,
+                   off.office_name
+            FROM assignments a
+            LEFT JOIN officers o ON a.team_leader_officer_id = o.officer_id
+            LEFT JOIN offices off ON a.office_id = off.office_id
+            WHERE 1=1
+        """
+        params = []
+
+        # Apply filters
+        if filter_view == 'my_created':
+            query += " AND a.team_leader_officer_id = ?"
+            params.append(user['officer_id'])
+        elif filter_view == 'my_office':
+            query += " AND a.office_id = ?"
+            params.append(user['office_id'])
+
+        if filter_office:
+            query += " AND a.office_id = ?"
+            params.append(filter_office)
+
+        if filter_status:
+            query += " AND a.status = ?"
+            params.append(filter_status)
+
+        query += " ORDER BY a.created_at DESC"
+
+        cursor.execute(query, params)
+        assignments = [dict(row) for row in cursor.fetchall()]
+
+        # Get status counts
+        cursor.execute("""
+            SELECT status, COUNT(*) as count
+            FROM assignments
+            GROUP BY status
+        """)
+        status_counts = {row['status']: row['count'] for row in cursor.fetchall()}
+
+        # Get offices for filter
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        offices = [dict(row) for row in cursor.fetchall()]
+
+    return templates.TemplateResponse(
+        "workorders_list.html",
+        {
+            "request": request,
+            "user": user,
+            "assignments": assignments,
+            "status_counts": status_counts,
+            "offices": offices,
+            "filter_view": filter_view,
+            "filter_office": filter_office,
+            "filter_status": filter_status
+        }
+    )
+
+
 @router.get("/select-type/{assignment_id}", response_class=HTMLResponse)
 async def select_type_page(request: Request, assignment_id: int):
     """Display type selection page for an assignment."""

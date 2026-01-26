@@ -3,75 +3,78 @@
 {% block title %}Training Programmes - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Training Programmes</h1>
-    <div>
-        <a href="/training/create" class="btn btn-primary">+ New Programme</a>
-        <a href="/dashboard" class="btn btn-secondary">Dashboard</a>
-    </div>
-</div>
-
-<!-- Summary Cards -->
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 30px;">
-    <div class="card" style="text-align: center; padding: 15px;">
-        <h3 style="color: #3182ce; margin: 0;">{{ stats.total }}</h3>
-        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Total Programmes</p>
-    </div>
-    <div class="card" style="text-align: center; padding: 15px;">
-        <h3 style="color: #805ad5; margin: 0;">{{ stats.announced }}</h3>
-        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Announced</p>
-    </div>
-    <div class="card" style="text-align: center; padding: 15px;">
-        <h3 style="color: #dd6b20; margin: 0;">{{ stats.registration_open }}</h3>
-        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Reg. Open</p>
-    </div>
-    <div class="card" style="text-align: center; padding: 15px;">
-        <h3 style="color: #38a169; margin: 0;">{{ stats.conducted }}</h3>
-        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Conducted</p>
-    </div>
-    <div class="card" style="text-align: center; padding: 15px;">
-        <h3 style="color: #3182ce; margin: 0;">{{ "%.2f"|format(stats.total_budgeted or 0) }}L</h3>
-        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Budgeted</p>
-    </div>
-    <div class="card" style="text-align: center; padding: 15px;">
-        <h3 style="color: #38a169; margin: 0;">{{ "%.2f"|format(stats.total_actual or 0) }}L</h3>
-        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Actual</p>
-    </div>
-</div>
-
-<!-- Training Programmes List -->
-<div class="card">
-    <div class="card-header">
-        <h2 class="card-title">All Training Programmes</h2>
+<div class="tab-container">
+    <!-- Header -->
+    <div class="tab-header">
+        <h1>Training Programmes</h1>
+        <div class="tab-actions">
+            <a href="/training/create" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Programme
+            </a>
+        </div>
     </div>
 
-    {% if programmes %}
-    <div class="table-container">
-        <table>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab-btn="train" onclick="switchTab('tab-all', 'train')">
+            All <span class="count">{{ stats.total }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="train" onclick="switchTab('tab-announced', 'train')">
+            Announced <span class="count">{{ stats.announced }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="train" onclick="switchTab('tab-registration', 'train')">
+            Registration <span class="count">{{ stats.registration_open }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="train" onclick="switchTab('tab-conducted', 'train')">
+            Conducted <span class="count">{{ stats.conducted }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="train" onclick="switchTab('tab-closed', 'train')">
+            Closed <span class="count">{{ stats.closed or 0 }}</span>
+        </button>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="stats-row" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+        <div class="stat-mini" style="background: #f8fafc; padding: 12px 20px; border-radius: 8px; text-align: center; min-width: 100px;">
+            <div style="font-size: 1.25rem; font-weight: 600; color: #3b82f6;">{{ "%.1f"|format(stats.total_budgeted or 0) }}L</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Budgeted</div>
+        </div>
+        <div class="stat-mini" style="background: #f8fafc; padding: 12px 20px; border-radius: 8px; text-align: center; min-width: 100px;">
+            <div style="font-size: 1.25rem; font-weight: 600; color: #10b981;">{{ "%.1f"|format(stats.total_actual or 0) }}L</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Actual</div>
+        </div>
+    </div>
+
+    <!-- Tab Content: All -->
+    <div id="tab-all" class="tab-content active" data-tab-group="train">
+        {% if programmes %}
+        <table class="compact-table">
             <thead>
                 <tr>
-                    <th>Programme No</th>
+                    <th>Programme No.</th>
                     <th>Title</th>
                     <th>Office</th>
                     <th>Dates</th>
                     <th>Coordinator</th>
                     <th>Stage</th>
                     <th>Budgeted</th>
-                    <th>Actions</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for p in programmes %}
                 <tr>
-                    <td><a href="/training/view/{{ p.id }}">{{ p.programme_number }}</a></td>
-                    <td>{{ p.title[:35] }}{% if p.title|length > 35 %}...{% endif %}</td>
+                    <td><a href="/training/view/{{ p.id }}" class="link-primary">{{ p.programme_number }}</a></td>
+                    <td>{{ p.title[:30] }}{% if p.title|length > 30 %}...{% endif %}</td>
                     <td>{{ p.office_id }}</td>
                     <td>
                         {% if p.training_start_date %}
-                        {{ p.training_start_date }} - {{ p.training_end_date or '?' }}
-                        {% else %}
-                        -
-                        {% endif %}
+                        {{ p.training_start_date|format_date }} - {{ p.training_end_date|format_date if p.training_end_date else '?' }}
+                        {% else %}-{% endif %}
                     </td>
                     <td>{{ p.coordinator_name or '-' }}</td>
                     <td>
@@ -84,20 +87,145 @@
                             {{ p.stage|replace('_', ' ') }}
                         </span>
                     </td>
-                    <td>{{ "%.2f"|format(p.budgeted_revenue or 0) }}L</td>
+                    <td>{{ "%.1f"|format(p.budgeted_revenue or 0) }}L</td>
                     <td>
-                        <a href="/training/view/{{ p.id }}" class="btn btn-sm btn-primary">View</a>
-                        <a href="/training/edit/{{ p.id }}" class="btn btn-sm btn-secondary">Edit</a>
+                        <a href="/training/view/{{ p.id }}" class="btn btn-sm btn-secondary">View</a>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No training programmes found</h3>
+            <p>Create your first training programme</p>
+            <a href="/training/create" class="btn btn-primary">New Programme</a>
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <p class="text-muted text-center" style="padding: 50px;">
-        No training programmes found. <a href="/training/create">Create your first programme</a>
-    </p>
-    {% endif %}
+
+    <!-- Tab Content: Announced -->
+    <div id="tab-announced" class="tab-content" data-tab-group="train">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Programme No.</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Dates</th>
+                    <th>Coordinator</th>
+                    <th>Budgeted</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in programmes if p.stage == 'ANNOUNCED' %}
+                <tr>
+                    <td><a href="/training/view/{{ p.id }}" class="link-primary">{{ p.programme_number }}</a></td>
+                    <td>{{ p.title[:30] }}{% if p.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ p.office_id }}</td>
+                    <td>{{ p.training_start_date|format_date if p.training_start_date else '-' }}</td>
+                    <td>{{ p.coordinator_name or '-' }}</td>
+                    <td>{{ "%.1f"|format(p.budgeted_revenue or 0) }}L</td>
+                    <td><a href="/training/view/{{ p.id }}" class="btn btn-sm btn-info">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align: center; padding: 40px; color: #888;">No announced programmes</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tab Content: Registration Open -->
+    <div id="tab-registration" class="tab-content" data-tab-group="train">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Programme No.</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Dates</th>
+                    <th>Participants</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in programmes if p.stage == 'REGISTRATION_OPEN' %}
+                <tr>
+                    <td><a href="/training/view/{{ p.id }}" class="link-primary">{{ p.programme_number }}</a></td>
+                    <td>{{ p.title[:30] }}{% if p.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ p.office_id }}</td>
+                    <td>{{ p.training_start_date|format_date if p.training_start_date else '-' }}</td>
+                    <td>{{ p.actual_participants or 0 }} / {{ p.budgeted_participants or '-' }}</td>
+                    <td><a href="/training/view/{{ p.id }}" class="btn btn-sm btn-warning">Manage</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">No programmes with open registration</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tab Content: Conducted -->
+    <div id="tab-conducted" class="tab-content" data-tab-group="train">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Programme No.</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Conducted On</th>
+                    <th>Participants</th>
+                    <th>Actual Revenue</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in programmes if p.stage == 'CONDUCTED' %}
+                <tr>
+                    <td><a href="/training/view/{{ p.id }}" class="link-primary">{{ p.programme_number }}</a></td>
+                    <td>{{ p.title[:30] }}{% if p.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ p.office_id }}</td>
+                    <td>{{ p.training_start_date|format_date if p.training_start_date else '-' }}</td>
+                    <td>{{ p.actual_attending or 0 }}</td>
+                    <td>{{ "%.1f"|format(p.actual_revenue or 0) }}L</td>
+                    <td><a href="/training/view/{{ p.id }}" class="btn btn-sm btn-success">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align: center; padding: 40px; color: #888;">No conducted programmes</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tab Content: Closed -->
+    <div id="tab-closed" class="tab-content" data-tab-group="train">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Programme No.</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Conducted On</th>
+                    <th>Actual Revenue</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in programmes if p.stage == 'CLOSED' %}
+                <tr>
+                    <td><a href="/training/view/{{ p.id }}" class="link-primary">{{ p.programme_number }}</a></td>
+                    <td>{{ p.title[:30] }}{% if p.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ p.office_id }}</td>
+                    <td>{{ p.training_start_date|format_date if p.training_start_date else '-' }}</td>
+                    <td>{{ "%.1f"|format(p.actual_revenue or 0) }}L</td>
+                    <td><a href="/training/view/{{ p.id }}" class="btn btn-sm btn-secondary">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">No closed programmes</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}

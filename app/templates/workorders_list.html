@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}Work Orders - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="tab-container">
+    <!-- Header -->
+    <div class="tab-header">
+        <h1>Work Orders</h1>
+        <div class="tab-actions">
+            <a href="/assignment/new" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Work Order
+            </a>
+            <a href="/proposal/" class="btn btn-secondary btn-sm">Proposals</a>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab-btn="wo" onclick="switchTab('tab-all', 'wo')">
+            All <span class="count">{{ assignments|length }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="wo" onclick="switchTab('tab-pipeline', 'wo')">
+            Pipeline <span class="count">{{ status_counts.get('Pipeline', 0) }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="wo" onclick="switchTab('tab-progress', 'wo')">
+            In Progress <span class="count">{{ status_counts.get('In Progress', 0) }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="wo" onclick="switchTab('tab-completed', 'wo')">
+            Completed <span class="count">{{ status_counts.get('Completed', 0) }}</span>
+        </button>
+        <button class="tab-btn" data-tab-btn="wo" onclick="switchTab('tab-hold', 'wo')">
+            On Hold <span class="count">{{ status_counts.get('On Hold', 0) }}</span>
+        </button>
+    </div>
+
+    <!-- Tab Content: All -->
+    <div id="tab-all" class="tab-content active" data-tab-group="wo">
+        <div class="filter-bar">
+            <div class="filter-pills">
+                <a href="/assignment/workorders" class="filter-pill {% if not filter_view %}active{% endif %}">All</a>
+                <a href="/assignment/workorders?view=my_created" class="filter-pill {% if filter_view == 'my_created' %}active{% endif %}">My Work Orders</a>
+                <a href="/assignment/workorders?view=my_office" class="filter-pill {% if filter_view == 'my_office' %}active{% endif %}">My Office</a>
+            </div>
+            <select name="office" onchange="window.location.href='/assignment/workorders?office='+this.value" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
+                <option value="">All Offices</option>
+                {% for off in offices %}
+                <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>{{ off.office_id }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        {% if assignments %}
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Assignment No.</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Team Leader</th>
+                    <th>Value</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
+                    <td>
+                        <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% else %}badge-purple{% endif %}">
+                            {{ a.type or '-' }}
+                        </span>
+                    </td>
+                    <td>{{ a.title[:30] }}{% if a.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ (a.client or '-')[:20] }}{% if a.client and a.client|length > 20 %}...{% endif %}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td>{{ a.team_leader_name or '-' }}</td>
+                    <td>{% if a.total_value %}{{ "%.1f"|format(a.total_value) }}L{% else %}-{% endif %}</td>
+                    <td>
+                        <span class="badge
+                            {% if a.status == 'Pipeline' %}badge-info
+                            {% elif a.status == 'In Progress' %}badge-primary
+                            {% elif a.status == 'Completed' %}badge-success
+                            {% elif a.status == 'On Hold' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ a.status or '-' }}
+                        </span>
+                    </td>
+                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-secondary">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No work orders found</h3>
+            <p>Create your first work order or convert a proposal</p>
+            <a href="/assignment/new" class="btn btn-primary">New Work Order</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Tab Content: Pipeline -->
+    <div id="tab-pipeline" class="tab-content" data-tab-group="wo">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Assignment No.</th>
+                    <th>Title</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Value</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments if a.status == 'Pipeline' %}
+                <tr>
+                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
+                    <td>{{ a.title[:35] }}{% if a.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ (a.client or '-')[:25] }}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td>{% if a.total_value %}{{ "%.1f"|format(a.total_value) }}L{% else %}-{% endif %}</td>
+                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-info">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">No work orders in pipeline</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tab Content: In Progress -->
+    <div id="tab-progress" class="tab-content" data-tab-group="wo">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Assignment No.</th>
+                    <th>Title</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Team Leader</th>
+                    <th>Value</th>
+                    <th>Target Date</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments if a.status == 'In Progress' %}
+                <tr>
+                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
+                    <td>{{ a.title[:30] }}{% if a.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ (a.client or '-')[:20] }}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td>{{ a.team_leader_name or '-' }}</td>
+                    <td>{% if a.total_value %}{{ "%.1f"|format(a.total_value) }}L{% else %}-{% endif %}</td>
+                    <td>{{ a.target_date|format_date if a.target_date else '-' }}</td>
+                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-primary">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" style="text-align: center; padding: 40px; color: #888;">No work orders in progress</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tab Content: Completed -->
+    <div id="tab-completed" class="tab-content" data-tab-group="wo">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Assignment No.</th>
+                    <th>Title</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Value</th>
+                    <th>Revenue</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments if a.status == 'Completed' %}
+                <tr>
+                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
+                    <td>{{ a.title[:30] }}{% if a.title|length > 30 %}...{% endif %}</td>
+                    <td>{{ (a.client or '-')[:20] }}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td>{% if a.total_value %}{{ "%.1f"|format(a.total_value) }}L{% else %}-{% endif %}</td>
+                    <td>{% if a.total_revenue %}{{ "%.1f"|format(a.total_revenue) }}L{% else %}-{% endif %}</td>
+                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-success">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" style="text-align: center; padding: 40px; color: #888;">No completed work orders</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Tab Content: On Hold -->
+    <div id="tab-hold" class="tab-content" data-tab-group="wo">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Assignment No.</th>
+                    <th>Title</th>
+                    <th>Client</th>
+                    <th>Office</th>
+                    <th>Value</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments if a.status == 'On Hold' %}
+                <tr>
+                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
+                    <td>{{ a.title[:35] }}{% if a.title|length > 35 %}...{% endif %}</td>
+                    <td>{{ (a.client or '-')[:25] }}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td>{% if a.total_value %}{{ "%.1f"|format(a.total_value) }}L{% else %}-{% endif %}</td>
+                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-warning">View</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">No work orders on hold</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
