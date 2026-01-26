@@ -27,6 +27,18 @@
     </div>
     <div style="padding: 20px;">
         <div class="workflow-progress">
+            <a href="/assignment/edit/{{ assignment.id }}" class="workflow-item completed">
+                <div class="workflow-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <div class="workflow-label">
+                    <strong>Basic Info</strong>
+                    <small>Created</small>
+                </div>
+            </a>
+            <div class="workflow-line"></div>
             <a href="/assignment/milestones/{{ assignment.id }}" class="workflow-item {% if milestones and milestones|length > 0 %}completed{% endif %}">
                 <div class="workflow-icon">
                     {% if milestones and milestones|length > 0 %}
@@ -34,7 +46,7 @@
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                     {% else %}
-                    <span>1</span>
+                    <span>2</span>
                     {% endif %}
                 </div>
                 <div class="workflow-label">
@@ -50,7 +62,7 @@
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                     {% else %}
-                    <span>2</span>
+                    <span>3</span>
                     {% endif %}
                 </div>
                 <div class="workflow-label">
@@ -66,7 +78,7 @@
                         <polyline points="20 6 9 17 4 12"></polyline>
                     </svg>
                     {% else %}
-                    <span>3</span>
+                    <span>4</span>
                     {% endif %}
                 </div>
                 <div class="workflow-label">

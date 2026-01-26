@@ -1,12 +1,23 @@
 <!-- Workflow Steps Indicator -->
 <div class="workflow-steps">
+    <div class="step {% if current_step == 0 %}active{% elif current_step > 0 %}completed{% endif %}">
+        <div class="step-number">
+            {% if current_step > 0 %}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            {% else %}1{% endif %}
+        </div>
+        <div class="step-label">Basic Info</div>
+    </div>
+    <div class="step-line {% if current_step > 0 %}completed{% endif %}"></div>
     <div class="step {% if current_step == 1 %}active{% elif current_step > 1 %}completed{% endif %}">
         <div class="step-number">
             {% if current_step > 1 %}
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            {% else %}1{% endif %}
+            {% else %}2{% endif %}
         </div>
         <div class="step-label">Milestones</div>
     </div>
@@ -17,7 +28,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            {% else %}2{% endif %}
+            {% else %}3{% endif %}
         </div>
         <div class="step-label">Cost Estimate</div>
     </div>
@@ -28,7 +39,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            {% else %}3{% endif %}
+            {% else %}4{% endif %}
         </div>
         <div class="step-label">Team & Revenue</div>
     </div>
