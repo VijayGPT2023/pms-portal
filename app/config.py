@@ -40,7 +40,11 @@ MIS_DATA_FILE = BASE_DIR / "Revenue Sharing Detailed MIS-1.xlsx"
 INITIAL_PASSWORDS_FILE = BASE_DIR / "initial_passwords.csv"
 
 # Assignment types
-ASSIGNMENT_TYPES = ["ASSIGNMENT", "TRAINING"]
+ASSIGNMENT_TYPES = ["ASSIGNMENT", "TRAINING", "DEVELOPMENT"]
+
+# Development Work - notional value calculation
+# Notional value = man_days * DAILY_RATE_LAKHS
+DAILY_RATE_LAKHS = 0.20  # 20k per day = 0.20 Lakhs
 
 # Status options
 ASSIGNMENT_STATUS_OPTIONS = [

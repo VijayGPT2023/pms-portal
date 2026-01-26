@@ -612,12 +612,33 @@ async def request_tentative_date_change(request: Request, assignment_id: int):
     return RedirectResponse(url=f"/assignment/milestones/{assignment_id}", status_code=302)
 
 
+@router.get("/select-activity-type", response_class=HTMLResponse)
+async def select_activity_type_page(request: Request):
+    """Display activity type selection page."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    return templates.TemplateResponse(
+        "new_activity_type.html",
+        {
+            "request": request,
+            "user": user
+        }
+    )
+
+
 @router.get("/new", response_class=HTMLResponse)
 async def new_assignment_page(request: Request):
     """Display new assignment creation form."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
+
+    # Get activity type from query parameter
+    activity_type = request.query_params.get('type', 'ASSIGNMENT')
+    if activity_type not in ['ASSIGNMENT', 'DEVELOPMENT']:
+        activity_type = 'ASSIGNMENT'
 
     officers = get_officers_list()
     offices = get_offices_list()
@@ -629,6 +650,7 @@ async def new_assignment_page(request: Request):
             "user": user,
             "officers": officers,
             "offices": offices,
+            "activity_type": activity_type,
             "status_options": get_config_options('status'),
             "client_type_options": get_config_options('client_type'),
             "domain_options": get_config_options('domain')
@@ -648,10 +670,21 @@ async def create_assignment(request: Request):
     assignment_type = form_data.get('type', 'ASSIGNMENT')
     office_id = form_data.get('office_id')
     title = form_data.get('title', '').strip()
-    total_value = float(form_data.get('total_value', 0) or 0)
+
+    # Handle Development Work - notional value from man_days
+    man_days = float(form_data.get('man_days', 0) or 0)
+    daily_rate = 0.20  # 20k per day = 0.20 Lakhs
+
+    if assignment_type == 'DEVELOPMENT':
+        # For Development Work, calculate notional value from man-days
+        total_value = man_days * daily_rate
+        is_notional = 1
+    else:
+        total_value = float(form_data.get('total_value', 0) or 0)
+        is_notional = 0
 
     if not title or not office_id:
-        return RedirectResponse(url="/assignment/new", status_code=302)
+        return RedirectResponse(url=f"/assignment/new?type={assignment_type}", status_code=302)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -678,8 +711,8 @@ async def create_assignment(request: Request):
             INSERT INTO assignments
             (assignment_no, type, title, office_id, status, total_value, gross_value,
              client, client_type, city, domain, sub_domain, work_order_date, start_date, target_date,
-             team_leader_officer_id, tor_scope)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             team_leader_officer_id, tor_scope, man_days, daily_rate, is_notional)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             assignment_no,
             assignment_type,
@@ -697,7 +730,10 @@ async def create_assignment(request: Request):
             form_data.get('start_date') or None,
             form_data.get('target_date') or None,
             form_data.get('team_leader_officer_id') or None,
-            form_data.get('tor_scope', '')
+            form_data.get('tor_scope', ''),
+            man_days,
+            daily_rate,
+            is_notional
         ))
 
         assignment_id = cursor.lastrowid

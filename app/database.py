@@ -222,7 +222,7 @@ def init_database():
             CREATE TABLE IF NOT EXISTS assignments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 assignment_no TEXT UNIQUE NOT NULL,
-                type TEXT CHECK(type IN ('ASSIGNMENT', 'TRAINING', NULL)),
+                type TEXT CHECK(type IN ('ASSIGNMENT', 'TRAINING', 'DEVELOPMENT', NULL)),
                 title TEXT NOT NULL,
 
                 -- Common fields
@@ -249,6 +249,11 @@ def init_database():
                 type_of_participants TEXT,
                 faculty1_officer_id TEXT,
                 faculty2_officer_id TEXT,
+
+                -- Development Work fields (notional value based on effort)
+                man_days REAL DEFAULT 0,
+                daily_rate REAL DEFAULT 0.20,
+                is_notional INTEGER DEFAULT 0,
 
                 -- Financial fields (without GST)
                 total_value REAL DEFAULT 0,
@@ -1057,6 +1062,20 @@ def init_database():
             pass
         try:
             cursor.execute("ALTER TABLE assignments ADD COLUMN workflow_stage TEXT DEFAULT 'WORK_ORDER'")
+        except:
+            pass
+
+        # Development Work fields (notional value based on effort)
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN man_days REAL DEFAULT 0")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN daily_rate REAL DEFAULT 0.20")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE assignments ADD COLUMN is_notional INTEGER DEFAULT 0")
         except:
             pass
 

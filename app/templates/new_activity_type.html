@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}New Activity - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Create New Activity</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<div class="activity-type-selection">
+    <h2 style="text-align: center; margin-bottom: 30px; color: #2d3748;">What type of activity do you want to create?</h2>
+
+    <div class="type-cards">
+        <!-- Assignment Card -->
+        <a href="/assignment/new?type=ASSIGNMENT" class="type-card assignment-card">
+            <div class="type-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+            </div>
+            <h3>Assignment / Project</h3>
+            <p class="type-description">
+                Revenue-generating consultancy projects with actual billing.
+                Includes work orders, milestones, and invoicing.
+            </p>
+            <div class="type-badge revenue">Revenue Work</div>
+        </a>
+
+        <!-- Training Card -->
+        <a href="/training/new" class="type-card training-card">
+            <div class="type-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            </div>
+            <h3>Training Programme</h3>
+            <p class="type-description">
+                Training programs and workshops with participants.
+                Includes trainers, budget, and participant tracking.
+            </p>
+            <div class="type-badge revenue">Revenue Work</div>
+        </a>
+
+        <!-- Development Work Card -->
+        <a href="/assignment/new?type=DEVELOPMENT" class="type-card development-card">
+            <div class="type-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                    <path d="M2 17l10 5 10-5"></path>
+                    <path d="M2 12l10 5 10-5"></path>
+                </svg>
+            </div>
+            <h3>Development Work</h3>
+            <p class="type-description">
+                Non-revenue activities like enquiries, proposals, research,
+                capacity building, and internal projects. Value is notional
+                based on effort (man-days).
+            </p>
+            <div class="type-badge notional">Notional Value</div>
+        </a>
+    </div>
+
+    <div class="type-help">
+        <h4>How to choose?</h4>
+        <ul>
+            <li><strong>Assignment:</strong> Use for client projects with actual work orders and billing</li>
+            <li><strong>Training:</strong> Use for training programs with participants and trainers</li>
+            <li><strong>Development Work:</strong> Use for enquiries, proposal preparation, research,
+                internal capacity building, or any work without direct revenue</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+.activity-type-selection {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.type-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    margin-bottom: 30px;
+}
+
+.type-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    text-decoration: none;
+    color: #2d3748;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.type-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+}
+
+.type-card.assignment-card:hover {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.type-card.training-card:hover {
+    border-color: #8b5cf6;
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+}
+
+.type-card.development-card:hover {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.type-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #f7fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.assignment-card .type-icon {
+    color: #3b82f6;
+}
+
+.training-card .type-icon {
+    color: #8b5cf6;
+}
+
+.development-card .type-icon {
+    color: #10b981;
+}
+
+.type-card h3 {
+    margin: 0 0 12px;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.type-description {
+    margin: 0 0 15px;
+    color: #64748b;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.type-badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.type-badge.revenue {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.type-badge.notional {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.type-help {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px 25px;
+}
+
+.type-help h4 {
+    margin: 0 0 12px;
+    color: #2d3748;
+}
+
+.type-help ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #4a5568;
+}
+
+.type-help li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+    .type-cards {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

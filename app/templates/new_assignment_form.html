@@ -1,11 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}New Assignment/Training - PMS Portal{% endblock %}
+{% set is_development = activity_type == 'DEVELOPMENT' %}
+
+{% block title %}New {% if is_development %}Development Work{% else %}Assignment/Project{% endif %} - PMS Portal{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Register New Assignment/Training</h1>
-    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    <h1>Register New {% if is_development %}Development Work{% else %}Assignment/Project{% endif %}</h1>
+    <div>
+        <a href="/assignment/select-activity-type" class="btn btn-outline-secondary">Change Type</a>
+        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<!-- Activity Type Badge -->
+<div style="margin-bottom: 20px;">
+    {% if is_development %}
+    <span class="badge" style="background: #d1fae5; color: #047857; padding: 8px 16px; font-size: 0.9rem;">
+        Development Work (Notional Value)
+    </span>
+    <p class="text-muted" style="margin-top: 8px;">
+        For enquiries, proposals, research, capacity building, and internal projects.
+        Value is calculated based on effort (man-days @ Rs. 20,000/day).
+    </p>
+    {% else %}
+    <span class="badge" style="background: #dbeafe; color: #1d4ed8; padding: 8px 16px; font-size: 0.9rem;">
+        Assignment / Project (Revenue Work)
+    </span>
+    {% endif %}
 </div>
 
 <!-- Workflow Steps -->
@@ -14,25 +36,20 @@
 
 <div class="card">
     <form method="POST" action="/assignment/new" id="newAssignmentForm">
+        <!-- Hidden type field -->
+        <input type="hidden" name="type" value="{{ activity_type }}">
+
         <h3 style="margin-bottom: 20px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
             Basic Information
         </h3>
 
         <div class="form-row">
             <div class="form-group">
-                <label for="type">Type *</label>
-                <select id="type" name="type" class="form-control" required>
-                    <option value="ASSIGNMENT">Assignment / Project</option>
-                    <option value="TRAINING">Training</option>
-                </select>
-            </div>
-
-            <div class="form-group">
                 <label for="office_id">Office *</label>
                 <select id="office_id" name="office_id" class="form-control" required>
                     <option value="">Select Office</option>
                     {% for office in offices %}
-                    <option value="{{ office }}">{{ office }}</option>
+                    <option value="{{ office }}" {% if user.office_id == office %}selected{% endif %}>{{ office }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -50,28 +67,28 @@
         <div class="form-group">
             <label for="title">Title *</label>
             <input type="text" id="title" name="title" class="form-control" required
-                   placeholder="Enter assignment/training title">
+                   placeholder="{% if is_development %}Enter development work title (e.g., Enquiry for XYZ project){% else %}Enter assignment/project title{% endif %}">
         </div>
 
         <div class="form-group">
-            <label for="tor_scope">ToRs / Scope / Description</label>
+            <label for="tor_scope">{% if is_development %}Description / Scope{% else %}ToRs / Scope / Description{% endif %}</label>
             <textarea id="tor_scope" name="tor_scope" class="form-control" rows="3"
-                      placeholder="Terms of Reference or scope of work"></textarea>
+                      placeholder="{% if is_development %}Describe the development work{% else %}Terms of Reference or scope of work{% endif %}"></textarea>
         </div>
 
         <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
-            Client & Domain
+            {% if is_development %}Context & Category{% else %}Client & Domain{% endif %}
         </h3>
 
         <div class="form-row">
             <div class="form-group">
-                <label for="client">Client Name</label>
+                <label for="client">{% if is_development %}Related Client/Entity{% else %}Client Name{% endif %}</label>
                 <input type="text" id="client" name="client" class="form-control"
-                       placeholder="e.g., Ministry of Finance">
+                       placeholder="{% if is_development %}e.g., Potential client or internal{% else %}e.g., Ministry of Finance{% endif %}">
             </div>
 
             <div class="form-group">
-                <label for="client_type">Client Type</label>
+                <label for="client_type">{% if is_development %}Entity Type{% else %}Client Type{% endif %}</label>
                 <select id="client_type" name="client_type" class="form-control">
                     <option value="">Select Type</option>
                     {% for ctype in client_type_options %}
@@ -106,14 +123,16 @@
         </div>
 
         <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
-            Timeline & Value
+            Timeline & {% if is_development %}Effort{% else %}Value{% endif %}
         </h3>
 
         <div class="form-row">
+            {% if not is_development %}
             <div class="form-group">
                 <label for="work_order_date">Work Order Date</label>
                 <input type="date" id="work_order_date" name="work_order_date" class="form-control">
             </div>
+            {% endif %}
 
             <div class="form-group">
                 <label for="start_date">Start Date</label>
@@ -127,16 +146,42 @@
         </div>
 
         <div class="form-row">
+            {% if is_development %}
+            <!-- Development Work: Man-days input with auto-calculated value -->
+            <div class="form-group">
+                <label for="man_days">Estimated Man-Days *</label>
+                <input type="number" id="man_days" name="man_days" class="form-control"
+                       step="0.5" min="0" required placeholder="e.g., 5"
+                       oninput="calculateNotionalValue()">
+                <small class="text-muted">Enter total person-days of effort</small>
+            </div>
+
+            <div class="form-group">
+                <label>Daily Rate</label>
+                <input type="text" class="form-control" value="Rs. 20,000 / day" readonly
+                       style="background: #f7fafc;">
+                <small class="text-muted">0.20 Lakhs per day</small>
+            </div>
+
+            <div class="form-group">
+                <label>Notional Value (Lakhs)</label>
+                <input type="text" id="notional_value_display" class="form-control" value="0.00" readonly
+                       style="background: #e8f5e9; font-weight: 600; color: #047857;">
+                <small class="text-muted">Auto-calculated: Man-days x Daily Rate</small>
+            </div>
+            {% else %}
+            <!-- Assignment: Direct value input -->
             <div class="form-group">
                 <label for="total_value">Total Value (Lakhs, w/o GST) *</label>
                 <input type="number" id="total_value" name="total_value" class="form-control"
                        step="0.01" min="0" required placeholder="e.g., 25.50">
             </div>
+            {% endif %}
 
             <div class="form-group">
-                <label for="team_leader_officer_id">Team Leader / Coordinator</label>
+                <label for="team_leader_officer_id">{% if is_development %}Lead Officer{% else %}Team Leader / Coordinator{% endif %}</label>
                 <select id="team_leader_officer_id" name="team_leader_officer_id" class="form-control">
-                    <option value="">Select Team Leader</option>
+                    <option value="">Select {% if is_development %}Lead Officer{% else %}Team Leader{% endif %}</option>
                     {% for officer in officers %}
                     <option value="{{ officer.officer_id }}">{{ officer.name }} ({{ officer.office_id }})</option>
                     {% endfor %}
@@ -144,6 +189,7 @@
             </div>
         </div>
 
+        {% if not is_development %}
         <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
             Milestones (Payment Schedule)
         </h3>
@@ -192,16 +238,22 @@
                 Warning: Total should equal 100%
             </span>
         </div>
+        {% endif %}
 
         <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
             <button type="submit" class="btn btn-primary btn-lg">
-                Create & Continue to Milestones →
+                {% if is_development %}
+                Create Development Work
+                {% else %}
+                Create & Continue to Milestones
+                {% endif %}
             </button>
-            <a href="/dashboard" class="btn btn-outline-secondary btn-lg">Cancel</a>
+            <a href="/assignment/select-activity-type" class="btn btn-outline-secondary btn-lg">Cancel</a>
         </div>
     </form>
 </div>
 
+{% if not is_development %}
 <template id="milestoneTemplate">
     <div class="milestone-entry" data-index="__INDEX__">
         <div class="milestone-header">
@@ -229,6 +281,7 @@
         </div>
     </div>
 </template>
+{% endif %}
 
 <style>
 .milestone-entry {
@@ -260,6 +313,15 @@
 </style>
 
 <script>
+{% if is_development %}
+// Calculate notional value based on man-days
+function calculateNotionalValue() {
+    const manDays = parseFloat(document.getElementById('man_days').value) || 0;
+    const dailyRate = 0.20; // Lakhs
+    const notionalValue = manDays * dailyRate;
+    document.getElementById('notional_value_display').value = notionalValue.toFixed(2);
+}
+{% else %}
 let milestoneIndex = 1;
 
 document.getElementById('addMilestone').addEventListener('click', function() {
@@ -305,6 +367,7 @@ function updateTotalPercent() {
 }
 
 updateTotalPercent();
+{% endif %}
 
 // Load sub-domains based on selected domain
 async function loadSubDomains() {

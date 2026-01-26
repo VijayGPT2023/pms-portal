@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}{% if is_new %}New{% else %}Edit{% endif %} Non-Revenue Suggestion - PMS Portal{% endblock %}
+{% block title %}{% if is_new %}New{% else %}Edit{% endif %} Development Work - PMS Portal{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div class="page-header-content">
-        <h1>{% if is_new %}Create New{% else %}Edit{% endif %} Non-Revenue Suggestion</h1>
-        <p class="page-subtitle">Suggest capacity building, knowledge sharing, or internal projects</p>
+        <h1>{% if is_new %}Create New{% else %}Edit{% endif %} Development Work</h1>
+        <p class="page-subtitle">Record enquiries, proposals, research, capacity building, or internal projects</p>
     </div>
     <a href="/non-revenue/" class="btn btn-secondary">Back to List</a>
 </div>
@@ -19,10 +19,10 @@
             <h3 class="form-section-title">Basic Information</h3>
             <div class="form-grid">
                 <div class="form-group full-width">
-                    <label for="title">Suggestion Title *</label>
+                    <label for="title">Title *</label>
                     <input type="text" id="title" name="title" class="form-control"
                            value="{{ suggestion.title if suggestion else '' }}" required
-                           placeholder="Enter a descriptive title for this activity">
+                           placeholder="Enter a descriptive title for this work">
                 </div>
 
                 <div class="form-group">
@@ -125,7 +125,7 @@
                     <polyline points="17 21 17 13 7 13 7 21"></polyline>
                     <polyline points="7 3 7 8 15 8"></polyline>
                 </svg>
-                {% if is_new %}Submit Suggestion{% else %}Save Changes{% endif %}
+                {% if is_new %}Create Development Work{% else %}Save Changes{% endif %}
             </button>
             <a href="/non-revenue/" class="btn btn-secondary btn-lg">Cancel</a>
         </div>
