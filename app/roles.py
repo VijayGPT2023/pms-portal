@@ -165,10 +165,11 @@ def get_user_roles(user: dict) -> list:
                 })
 
         # Check if user is team leader of any active assignment
+        # Status values: 'Not Started', 'In Progress', 'Completed', 'Delayed', 'Cancelled'
         cursor.execute("""
             SELECT COUNT(*) as tl_count FROM assignments
             WHERE team_leader_officer_id = ?
-            AND status IN ('ACTIVE', 'IN_PROGRESS')
+            AND status IN ('Not Started', 'In Progress', 'Delayed')
         """, (officer_id,))
         tl_result = cursor.fetchone()
 

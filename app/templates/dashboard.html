@@ -4,24 +4,18 @@
 
 {% block content %}
 <div class="tab-container">
-    <!-- Header with View Tabs -->
+    <!-- Header with Role-Based View -->
     <div class="tab-header">
         <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
-            <h1>Dashboard</h1>
-            <!-- View Level Tabs -->
-            <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px;">
-                <a href="/dashboard?view=individual" class="btn btn-sm {% if view == 'individual' %}btn-primary{% else %}btn-ghost{% endif %}" style="{% if view != 'individual' %}background: transparent; color: #64748b;{% endif %}">
-                    My Dashboard
-                </a>
-                <a href="/dashboard?view=office" class="btn btn-sm {% if view == 'office' %}btn-primary{% else %}btn-ghost{% endif %}" style="{% if view != 'office' %}background: transparent; color: #64748b;{% endif %}">
-                    Office
-                </a>
-                {% if can_view_npc %}
-                <a href="/dashboard?view=npc" class="btn btn-sm {% if view == 'npc' %}btn-primary{% else %}btn-ghost{% endif %}" style="{% if view != 'npc' %}background: transparent; color: #64748b;{% endif %}">
-                    NPC
-                </a>
-                {% endif %}
-            </div>
+            <h1>{{ view_title or 'Dashboard' }}</h1>
+            {% if scope_value %}
+            <span class="badge badge-info" style="font-size: 0.875rem;">{{ scope_value }}</span>
+            {% endif %}
+            {% if role_offices %}
+            <span style="font-size: 0.75rem; color: #64748b;">
+                {{ role_offices|length }} Offices, {{ role_groups|length if role_groups else 0 }} Groups
+            </span>
+            {% endif %}
         </div>
         <div class="tab-actions">
             <a href="/assignment/new" class="btn btn-primary btn-sm">
@@ -32,15 +26,16 @@
                 New
             </a>
             <a href="/mis" class="btn btn-secondary btn-sm">MIS</a>
-            {% if user.role in ['RD_HEAD', 'GROUP_HEAD', 'DG', 'DDG-I', 'DDG-II', 'ADMIN'] %}
+            {% if active_role in ['RD_HEAD', 'GROUP_HEAD', 'DG', 'DDG-I', 'DDG-II', 'ADMIN'] %}
             <a href="/approvals" class="btn btn-warning btn-sm">Approvals</a>
             {% endif %}
         </div>
     </div>
 
-    <!-- Performance Summary based on View -->
+    <!-- Performance Summary based on Role -->
     <div class="stats-row" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
         {% if view == 'individual' %}
+        <!-- Individual View -->
         <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
             <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">My Target (Pro-rata)</div>
             <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.annual_target or 60) }}L</span></div>
@@ -57,7 +52,26 @@
             <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
             <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
         </div>
+        {% elif view == 'team_leader' %}
+        <!-- Team Leader View -->
+        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Assignments as TL</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ summary.assignment_count or 0 }}</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Total Value</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_value or 0) }}L</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Revenue Collected</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_revenue or 0) }}L</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Collection %</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
+        </div>
         {% elif view == 'office' %}
+        <!-- Office / RD Head View -->
         <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
             <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Office Target (Pro-rata)</div>
             <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.target or 0) }}L</span></div>
@@ -74,9 +88,28 @@
             <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
             <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
         </div>
-        {% else %}
+        {% elif view == 'group' %}
+        <!-- Group Head View -->
         <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">NPC Target (Pro-rata)</div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Assignments in {{ scope_value }}</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ summary.assignment_count or 0 }}</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Total Value</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_value or 0) }}L</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Revenue</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_revenue or 0) }}L</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #0891b2, #0e7490); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Offices / Officers</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ summary.office_count or 0 }} / {{ summary.officer_count or 0 }}</div>
+        </div>
+        {% else %}
+        <!-- DDG / DG / NPC View -->
+        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Target (Pro-rata)</div>
             <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.target or 0) }}L</span></div>
         </div>
         <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
@@ -124,16 +157,13 @@
 
     <!-- Tab Content: All -->
     <div id="tab-all" class="tab-content active" data-tab-group="dash">
+        {% if view in ['npc', 'ddg'] and offices %}
         <div class="filter-bar">
-            <div class="filter-pills">
-                <a href="/dashboard" class="filter-pill {% if not filter_office and not filter_type %}active{% endif %}">All</a>
-                <a href="/dashboard?filter_office={{ user.office_id }}" class="filter-pill {% if filter_office == user.office_id %}active{% endif %}">My Office</a>
-            </div>
             <form method="GET" action="/dashboard" style="display: flex; gap: 8px; align-items: center;">
                 <select name="filter_office" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
                     <option value="">All Offices</option>
                     {% for office in offices %}
-                    <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>{{ office.office_id }}</option>
+                    <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>{{ office.office_id }} - {{ office.office_name }}</option>
                     {% endfor %}
                 </select>
                 <select name="filter_status" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
@@ -143,8 +173,12 @@
                     {% endfor %}
                 </select>
                 <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+                {% if filter_office or filter_status %}
+                <a href="/dashboard" class="btn btn-sm btn-secondary">Clear</a>
+                {% endif %}
             </form>
         </div>
+        {% endif %}
 
         {% if assignments %}
         <table class="compact-table">
@@ -202,7 +236,19 @@
         {% else %}
         <div class="empty-state" style="padding: 40px; text-align: center;">
             <h3>No assignments found</h3>
-            <p>Create your first assignment or adjust filters</p>
+            <p>
+                {% if view == 'individual' %}
+                You don't have any assignments with revenue share yet.
+                {% elif view == 'team_leader' %}
+                You are not assigned as Team Leader for any assignment.
+                {% elif view == 'group' %}
+                No assignments found in the {{ scope_value }} group.
+                {% elif view == 'office' %}
+                No assignments found in this office.
+                {% else %}
+                Create your first assignment or adjust filters.
+                {% endif %}
+            </p>
             <a href="/assignment/new" class="btn btn-primary">New Assignment</a>
         </div>
         {% endif %}
@@ -299,6 +345,6 @@
 
 <!-- User Info Footer -->
 <div style="text-align: center; padding: 15px; color: #94a3b8; font-size: 0.8125rem;">
-    Logged in as <strong>{{ user.name }}</strong> | {{ user.role_display or user.role }} | {{ user.office_id }}
+    Logged in as <strong>{{ user.name }}</strong> | {{ active_role or 'Officer' }}{% if scope_value %} ({{ scope_value }}){% endif %} | {{ user.office_id }}
 </div>
 {% endblock %}
