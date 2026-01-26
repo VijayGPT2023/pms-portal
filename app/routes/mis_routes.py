@@ -103,7 +103,7 @@ async def mis_dashboard(
             base_conditions += " AND a.domain = ?"
             params.append(filter_domain)
 
-        # 1. Office-wise Target vs Achievement
+        # 1. Office-wise Target vs Achievement (with Assignment/Training/Notional breakdown)
         office_query = f"""
             SELECT
                 a.office_id,
@@ -115,6 +115,8 @@ async def mis_dashboard(
                 COALESCE(fyt.lecture_target, 0) as lecture_target,
                 COUNT(*) as assignment_count,
                 SUM(COALESCE(a.total_revenue, 0)) as total_revenue,
+                SUM(CASE WHEN a.type = 'ASSIGNMENT' THEN COALESCE(a.total_revenue, 0) ELSE 0 END) as assignment_revenue,
+                SUM(CASE WHEN a.type = 'TRAINING' THEN COALESCE(a.total_revenue, 0) ELSE 0 END) as training_revenue,
                 SUM(COALESCE(a.amount_received, 0)) as deposits,
                 SUM(COALESCE(a.total_expenditure, 0)) as total_expenditure,
                 SUM(COALESCE(a.surplus_deficit, 0)) as surplus_deficit,
@@ -133,12 +135,25 @@ async def mis_dashboard(
         cursor.execute(office_query, [financial_year] + params)
         office_data = [dict(row) for row in cursor.fetchall()]
 
-        # Calculate achievement percentages and pro-rata targets
+        # Get notional revenue from non_revenue_suggestions for each office
+        notional_query = """
+            SELECT office_id, COALESCE(SUM(notional_value), 0) as notional_revenue
+            FROM non_revenue_suggestions
+            WHERE status = 'COMPLETED'
+            GROUP BY office_id
+        """
+        cursor.execute(notional_query)
+        notional_by_office = {row['office_id']: row['notional_revenue'] for row in cursor.fetchall()}
+
+        # Add notional revenue and calculate achievement percentages
         for o in office_data:
+            o['notional_revenue'] = notional_by_office.get(o['office_id'], 0)
+            o['total_contribution'] = (o['total_revenue'] or 0) + o['notional_revenue']
             target = o['target'] or 0
             o['prorata_target'] = round(target * fy_progress, 2)
-            o['achievement_pct'] = round((o['total_revenue'] / target * 100), 1) if target > 0 else 0
-            o['prorata_achievement_pct'] = round((o['total_revenue'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
+            # Achievement is now based on total_contribution (Real + Notional)
+            o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
+            o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
             o['surplus_deficit_pct'] = round((o['surplus_deficit'] / o['total_revenue'] * 100), 1) if o['total_revenue'] > 0 else 0
 
         # Mark top 3 and bottom 3 offices by achievement %
@@ -220,12 +235,25 @@ async def mis_dashboard(
         cursor.execute(officer_query, query_params)
         officer_data = [dict(row) for row in cursor.fetchall()]
 
-        # Calculate officer achievement percentages
+        # Get notional revenue from non_revenue_suggestions for each officer
+        officer_notional_query = """
+            SELECT officer_id, COALESCE(SUM(notional_value), 0) as notional_revenue
+            FROM non_revenue_suggestions
+            WHERE status = 'COMPLETED' AND officer_id IS NOT NULL
+            GROUP BY officer_id
+        """
+        cursor.execute(officer_notional_query)
+        notional_by_officer = {row['officer_id']: row['notional_revenue'] for row in cursor.fetchall()}
+
+        # Calculate officer achievement percentages with notional revenue
         for o in officer_data:
             target = o['annual_target'] or 60.0
             o['prorata_target'] = round(target * fy_progress, 2)
-            o['achievement_pct'] = round((o['total_share_amount'] / target * 100), 1) if target > 0 else 0
-            o['prorata_achievement_pct'] = round((o['total_share_amount'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
+            o['real_revenue'] = o['total_share_amount'] or 0
+            o['notional_revenue'] = notional_by_officer.get(o['officer_id'], 0)
+            o['total_contribution'] = o['real_revenue'] + o['notional_revenue']
+            o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
+            o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
 
         # Mark top 10 and bottom 10 officers BY ACHIEVEMENT % (not by value)
         sorted_officers_by_achievement = sorted([o for o in officer_data if o['achievement_pct'] > 0],
@@ -262,9 +290,13 @@ async def mis_dashboard(
         cursor.execute("SELECT DISTINCT domain FROM assignments WHERE domain IS NOT NULL ORDER BY domain")
         domains = [row['domain'] for row in cursor.fetchall()]
 
-        # Calculate totals
+        # Calculate totals with revenue breakdown
         total_target = sum(o['target'] or 0 for o in office_data)
         total_revenue = sum(o['total_revenue'] or 0 for o in office_data)
+        total_assignment_revenue = sum(o.get('assignment_revenue', 0) or 0 for o in office_data)
+        total_training_revenue = sum(o.get('training_revenue', 0) or 0 for o in office_data)
+        total_notional_revenue = sum(o.get('notional_revenue', 0) or 0 for o in office_data)
+        total_contribution = sum(o.get('total_contribution', o['total_revenue'] or 0) or 0 for o in office_data)
         total_expenditure = sum(o['total_expenditure'] or 0 for o in office_data)
         total_officers = sum(o['officer_count'] or 0 for o in office_data)
         prorata_target = round(total_target * fy_progress, 2)
@@ -275,10 +307,14 @@ async def mis_dashboard(
             'total_target': total_target,
             'prorata_target': prorata_target,
             'total_revenue': total_revenue,
+            'assignment_revenue': total_assignment_revenue,
+            'training_revenue': total_training_revenue,
+            'notional_revenue': total_notional_revenue,
+            'total_contribution': total_contribution,
             'total_expenditure': total_expenditure,
             'surplus_deficit': total_revenue - total_expenditure,
-            'achievement_pct': round((total_revenue / prorata_target * 100), 1) if prorata_target > 0 else 0,
-            'overall_achievement_pct': round((total_revenue / total_target * 100), 1) if total_target > 0 else 0,
+            'achievement_pct': round((total_contribution / prorata_target * 100), 1) if prorata_target > 0 else 0,
+            'overall_achievement_pct': round((total_contribution / total_target * 100), 1) if total_target > 0 else 0,
             'total_offices': len(office_data),
             'total_officers': total_officers,
             'total_domains': len(domain_data),

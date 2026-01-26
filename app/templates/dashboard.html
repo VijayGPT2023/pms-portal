@@ -4,42 +4,94 @@
 
 {% block content %}
 <div class="tab-container">
-    <!-- Header -->
+    <!-- Header with View Tabs -->
     <div class="tab-header">
-        <h1>Dashboard</h1>
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <h1>Dashboard</h1>
+            <!-- View Level Tabs -->
+            <div style="display: flex; gap: 4px; background: #f1f5f9; padding: 4px; border-radius: 8px;">
+                <a href="/dashboard?view=individual" class="btn btn-sm {% if view == 'individual' %}btn-primary{% else %}btn-ghost{% endif %}" style="{% if view != 'individual' %}background: transparent; color: #64748b;{% endif %}">
+                    My Dashboard
+                </a>
+                <a href="/dashboard?view=office" class="btn btn-sm {% if view == 'office' %}btn-primary{% else %}btn-ghost{% endif %}" style="{% if view != 'office' %}background: transparent; color: #64748b;{% endif %}">
+                    Office
+                </a>
+                {% if can_view_npc %}
+                <a href="/dashboard?view=npc" class="btn btn-sm {% if view == 'npc' %}btn-primary{% else %}btn-ghost{% endif %}" style="{% if view != 'npc' %}background: transparent; color: #64748b;{% endif %}">
+                    NPC
+                </a>
+                {% endif %}
+            </div>
+        </div>
         <div class="tab-actions">
             <a href="/assignment/new" class="btn btn-primary btn-sm">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
-                New Assignment
+                New
             </a>
-            <a href="/mis" class="btn btn-secondary btn-sm">Analytics</a>
+            <a href="/mis" class="btn btn-secondary btn-sm">MIS</a>
             {% if user.role in ['RD_HEAD', 'GROUP_HEAD', 'DG', 'DDG-I', 'DDG-II', 'ADMIN'] %}
             <a href="/approvals" class="btn btn-warning btn-sm">Approvals</a>
             {% endif %}
         </div>
     </div>
 
-    <!-- Quick Stats -->
-    <div class="stats-row" style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
-        <div class="stat-mini" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); padding: 15px 25px; border-radius: 10px; text-align: center; min-width: 120px; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ assignments|length }}</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">Total</div>
+    <!-- Performance Summary based on View -->
+    <div class="stats-row" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        {% if view == 'individual' %}
+        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">My Target (Pro-rata)</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.annual_target or 60) }}L</span></div>
         </div>
-        <div class="stat-mini" style="background: linear-gradient(135deg, #10b981, #059669); padding: 15px 25px; border-radius: 10px; text-align: center; min-width: 120px; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ assignments|selectattr('status', 'equalto', 'Completed')|list|length }}</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">Completed</div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Real Revenue</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_share or 0) }}L</div>
         </div>
-        <div class="stat-mini" style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 15px 25px; border-radius: 10px; text-align: center; min-width: 120px; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ assignments|selectattr('status', 'equalto', 'In Progress')|list|length }}</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">In Progress</div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #0891b2, #0e7490); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Notional</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.notional_revenue or 0) }}L</div>
         </div>
-        <div class="stat-mini" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 15px 25px; border-radius: 10px; text-align: center; min-width: 120px; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(assignments|sum(attribute='gross_value') or 0) }}L</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">Total Value</div>
+        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
         </div>
+        {% elif view == 'office' %}
+        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Office Target (Pro-rata)</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.target or 0) }}L</span></div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Real Revenue</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_revenue or 0) }}L</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #0891b2, #0e7490); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Notional</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.notional_revenue or 0) }}L</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
+        </div>
+        {% else %}
+        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">NPC Target (Pro-rata)</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.target or 0) }}L</span></div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Total Revenue</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_contribution or summary.total_revenue or 0) }}L</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Offices / Officers</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ summary.office_count or 0 }} / {{ summary.officer_count or 0 }}</div>
+        </div>
+        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
+            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
+        </div>
+        {% endif %}
     </div>
 
     <!-- 4-Stage Workflow -->
