@@ -9,18 +9,12 @@
         <h1>Pre-Revenue Metrics</h1>
         <div class="tab-actions">
             <a href="/enquiry/" class="btn btn-secondary btn-sm">View Enquiries</a>
-            <a href="/enquiry/new" class="btn btn-primary btn-sm">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                New Enquiry
-            </a>
+            <a href="/enquiry/new" class="btn btn-primary btn-sm">+ New Enquiry</a>
         </div>
     </div>
 
-    <!-- Filters -->
-    <div class="filter-bar" style="flex-wrap: wrap;">
+    <!-- Compact Filters -->
+    <div class="prm-top-bar">
         <form method="GET" class="prm-filters">
             <select name="fy" class="form-control">
                 <option value="2024-25" {% if filter_fy == '2024-25' %}selected{% endif %}>FY 2024-25</option>
@@ -30,715 +24,693 @@
             <select name="office" class="form-control">
                 <option value="">All Offices</option>
                 {% for off in offices %}
-                <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>
-                    {{ off.office_name or off.office_id }}
-                </option>
+                <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>{{ off.office_name or off.office_id }}</option>
                 {% endfor %}
             </select>
             <button type="submit" class="btn btn-primary btn-sm">Apply</button>
-            <a href="/mis/pre-revenue" class="btn btn-secondary btn-sm">Reset</a>
         </form>
+        <div class="prm-conversion-mini">
+            <span class="prm-conv-value">{{ "%.1f"|format(metrics.conversion_rate or 0) }}%</span>
+            <span class="prm-conv-label">Conversion</span>
+        </div>
     </div>
 
-    <!-- Pipeline Funnel Cards -->
-    <div class="prm-pipeline">
-        <a href="/enquiry/" class="prm-stage prm-stage-enquiry">
-            <div class="prm-stage-count">{{ metrics.total_enquiries or 0 }}</div>
-            <div class="prm-stage-label">Enquiries</div>
-            <div class="prm-stage-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-            </div>
+    <!-- Compact Pipeline Stats Row -->
+    <div class="prm-stats-row">
+        <a href="/enquiry/" class="prm-stat prm-stat-enquiry">
+            <div class="prm-stat-num">{{ metrics.total_enquiries or 0 }}</div>
+            <div class="prm-stat-name">Enquiries</div>
+            <div class="prm-stat-val">₹{{ "%.1f"|format(metrics.enquiry_value or 0) }}L</div>
         </a>
-        <a href="/proposal-request/" class="prm-stage prm-stage-pr">
-            <div class="prm-stage-count">{{ metrics.total_prs or 0 }}</div>
-            <div class="prm-stage-label">Proposal Requests</div>
-            <div class="prm-stage-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                </svg>
-            </div>
+        <div class="prm-arrow">→</div>
+        <a href="/proposal-request/" class="prm-stat prm-stat-pr">
+            <div class="prm-stat-num">{{ metrics.total_prs or 0 }}</div>
+            <div class="prm-stat-name">PRs</div>
+            <div class="prm-stat-val">₹{{ "%.1f"|format(metrics.pr_value or 0) }}L</div>
         </a>
-        <a href="/proposal/" class="prm-stage prm-stage-proposal">
-            <div class="prm-stage-count">{{ metrics.total_proposals or 0 }}</div>
-            <div class="prm-stage-label">Proposals</div>
-            <div class="prm-stage-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                </svg>
-            </div>
+        <div class="prm-arrow">→</div>
+        <a href="/proposal/" class="prm-stat prm-stat-proposal">
+            <div class="prm-stat-num">{{ metrics.total_proposals or 0 }}</div>
+            <div class="prm-stat-name">Proposals</div>
+            <div class="prm-stat-val">₹{{ "%.1f"|format(metrics.proposal_value or 0) }}L</div>
         </a>
-        <a href="/assignment/workorders" class="prm-stage prm-stage-workorder">
-            <div class="prm-stage-count">{{ metrics.work_orders or 0 }}</div>
-            <div class="prm-stage-label">Work Orders</div>
-            <div class="prm-stage-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="9 11 12 14 22 4"></polyline>
-                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                </svg>
-            </div>
+        <div class="prm-arrow">→</div>
+        <a href="/assignment/workorders" class="prm-stat prm-stat-wo">
+            <div class="prm-stat-num">{{ metrics.work_orders or 0 }}</div>
+            <div class="prm-stat-name">Work Orders</div>
+            <div class="prm-stat-val">Won</div>
         </a>
     </div>
 
-    <!-- Conversion Rate Banner -->
-    <div class="prm-conversion">
-        <div class="prm-conversion-value">{{ "%.1f"|format(metrics.conversion_rate or 0) }}%</div>
-        <div class="prm-conversion-label">Overall Conversion Rate (Enquiry to Work Order)</div>
-    </div>
-
-    <!-- Tab Navigation -->
-    <div class="tab-nav">
-        <button class="tab-btn active" data-tab-btn="prm" onclick="switchTab('tab-pipeline', 'prm')">
-            Pipeline Value
-        </button>
-        <button class="tab-btn" data-tab-btn="prm" onclick="switchTab('tab-status', 'prm')">
-            Stage Status
-        </button>
-        <button class="tab-btn" data-tab-btn="prm" onclick="switchTab('tab-trends', 'prm')">
-            Trends
-        </button>
-    </div>
-
-    <!-- Tab Content: Pipeline Value -->
-    <div id="tab-pipeline" class="tab-content active" data-tab-group="prm">
-        <!-- Value Summary Cards -->
-        <div class="prm-value-cards">
-            <div class="prm-value-card">
-                <div class="prm-value-icon" style="background: #dbeafe; color: #2563eb;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
+    <!-- Main Content - Two Column Layout -->
+    <div class="prm-main">
+        <!-- Left: Funnel Chart -->
+        <div class="prm-chart-section">
+            <h3>Pipeline Funnel</h3>
+            <div class="prm-funnel">
+                {% set max_count = [metrics.total_enquiries or 1, metrics.total_prs or 1, metrics.total_proposals or 1, metrics.work_orders or 1]|max %}
+                <div class="prm-funnel-stage" style="--width: {{ ((metrics.total_enquiries or 0) / max_count * 100)|round|int }}%;">
+                    <div class="prm-funnel-bar prm-funnel-enquiry">
+                        <span class="prm-funnel-count">{{ metrics.total_enquiries or 0 }}</span>
+                    </div>
+                    <span class="prm-funnel-label">Enquiries</span>
                 </div>
-                <div class="prm-value-info">
-                    <div class="prm-value-amount">{{ "%.2f"|format(metrics.enquiry_value or 0) }} L</div>
-                    <div class="prm-value-label">Open Enquiries ({{ metrics.enquiry_open or 0 }})</div>
+                <div class="prm-funnel-stage" style="--width: {{ ((metrics.total_prs or 0) / max_count * 100)|round|int }}%;">
+                    <div class="prm-funnel-bar prm-funnel-pr">
+                        <span class="prm-funnel-count">{{ metrics.total_prs or 0 }}</span>
+                    </div>
+                    <span class="prm-funnel-label">Proposal Requests</span>
+                </div>
+                <div class="prm-funnel-stage" style="--width: {{ ((metrics.total_proposals or 0) / max_count * 100)|round|int }}%;">
+                    <div class="prm-funnel-bar prm-funnel-proposal">
+                        <span class="prm-funnel-count">{{ metrics.total_proposals or 0 }}</span>
+                    </div>
+                    <span class="prm-funnel-label">Proposals</span>
+                </div>
+                <div class="prm-funnel-stage" style="--width: {{ ((metrics.work_orders or 0) / max_count * 100)|round|int }}%;">
+                    <div class="prm-funnel-bar prm-funnel-wo">
+                        <span class="prm-funnel-count">{{ metrics.work_orders or 0 }}</span>
+                    </div>
+                    <span class="prm-funnel-label">Work Orders</span>
                 </div>
             </div>
-            <div class="prm-value-card">
-                <div class="prm-value-icon" style="background: #e0f2fe; color: #0284c7;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                    </svg>
+
+            <!-- Stage Status Mini Charts -->
+            <div class="prm-mini-charts">
+                <div class="prm-mini-chart">
+                    <div class="prm-mini-title">Enquiry Status</div>
+                    <div class="prm-donut-container">
+                        {% set enq_total = (metrics.enquiry_open or 0) + (metrics.enquiry_converted or 0) + (metrics.enquiry_dropped or 0) %}
+                        {% set enq_open_pct = (metrics.enquiry_open or 0) / (enq_total or 1) * 100 %}
+                        {% set enq_conv_pct = (metrics.enquiry_converted or 0) / (enq_total or 1) * 100 %}
+                        <svg class="prm-donut" viewBox="0 0 36 36">
+                            <circle class="prm-donut-bg" cx="18" cy="18" r="15.9"/>
+                            <circle class="prm-donut-seg prm-donut-open" cx="18" cy="18" r="15.9"
+                                stroke-dasharray="{{ enq_open_pct }} {{ 100 - enq_open_pct }}"
+                                stroke-dashoffset="25"/>
+                            <circle class="prm-donut-seg prm-donut-conv" cx="18" cy="18" r="15.9"
+                                stroke-dasharray="{{ enq_conv_pct }} {{ 100 - enq_conv_pct }}"
+                                stroke-dashoffset="{{ 25 - enq_open_pct }}"/>
+                        </svg>
+                        <div class="prm-donut-center">{{ enq_total }}</div>
+                    </div>
+                    <div class="prm-mini-legend">
+                        <span class="prm-legend-item"><i style="background:#3b82f6"></i>Open {{ metrics.enquiry_open or 0 }}</span>
+                        <span class="prm-legend-item"><i style="background:#22c55e"></i>Conv {{ metrics.enquiry_converted or 0 }}</span>
+                    </div>
                 </div>
-                <div class="prm-value-info">
-                    <div class="prm-value-amount">{{ "%.2f"|format(metrics.pr_value or 0) }} L</div>
-                    <div class="prm-value-label">Active PRs ({{ metrics.pr_pending or 0 }})</div>
+                <div class="prm-mini-chart">
+                    <div class="prm-mini-title">PR Status</div>
+                    <div class="prm-donut-container">
+                        {% set pr_total = (metrics.pr_pending or 0) + (metrics.pr_converted or 0) + (metrics.pr_cancelled or 0) %}
+                        {% set pr_pend_pct = (metrics.pr_pending or 0) / (pr_total or 1) * 100 %}
+                        {% set pr_conv_pct = (metrics.pr_converted or 0) / (pr_total or 1) * 100 %}
+                        <svg class="prm-donut" viewBox="0 0 36 36">
+                            <circle class="prm-donut-bg" cx="18" cy="18" r="15.9"/>
+                            <circle class="prm-donut-seg prm-donut-pend" cx="18" cy="18" r="15.9"
+                                stroke-dasharray="{{ pr_pend_pct }} {{ 100 - pr_pend_pct }}"
+                                stroke-dashoffset="25"/>
+                            <circle class="prm-donut-seg prm-donut-conv" cx="18" cy="18" r="15.9"
+                                stroke-dasharray="{{ pr_conv_pct }} {{ 100 - pr_conv_pct }}"
+                                stroke-dashoffset="{{ 25 - pr_pend_pct }}"/>
+                        </svg>
+                        <div class="prm-donut-center">{{ pr_total }}</div>
+                    </div>
+                    <div class="prm-mini-legend">
+                        <span class="prm-legend-item"><i style="background:#f59e0b"></i>Pend {{ metrics.pr_pending or 0 }}</span>
+                        <span class="prm-legend-item"><i style="background:#22c55e"></i>Conv {{ metrics.pr_converted or 0 }}</span>
+                    </div>
                 </div>
-            </div>
-            <div class="prm-value-card">
-                <div class="prm-value-icon" style="background: #fef3c7; color: #d97706;">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                </div>
-                <div class="prm-value-info">
-                    <div class="prm-value-amount">{{ "%.2f"|format(metrics.proposal_value or 0) }} L</div>
-                    <div class="prm-value-label">Submitted Proposals ({{ metrics.proposal_submitted or 0 }})</div>
+                <div class="prm-mini-chart">
+                    <div class="prm-mini-title">Proposal Status</div>
+                    <div class="prm-donut-container">
+                        {% set prop_total = (metrics.proposal_submitted or 0) + (metrics.proposal_won or 0) + (metrics.proposal_lost or 0) %}
+                        {% set prop_sub_pct = (metrics.proposal_submitted or 0) / (prop_total or 1) * 100 %}
+                        {% set prop_won_pct = (metrics.proposal_won or 0) / (prop_total or 1) * 100 %}
+                        <svg class="prm-donut" viewBox="0 0 36 36">
+                            <circle class="prm-donut-bg" cx="18" cy="18" r="15.9"/>
+                            <circle class="prm-donut-seg prm-donut-pend" cx="18" cy="18" r="15.9"
+                                stroke-dasharray="{{ prop_sub_pct }} {{ 100 - prop_sub_pct }}"
+                                stroke-dashoffset="25"/>
+                            <circle class="prm-donut-seg prm-donut-conv" cx="18" cy="18" r="15.9"
+                                stroke-dasharray="{{ prop_won_pct }} {{ 100 - prop_won_pct }}"
+                                stroke-dashoffset="{{ 25 - prop_sub_pct }}"/>
+                        </svg>
+                        <div class="prm-donut-center">{{ prop_total }}</div>
+                    </div>
+                    <div class="prm-mini-legend">
+                        <span class="prm-legend-item"><i style="background:#f59e0b"></i>Sub {{ metrics.proposal_submitted or 0 }}</span>
+                        <span class="prm-legend-item"><i style="background:#22c55e"></i>Won {{ metrics.proposal_won or 0 }}</span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Total Pipeline -->
-        <div class="prm-total-pipeline">
-            <div class="prm-total-label">Total Pipeline Value</div>
-            <div class="prm-total-amount">₹ {{ "%.2f"|format(metrics.total_pipeline_value or 0) }} Lakhs</div>
-            <div class="prm-total-count">{{ (metrics.enquiry_open or 0) + (metrics.pr_pending or 0) + (metrics.proposal_submitted or 0) }} active items across all stages</div>
-        </div>
-
-        <!-- Pipeline Table -->
-        <div class="card" style="margin-top: 20px;">
-            <div class="card-header">
-                <h3 style="font-size: 0.9375rem; margin: 0;">Pipeline Breakdown</h3>
+        <!-- Right: Pipeline Table -->
+        <div class="prm-table-section">
+            <div class="prm-table-header">
+                <h3>Pipeline Value Breakdown</h3>
+                <div class="prm-total-badge">
+                    Total: <strong>₹{{ "%.2f"|format(metrics.total_pipeline_value or 0) }}L</strong>
+                </div>
             </div>
             <table class="compact-table">
                 <thead>
                     <tr>
                         <th>Stage</th>
-                        <th style="text-align: center;">Count</th>
-                        <th style="text-align: right;">Value (₹ Lakhs)</th>
+                        <th style="text-align:center">Open</th>
+                        <th style="text-align:center">Converted</th>
+                        <th style="text-align:right">Value (₹L)</th>
+                        <th style="width:100px">Progress</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td><span class="prm-badge prm-badge-enquiry">Open Enquiries</span></td>
-                        <td style="text-align: center;">{{ metrics.enquiry_open or 0 }}</td>
-                        <td style="text-align: right; font-weight: 600;">{{ "%.2f"|format(metrics.enquiry_value or 0) }}</td>
+                        <td><span class="prm-badge prm-badge-enq">Enquiries</span></td>
+                        <td style="text-align:center;font-weight:600">{{ metrics.enquiry_open or 0 }}</td>
+                        <td style="text-align:center;color:#22c55e">{{ metrics.enquiry_converted or 0 }}</td>
+                        <td style="text-align:right;font-weight:600">{{ "%.2f"|format(metrics.enquiry_value or 0) }}</td>
+                        <td>
+                            <div class="prm-bar">
+                                <div class="prm-bar-fill prm-bar-enq" style="width:{{ ((metrics.enquiry_value or 0) / (metrics.total_pipeline_value or 1) * 100)|round|int }}%"></div>
+                            </div>
+                        </td>
                     </tr>
                     <tr>
-                        <td><span class="prm-badge prm-badge-pr">Active PRs</span></td>
-                        <td style="text-align: center;">{{ metrics.pr_pending or 0 }}</td>
-                        <td style="text-align: right; font-weight: 600;">{{ "%.2f"|format(metrics.pr_value or 0) }}</td>
+                        <td><span class="prm-badge prm-badge-pr">Proposal Requests</span></td>
+                        <td style="text-align:center;font-weight:600">{{ metrics.pr_pending or 0 }}</td>
+                        <td style="text-align:center;color:#22c55e">{{ metrics.pr_converted or 0 }}</td>
+                        <td style="text-align:right;font-weight:600">{{ "%.2f"|format(metrics.pr_value or 0) }}</td>
+                        <td>
+                            <div class="prm-bar">
+                                <div class="prm-bar-fill prm-bar-pr" style="width:{{ ((metrics.pr_value or 0) / (metrics.total_pipeline_value or 1) * 100)|round|int }}%"></div>
+                            </div>
+                        </td>
                     </tr>
                     <tr>
-                        <td><span class="prm-badge prm-badge-proposal">Submitted Proposals</span></td>
-                        <td style="text-align: center;">{{ metrics.proposal_submitted or 0 }}</td>
-                        <td style="text-align: right; font-weight: 600;">{{ "%.2f"|format(metrics.proposal_value or 0) }}</td>
+                        <td><span class="prm-badge prm-badge-prop">Proposals</span></td>
+                        <td style="text-align:center;font-weight:600">{{ metrics.proposal_submitted or 0 }}</td>
+                        <td style="text-align:center;color:#22c55e">{{ metrics.proposal_won or 0 }}</td>
+                        <td style="text-align:right;font-weight:600">{{ "%.2f"|format(metrics.proposal_value or 0) }}</td>
+                        <td>
+                            <div class="prm-bar">
+                                <div class="prm-bar-fill prm-bar-prop" style="width:{{ ((metrics.proposal_value or 0) / (metrics.total_pipeline_value or 1) * 100)|round|int }}%"></div>
+                            </div>
+                        </td>
                     </tr>
                 </tbody>
                 <tfoot>
-                    <tr class="prm-total-row">
+                    <tr style="background:#f0fdf4">
                         <td><strong>Total Pipeline</strong></td>
-                        <td style="text-align: center;"><strong>{{ (metrics.enquiry_open or 0) + (metrics.pr_pending or 0) + (metrics.proposal_submitted or 0) }}</strong></td>
-                        <td style="text-align: right;"><strong style="color: #059669;">{{ "%.2f"|format(metrics.total_pipeline_value or 0) }}</strong></td>
+                        <td style="text-align:center;font-weight:600">{{ (metrics.enquiry_open or 0) + (metrics.pr_pending or 0) + (metrics.proposal_submitted or 0) }}</td>
+                        <td style="text-align:center;color:#22c55e;font-weight:600">{{ (metrics.enquiry_converted or 0) + (metrics.pr_converted or 0) + (metrics.proposal_won or 0) }}</td>
+                        <td style="text-align:right;font-weight:700;color:#059669">{{ "%.2f"|format(metrics.total_pipeline_value or 0) }}</td>
+                        <td></td>
                     </tr>
                 </tfoot>
             </table>
-        </div>
-    </div>
 
-    <!-- Tab Content: Stage Status -->
-    <div id="tab-status" class="tab-content" data-tab-group="prm">
-        <!-- Enquiries Status -->
-        <div class="prm-status-card">
-            <div class="prm-status-header">
-                <h3>Enquiries</h3>
-                <span class="prm-status-total">{{ (metrics.enquiry_open or 0) + (metrics.enquiry_converted or 0) + (metrics.enquiry_dropped or 0) }} total</span>
-            </div>
-            <div class="prm-status-grid">
-                <div class="prm-status-item prm-status-open">
-                    <div class="prm-status-count">{{ metrics.enquiry_open or 0 }}</div>
-                    <div class="prm-status-label">Open</div>
+            <!-- Conversion Rates -->
+            <div class="prm-conv-rates">
+                <div class="prm-conv-item">
+                    <div class="prm-conv-rate">
+                        {% set enq_conv = ((metrics.enquiry_converted or 0) / ((metrics.enquiry_open or 0) + (metrics.enquiry_converted or 0) + (metrics.enquiry_dropped or 0) or 1) * 100) %}
+                        {{ "%.0f"|format(enq_conv) }}%
+                    </div>
+                    <div class="prm-conv-desc">Enquiry → PR</div>
                 </div>
-                <div class="prm-status-item prm-status-converted">
-                    <div class="prm-status-count">{{ metrics.enquiry_converted or 0 }}</div>
-                    <div class="prm-status-label">Converted</div>
+                <div class="prm-conv-item">
+                    <div class="prm-conv-rate">
+                        {% set pr_conv = ((metrics.pr_converted or 0) / ((metrics.pr_pending or 0) + (metrics.pr_converted or 0) + (metrics.pr_cancelled or 0) or 1) * 100) %}
+                        {{ "%.0f"|format(pr_conv) }}%
+                    </div>
+                    <div class="prm-conv-desc">PR → Proposal</div>
                 </div>
-                <div class="prm-status-item prm-status-dropped">
-                    <div class="prm-status-count">{{ metrics.enquiry_dropped or 0 }}</div>
-                    <div class="prm-status-label">Dropped</div>
-                </div>
-            </div>
-            {% set total_enq = (metrics.enquiry_open or 0) + (metrics.enquiry_converted or 0) + (metrics.enquiry_dropped or 0) %}
-            {% if total_enq > 0 %}
-            <div class="prm-progress-bar">
-                <div class="prm-progress-segment prm-progress-open" style="width: {{ (metrics.enquiry_open or 0) / total_enq * 100 }}%;"></div>
-                <div class="prm-progress-segment prm-progress-converted" style="width: {{ (metrics.enquiry_converted or 0) / total_enq * 100 }}%;"></div>
-                <div class="prm-progress-segment prm-progress-dropped" style="width: {{ (metrics.enquiry_dropped or 0) / total_enq * 100 }}%;"></div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- PRs Status -->
-        <div class="prm-status-card">
-            <div class="prm-status-header">
-                <h3>Proposal Requests</h3>
-                <span class="prm-status-total">{{ (metrics.pr_pending or 0) + (metrics.pr_converted or 0) + (metrics.pr_cancelled or 0) }} total</span>
-            </div>
-            <div class="prm-status-grid">
-                <div class="prm-status-item prm-status-pending">
-                    <div class="prm-status-count">{{ metrics.pr_pending or 0 }}</div>
-                    <div class="prm-status-label">Pending</div>
-                </div>
-                <div class="prm-status-item prm-status-converted">
-                    <div class="prm-status-count">{{ metrics.pr_converted or 0 }}</div>
-                    <div class="prm-status-label">Converted</div>
-                </div>
-                <div class="prm-status-item prm-status-dropped">
-                    <div class="prm-status-count">{{ metrics.pr_cancelled or 0 }}</div>
-                    <div class="prm-status-label">Cancelled</div>
+                <div class="prm-conv-item">
+                    <div class="prm-conv-rate">
+                        {% set prop_conv = ((metrics.proposal_won or 0) / ((metrics.proposal_submitted or 0) + (metrics.proposal_won or 0) + (metrics.proposal_lost or 0) or 1) * 100) %}
+                        {{ "%.0f"|format(prop_conv) }}%
+                    </div>
+                    <div class="prm-conv-desc">Proposal → Won</div>
                 </div>
             </div>
-            {% set total_pr = (metrics.pr_pending or 0) + (metrics.pr_converted or 0) + (metrics.pr_cancelled or 0) %}
-            {% if total_pr > 0 %}
-            <div class="prm-progress-bar">
-                <div class="prm-progress-segment prm-progress-pending" style="width: {{ (metrics.pr_pending or 0) / total_pr * 100 }}%;"></div>
-                <div class="prm-progress-segment prm-progress-converted" style="width: {{ (metrics.pr_converted or 0) / total_pr * 100 }}%;"></div>
-                <div class="prm-progress-segment prm-progress-dropped" style="width: {{ (metrics.pr_cancelled or 0) / total_pr * 100 }}%;"></div>
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Proposals Status -->
-        <div class="prm-status-card">
-            <div class="prm-status-header">
-                <h3>Proposals</h3>
-                <span class="prm-status-total">{{ (metrics.proposal_submitted or 0) + (metrics.proposal_won or 0) + (metrics.proposal_lost or 0) }} total</span>
-            </div>
-            <div class="prm-status-grid">
-                <div class="prm-status-item prm-status-pending">
-                    <div class="prm-status-count">{{ metrics.proposal_submitted or 0 }}</div>
-                    <div class="prm-status-label">Submitted</div>
-                </div>
-                <div class="prm-status-item prm-status-won">
-                    <div class="prm-status-count">{{ metrics.proposal_won or 0 }}</div>
-                    <div class="prm-status-label">Won</div>
-                </div>
-                <div class="prm-status-item prm-status-lost">
-                    <div class="prm-status-count">{{ metrics.proposal_lost or 0 }}</div>
-                    <div class="prm-status-label">Lost</div>
-                </div>
-            </div>
-            {% set total_prop = (metrics.proposal_submitted or 0) + (metrics.proposal_won or 0) + (metrics.proposal_lost or 0) %}
-            {% if total_prop > 0 %}
-            <div class="prm-progress-bar">
-                <div class="prm-progress-segment prm-progress-pending" style="width: {{ (metrics.proposal_submitted or 0) / total_prop * 100 }}%;"></div>
-                <div class="prm-progress-segment prm-progress-won" style="width: {{ (metrics.proposal_won or 0) / total_prop * 100 }}%;"></div>
-                <div class="prm-progress-segment prm-progress-lost" style="width: {{ (metrics.proposal_lost or 0) / total_prop * 100 }}%;"></div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Tab Content: Trends -->
-    <div id="tab-trends" class="tab-content" data-tab-group="prm">
-        <div class="empty-state" style="padding: 60px 20px; text-align: center;">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin-bottom: 20px;">
-                <line x1="18" y1="20" x2="18" y2="10"></line>
-                <line x1="12" y1="20" x2="12" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="14"></line>
-            </svg>
-            <h3 style="color: #475569; margin-bottom: 8px; font-size: 1.125rem;">Trend Analysis</h3>
-            <p style="color: #94a3b8; font-size: 0.875rem; max-width: 300px; margin: 0 auto;">Monthly trends and conversion analytics will be displayed here when more data is available.</p>
         </div>
     </div>
 </div>
 
 <style>
-/* Pre-Revenue Metrics Specific Styles */
-.prm-filters {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    width: 100%;
-}
-
-.prm-filters .form-control {
-    width: auto;
-    min-width: 120px;
-}
-
-/* Pipeline Stage Cards */
-.prm-pipeline {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin: 20px 0;
-}
-
-.prm-stage {
-    position: relative;
-    padding: 24px 20px;
-    border-radius: 16px;
-    text-align: center;
-    text-decoration: none;
-    color: white;
-    overflow: hidden;
-    transition: transform 0.2s, box-shadow 0.2s;
-    min-height: 120px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-}
-
-.prm-stage:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-}
-
-.prm-stage-enquiry {
-    background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-}
-
-.prm-stage-pr {
-    background: linear-gradient(135deg, #06b6d4 0%, #0284c7 100%);
-}
-
-.prm-stage-proposal {
-    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-}
-
-.prm-stage-workorder {
-    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-}
-
-.prm-stage-count {
-    font-size: 2.5rem;
-    font-weight: 700;
-    line-height: 1;
-    margin-bottom: 8px;
-}
-
-.prm-stage-label {
-    font-size: 0.875rem;
-    font-weight: 500;
-    opacity: 0.95;
-}
-
-.prm-stage-icon {
-    position: absolute;
-    right: 12px;
-    bottom: 12px;
-    opacity: 0.25;
-}
-
-.prm-stage-icon svg {
-    width: 40px;
-    height: 40px;
-}
-
-/* Conversion Rate Banner */
-.prm-conversion {
-    background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
-    padding: 24px;
-    border-radius: 16px;
-    text-align: center;
-    color: white;
-    margin-bottom: 20px;
-}
-
-.prm-conversion-value {
-    font-size: 3rem;
-    font-weight: 700;
-    line-height: 1;
-    margin-bottom: 8px;
-}
-
-.prm-conversion-label {
-    font-size: 0.9375rem;
-    opacity: 0.9;
-}
-
-/* Value Cards */
-.prm-value-cards {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-bottom: 20px;
-}
-
-.prm-value-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.prm-value-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.prm-value-icon svg {
-    width: 24px;
-    height: 24px;
-}
-
-.prm-value-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.prm-value-amount {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #1e293b;
-    line-height: 1.2;
-}
-
-.prm-value-label {
-    font-size: 0.8125rem;
-    color: #64748b;
-    margin-top: 4px;
-}
-
-/* Total Pipeline */
-.prm-total-pipeline {
-    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-    border: 2px solid #86efac;
-    border-radius: 16px;
-    padding: 24px;
-    text-align: center;
-}
-
-.prm-total-label {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #166534;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
-}
-
-.prm-total-amount {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: #15803d;
-    line-height: 1;
-    margin-bottom: 8px;
-}
-
-.prm-total-count {
-    font-size: 0.875rem;
-    color: #166534;
-}
-
-/* Badges */
-.prm-badge {
-    display: inline-block;
-    padding: 4px 12px;
-    border-radius: 20px;
-    font-size: 0.8125rem;
-    font-weight: 500;
-}
-
-.prm-badge-enquiry {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-.prm-badge-pr {
-    background: #e0f2fe;
-    color: #0369a1;
-}
-
-.prm-badge-proposal {
-    background: #fef3c7;
-    color: #b45309;
-}
-
-.prm-total-row {
-    background: #f0fdf4;
-}
-
-/* Status Cards */
-.prm-status-card {
-    background: white;
-    border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 24px;
-    margin-bottom: 16px;
-}
-
-.prm-status-header {
+/* Compact Top Bar */
+.prm-top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.prm-filters {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.prm-filters .form-control {
+    padding: 8px 12px;
+    font-size: 0.8125rem;
+    min-width: 100px;
+}
+
+.prm-conversion-mini {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #7c3aed, #5b21b6);
+    border-radius: 8px;
+    color: white;
+}
+
+.prm-conv-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.prm-conv-label {
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+
+/* Compact Stats Row */
+.prm-stats-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px;
+    background: white;
+    border-bottom: 1px solid #e2e8f0;
+    overflow-x: auto;
+}
+
+.prm-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: white;
+    min-width: 90px;
+    transition: transform 0.2s;
+}
+
+.prm-stat:hover {
+    transform: scale(1.05);
+}
+
+.prm-stat-enquiry { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.prm-stat-pr { background: linear-gradient(135deg, #06b6d4, #0284c7); }
+.prm-stat-proposal { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.prm-stat-wo { background: linear-gradient(135deg, #10b981, #059669); }
+
+.prm-stat-num {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.prm-stat-name {
+    font-size: 0.6875rem;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+
+.prm-stat-val {
+    font-size: 0.6875rem;
+    opacity: 0.8;
+    margin-top: 4px;
+}
+
+.prm-arrow {
+    color: #94a3b8;
+    font-size: 1.25rem;
+    font-weight: 300;
+}
+
+/* Main Two-Column Layout */
+.prm-main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 20px;
+    padding: 16px;
+    min-height: 0;
+}
+
+/* Chart Section */
+.prm-chart-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+}
+
+.prm-chart-section h3 {
+    font-size: 0.9375rem;
+    margin: 0 0 16px;
+    color: #1e293b;
+}
+
+/* Funnel Chart */
+.prm-funnel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
     margin-bottom: 20px;
 }
 
-.prm-status-header h3 {
-    font-size: 1rem;
+.prm-funnel-stage {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.prm-funnel-bar {
+    height: 28px;
+    min-width: 40px;
+    width: max(var(--width), 40px);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
     font-weight: 600;
-    color: #1e293b;
-    margin: 0;
-}
-
-.prm-status-total {
     font-size: 0.8125rem;
-    color: #64748b;
+    transition: width 0.3s;
 }
 
-.prm-status-grid {
+.prm-funnel-enquiry { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.prm-funnel-pr { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+.prm-funnel-proposal { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.prm-funnel-wo { background: linear-gradient(90deg, #10b981, #34d399); }
+
+.prm-funnel-label {
+    font-size: 0.75rem;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+/* Mini Charts */
+.prm-mini-charts {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 12px;
-    margin-bottom: 16px;
 }
 
-.prm-status-item {
-    padding: 16px;
-    border-radius: 12px;
+.prm-mini-chart {
     text-align: center;
 }
 
-.prm-status-count {
-    font-size: 1.75rem;
-    font-weight: 700;
-    line-height: 1;
-    margin-bottom: 4px;
+.prm-mini-title {
+    font-size: 0.6875rem;
+    color: #64748b;
+    margin-bottom: 8px;
 }
 
-.prm-status-label {
+.prm-donut-container {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto;
+}
+
+.prm-donut {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.prm-donut-bg {
+    fill: none;
+    stroke: #e2e8f0;
+    stroke-width: 3;
+}
+
+.prm-donut-seg {
+    fill: none;
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.prm-donut-open { stroke: #3b82f6; }
+.prm-donut-pend { stroke: #f59e0b; }
+.prm-donut-conv { stroke: #22c55e; }
+
+.prm-donut-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.prm-mini-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 6px;
+}
+
+.prm-legend-item {
+    font-size: 0.625rem;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.prm-legend-item i {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+/* Table Section */
+.prm-table-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.prm-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.prm-table-header h3 {
+    font-size: 0.9375rem;
+    margin: 0;
+    color: #1e293b;
+}
+
+.prm-total-badge {
+    background: #f0fdf4;
+    color: #166534;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+}
+
+.prm-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 500;
 }
 
-.prm-status-open { background: #dbeafe; }
-.prm-status-open .prm-status-count { color: #1d4ed8; }
-.prm-status-open .prm-status-label { color: #3b82f6; }
+.prm-badge-enq { background: #dbeafe; color: #1e40af; }
+.prm-badge-pr { background: #e0f2fe; color: #0369a1; }
+.prm-badge-prop { background: #fef3c7; color: #b45309; }
 
-.prm-status-pending { background: #fef3c7; }
-.prm-status-pending .prm-status-count { color: #b45309; }
-.prm-status-pending .prm-status-label { color: #d97706; }
-
-.prm-status-converted { background: #dcfce7; }
-.prm-status-converted .prm-status-count { color: #15803d; }
-.prm-status-converted .prm-status-label { color: #22c55e; }
-
-.prm-status-dropped { background: #f1f5f9; }
-.prm-status-dropped .prm-status-count { color: #475569; }
-.prm-status-dropped .prm-status-label { color: #94a3b8; }
-
-.prm-status-won { background: #dcfce7; }
-.prm-status-won .prm-status-count { color: #15803d; }
-.prm-status-won .prm-status-label { color: #22c55e; }
-
-.prm-status-lost { background: #fee2e2; }
-.prm-status-lost .prm-status-count { color: #b91c1c; }
-.prm-status-lost .prm-status-label { color: #ef4444; }
-
-/* Progress Bar */
-.prm-progress-bar {
-    height: 8px;
+.prm-bar {
+    height: 6px;
     background: #e2e8f0;
-    border-radius: 4px;
+    border-radius: 3px;
     overflow: hidden;
-    display: flex;
 }
 
-.prm-progress-segment {
+.prm-bar-fill {
     height: 100%;
-    transition: width 0.3s;
+    border-radius: 3px;
 }
 
-.prm-progress-open { background: #3b82f6; }
-.prm-progress-pending { background: #f59e0b; }
-.prm-progress-converted { background: #22c55e; }
-.prm-progress-dropped { background: #94a3b8; }
-.prm-progress-won { background: #22c55e; }
-.prm-progress-lost { background: #ef4444; }
+.prm-bar-enq { background: #3b82f6; }
+.prm-bar-pr { background: #06b6d4; }
+.prm-bar-prop { background: #f59e0b; }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
-    .prm-pipeline {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 12px;
-    }
+/* Conversion Rates */
+.prm-conv-rates {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+}
 
-    .prm-stage {
-        padding: 20px 16px;
-        min-height: 100px;
-    }
+.prm-conv-item {
+    text-align: center;
+}
 
-    .prm-stage-count {
-        font-size: 2rem;
-    }
+.prm-conv-rate {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #7c3aed;
+}
 
-    .prm-stage-label {
-        font-size: 0.75rem;
-    }
+.prm-conv-desc {
+    font-size: 0.6875rem;
+    color: #64748b;
+    margin-top: 2px;
+}
 
-    .prm-stage-icon {
-        display: none;
-    }
-
-    .prm-conversion {
-        padding: 20px;
-    }
-
-    .prm-conversion-value {
-        font-size: 2.25rem;
-    }
-
-    .prm-conversion-label {
-        font-size: 0.8125rem;
-    }
-
-    .prm-value-cards {
+/* Responsive */
+@media (max-width: 900px) {
+    .prm-main {
         grid-template-columns: 1fr;
+    }
+
+    .prm-chart-section {
+        order: 2;
+    }
+
+    .prm-mini-charts {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .prm-top-bar {
+        flex-direction: column;
+        align-items: stretch;
         gap: 12px;
-    }
-
-    .prm-value-card {
-        padding: 16px;
-    }
-
-    .prm-value-amount {
-        font-size: 1.25rem;
-    }
-
-    .prm-total-pipeline {
-        padding: 20px;
-    }
-
-    .prm-total-amount {
-        font-size: 2rem;
-    }
-
-    .prm-status-grid {
-        gap: 8px;
-    }
-
-    .prm-status-item {
-        padding: 12px 8px;
-    }
-
-    .prm-status-count {
-        font-size: 1.5rem;
     }
 
     .prm-filters {
-        flex-direction: column;
-        align-items: stretch;
+        width: 100%;
     }
 
     .prm-filters .form-control {
-        width: 100%;
-        min-width: unset;
+        flex: 1;
+        min-width: 0;
     }
 
-    .prm-filters .btn {
-        width: 100%;
+    .prm-conversion-mini {
+        justify-content: center;
+    }
+
+    .prm-stats-row {
+        padding: 12px 8px;
+        gap: 4px;
+    }
+
+    .prm-stat {
+        padding: 10px 12px;
+        min-width: 70px;
+    }
+
+    .prm-stat-num {
+        font-size: 1.25rem;
+    }
+
+    .prm-stat-name {
+        font-size: 0.625rem;
+    }
+
+    .prm-arrow {
+        font-size: 1rem;
+    }
+
+    .prm-main {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .prm-chart-section,
+    .prm-table-section {
+        padding: 12px;
+    }
+
+    .prm-funnel-bar {
+        height: 24px;
+        font-size: 0.75rem;
+    }
+
+    .prm-mini-charts {
+        gap: 8px;
+    }
+
+    .prm-donut-container {
+        width: 50px;
+        height: 50px;
+    }
+
+    .prm-conv-rates {
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .prm-conv-item {
+        flex: 1;
+        min-width: 80px;
     }
 }
 
 @media (max-width: 480px) {
-    .prm-pipeline {
-        grid-template-columns: 1fr 1fr;
+    .prm-stats-row {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .prm-arrow {
+        display: none;
+    }
+
+    .prm-stat {
+        flex: 1;
+        min-width: calc(50% - 8px);
+        max-width: calc(50% - 8px);
+    }
+
+    .prm-funnel-label {
+        font-size: 0.625rem;
+    }
+
+    .prm-table-header {
+        flex-direction: column;
         gap: 8px;
+        align-items: flex-start;
     }
 
-    .prm-stage {
-        padding: 16px 12px;
-        min-height: 90px;
-        border-radius: 12px;
-    }
-
-    .prm-stage-count {
-        font-size: 1.75rem;
-    }
-
-    .prm-stage-label {
+    .compact-table {
         font-size: 0.6875rem;
     }
 
-    .prm-conversion {
-        padding: 16px;
-        border-radius: 12px;
-    }
-
-    .prm-conversion-value {
-        font-size: 1.75rem;
-    }
-
-    .prm-status-card {
-        padding: 16px;
-    }
-
-    .prm-status-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-
-    .prm-status-count {
-        font-size: 1.25rem;
-    }
-
-    .prm-status-label {
-        font-size: 0.625rem;
+    .compact-table th,
+    .compact-table td {
+        padding: 6px 8px;
     }
 }
 </style>
