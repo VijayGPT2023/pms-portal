@@ -407,6 +407,12 @@ def init_database():
             )
         """)
 
+        # Add active_role column to sessions if not exists (for existing databases)
+        try:
+            cursor.execute("ALTER TABLE sessions ADD COLUMN active_role TEXT")
+        except:
+            pass  # Column already exists
+
         # Create financial_year_targets table for tracking targets by year
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS financial_year_targets (
