@@ -3,304 +3,307 @@
 {% block title %}MIS Analytics - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>MIS / Analytics Dashboard</h1>
-    <div style="display: flex; align-items: center; gap: 20px;">
-        <a href="/mis/assignments" class="btn btn-primary">View All Assignments</a>
-        {% if fy_progress %}
-        <div class="fy-progress-indicator">
-            <span class="fy-label">FY {{ financial_year or 'Current' }} Progress:</span>
-            <div class="fy-progress-bar">
-                <div class="fy-progress-fill" style="width: {{ (fy_progress * 100)|round|int }}%"></div>
+<div class="tab-container">
+    <!-- Header -->
+    <div class="tab-header">
+        <h1>MIS / Analytics</h1>
+        <div class="tab-actions">
+            <a href="/mis/pre-revenue" class="btn btn-info btn-sm">Pre-Revenue</a>
+            <a href="/mis/assignments" class="btn btn-secondary btn-sm">All Assignments</a>
+            {% if fy_progress %}
+            <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #f1f5f9; border-radius: 6px;">
+                <span style="font-size: 0.75rem; color: #64748b;">FY {{ financial_year or 'Current' }}:</span>
+                <div style="width: 60px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                    <div style="width: {{ (fy_progress * 100)|round|int }}%; height: 100%; background: #3b82f6;"></div>
+                </div>
+                <span style="font-size: 0.75rem; font-weight: 600; color: #3b82f6;">{{ (fy_progress * 100)|round|int }}%</span>
             </div>
-            <span class="fy-percent">{{ (fy_progress * 100)|round|int }}%</span>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
-</div>
 
-<!-- Summary Stats -->
-<div class="stats-grid">
-    <div class="stat-card highlight-blue">
-        <div class="stat-value">₹ {{ "%.2f"|format(totals.total_target or 0) }} L</div>
-        <div class="stat-label">Annual Target</div>
+    <!-- Summary Stats -->
+    <div class="stats-row" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div class="stat-mini" style="flex: 1; min-width: 150px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); padding: 16px; border-radius: 10px; text-align: center; color: white;">
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.total_target or 0) }}L</div>
+            <div style="font-size: 0.75rem; opacity: 0.9;">Annual Target</div>
+        </div>
+        <div class="stat-mini" style="flex: 1; min-width: 150px; background: linear-gradient(135deg, #f59e0b, #d97706); padding: 16px; border-radius: 10px; text-align: center; color: white;">
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.prorata_target or 0) }}L</div>
+            <div style="font-size: 0.75rem; opacity: 0.9;">Pro-rata Target</div>
+        </div>
+        <div class="stat-mini" style="flex: 1; min-width: 150px; background: linear-gradient(135deg, #10b981, #059669); padding: 16px; border-radius: 10px; text-align: center; color: white;">
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.total_revenue or 0) }}L</div>
+            <div style="font-size: 0.75rem; opacity: 0.9;">Total Revenue</div>
+        </div>
+        <div class="stat-mini" style="flex: 1; min-width: 150px; background: {% if (totals.total_revenue or 0) >= (totals.prorata_target or 1) %}linear-gradient(135deg, #10b981, #059669){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; padding: 16px; border-radius: 10px; text-align: center; color: white;">
+            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.achievement_pct or 0) }}%</div>
+            <div style="font-size: 0.75rem; opacity: 0.9;">Achievement</div>
+        </div>
     </div>
-    <div class="stat-card highlight-orange">
-        <div class="stat-value">₹ {{ "%.2f"|format(totals.prorata_target or 0) }} L</div>
-        <div class="stat-label">Pro-rata Target</div>
-    </div>
-    <div class="stat-card highlight-green">
-        <div class="stat-value">₹ {{ "%.2f"|format(totals.total_revenue or 0) }} L</div>
-        <div class="stat-label">Total Revenue</div>
-    </div>
-    <div class="stat-card {% if (totals.total_revenue or 0) >= (totals.prorata_target or 1) %}highlight-green{% else %}highlight-red{% endif %}">
-        <div class="stat-value">{{ "%.1f"|format(totals.achievement_pct or 0) }}%</div>
-        <div class="stat-label">Achievement vs Pro-rata</div>
-    </div>
-</div>
 
-<div class="stats-grid" style="margin-top: 15px;">
-    <div class="stat-card">
-        <div class="stat-value">{{ totals.total_assignments }}</div>
-        <div class="stat-label">Total Assignments</div>
+    <!-- Secondary Stats -->
+    <div class="stats-row" style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.25rem; font-weight: 600; color: #1e293b;">{{ totals.total_assignments }}</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Assignments</div>
+        </div>
+        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.25rem; font-weight: 600; color: #1e293b;">{{ "%.1f"|format(totals.total_expenditure or 0) }}L</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Expenditure</div>
+        </div>
+        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.25rem; font-weight: 600; color: {% if (totals.surplus_deficit or 0) >= 0 %}#10b981{% else %}#ef4444{% endif %};">{{ "%.1f"|format(totals.surplus_deficit or 0) }}L</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Surplus/Deficit</div>
+        </div>
+        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 1.25rem; font-weight: 600; color: #3b82f6;">{{ "%.0f"|format(totals.avg_physical_progress or 0) }}%</div>
+            <div style="font-size: 0.75rem; color: #64748b;">Avg Progress</div>
+        </div>
     </div>
-    <div class="stat-card">
-        <div class="stat-value">₹ {{ "%.2f"|format(totals.total_expenditure or 0) }} L</div>
-        <div class="stat-label">Total Expenditure</div>
-    </div>
-    <div class="stat-card {% if (totals.surplus_deficit or 0) >= 0 %}highlight-green{% else %}highlight-red{% endif %}">
-        <div class="stat-value">₹ {{ "%.2f"|format(totals.surplus_deficit or 0) }} L</div>
-        <div class="stat-label">Surplus / Deficit</div>
-    </div>
-    <div class="stat-card highlight-blue">
-        <div class="stat-value">{{ "%.1f"|format(totals.avg_physical_progress or 0) }}%</div>
-        <div class="stat-label">Avg Physical Progress</div>
-    </div>
-</div>
 
-<!-- Filters -->
-<div class="card">
-    <form method="GET" action="/mis" class="filters">
-        <div class="filter-group">
-            <label>Financial Year</label>
-            <select name="financial_year">
-                <option value="">All Years</option>
+    <!-- Filters -->
+    <div class="filter-bar">
+        <form method="GET" action="/mis" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%;">
+            <select name="financial_year" class="form-control" style="width: auto; min-width: 100px;">
+                <option value="">All FY</option>
                 {% for fy in financial_years %}
                 <option value="{{ fy }}" {% if financial_year == fy %}selected{% endif %}>{{ fy }}</option>
                 {% endfor %}
             </select>
-        </div>
-
-        <div class="filter-group">
-            <label>Office</label>
-            <select name="filter_office">
+            <select name="filter_office" class="form-control" style="width: auto; min-width: 120px;">
                 <option value="">All Offices</option>
                 {% for office in offices %}
-                <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
-                    {{ office.office_id }}
-                </option>
+                <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>{{ office.office_id }}</option>
                 {% endfor %}
             </select>
-        </div>
-
-        <div class="filter-group">
-            <label>Domain</label>
-            <select name="filter_domain">
+            <select name="filter_domain" class="form-control" style="width: auto; min-width: 120px;">
                 <option value="">All Domains</option>
                 {% for domain in domains %}
                 <option value="{{ domain }}" {% if filter_domain == domain %}selected{% endif %}>{{ domain }}</option>
                 {% endfor %}
             </select>
-        </div>
-
-        <div class="filter-group">
-            <label>From Date</label>
-            <input type="date" name="date_from" value="{{ date_from or '' }}">
-        </div>
-
-        <div class="filter-group">
-            <label>To Date</label>
-            <input type="date" name="date_to" value="{{ date_to or '' }}">
-        </div>
-
-        <button type="submit" class="btn btn-primary">Apply Filters</button>
-        <a href="/mis" class="btn btn-secondary">Reset</a>
-    </form>
-</div>
-
-<!-- Physical Progress by Status -->
-{% if progress_by_status %}
-<div class="mis-section card">
-    <h2>Assignment Status Overview</h2>
-    <div class="progress-status-grid">
-        {% for status in progress_by_status %}
-        <div class="status-card status-{{ status.status|lower|replace(' ', '-') }}">
-            <div class="status-count">{{ status.count }}</div>
-            <div class="status-label">{{ status.status }}</div>
-            <div class="status-progress">
-                <span class="progress-value">{{ "%.1f"|format(status.avg_progress or 0) }}%</span>
-                <span class="progress-label">Avg Progress</span>
-            </div>
-        </div>
-        {% endfor %}
+            <input type="date" name="date_from" value="{{ date_from or '' }}" class="form-control" style="width: auto;" placeholder="From">
+            <input type="date" name="date_to" value="{{ date_to or '' }}" class="form-control" style="width: auto;" placeholder="To">
+            <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+            <a href="/mis" class="btn btn-secondary btn-sm">Reset</a>
+        </form>
     </div>
-</div>
-{% endif %}
 
-<!-- Office-wise Revenue with Target Comparison -->
-<div class="mis-section card">
-    <h2>Office-wise Target vs Achievement</h2>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab-btn="mis" onclick="switchTab('tab-office', 'mis')">
+            Office-wise
+        </button>
+        <button class="tab-btn" data-tab-btn="mis" onclick="switchTab('tab-status', 'mis')">
+            Status
+        </button>
+        <button class="tab-btn" data-tab-btn="mis" onclick="switchTab('tab-domain', 'mis')">
+            Domain-wise
+        </button>
+        <button class="tab-btn" data-tab-btn="mis" onclick="switchTab('tab-officer', 'mis')">
+            Officer-wise
+        </button>
+    </div>
 
-    {% if office_data %}
-    <div class="table-container">
-        <table>
+    <!-- Tab Content: Office-wise -->
+    <div id="tab-office" class="tab-content active" data-tab-group="mis">
+        {% if office_data %}
+        <table class="compact-table">
             <thead>
                 <tr>
                     <th>Office</th>
-                    <th class="text-right">Officers</th>
-                    <th class="text-right">Annual Target (₹L)</th>
-                    <th class="text-right">Pro-rata Target (₹L)</th>
-                    <th class="text-right">Revenue (₹L)</th>
-                    <th class="text-right">Achievement %</th>
-                    <th class="text-right">Expenditure (₹L)</th>
-                    <th class="text-right">Surplus/Deficit (₹L)</th>
-                    <th class="text-right">Avg Progress</th>
+                    <th style="text-align: right;">Officers</th>
+                    <th style="text-align: right;">Target</th>
+                    <th style="text-align: right;">Pro-rata</th>
+                    <th style="text-align: right;">Revenue</th>
+                    <th style="text-align: right;">Achievement</th>
+                    <th style="text-align: right;">Surplus/Deficit</th>
+                    <th style="text-align: right;">Progress</th>
                 </tr>
             </thead>
             <tbody>
                 {% for office in office_data %}
-                <tr class="{% if office.is_top %}indicator-top{% elif office.is_bottom %}indicator-bottom{% endif %}">
+                <tr>
                     <td>
-                        <a href="/mis/office/{{ office.office_id }}">
+                        <a href="/mis/office/{{ office.office_id }}" class="link-primary">
                             <strong>{{ office.office_id }}</strong>
                         </a>
-                        {% if office.is_top %}<span class="badge badge-success">Top 3</span>{% endif %}
-                        {% if office.is_bottom %}<span class="badge badge-danger">Bottom 3</span>{% endif %}
+                        {% if office.is_top %}<span class="badge badge-success" style="font-size: 0.625rem; margin-left: 4px;">Top</span>{% endif %}
+                        {% if office.is_bottom %}<span class="badge badge-danger" style="font-size: 0.625rem; margin-left: 4px;">Low</span>{% endif %}
                     </td>
-                    <td class="text-right">{{ office.officer_count or 0 }}</td>
-                    <td class="text-right">{{ "%.2f"|format(office.target or office.annual_revenue_target or 0) }}</td>
-                    <td class="text-right">{{ "%.2f"|format(office.prorata_target or 0) }}</td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(office.total_revenue or 0) }}</strong></td>
-                    <td class="text-right">
-                        <span class="{% if (office.achievement_pct or 0) >= 100 %}text-success{% elif (office.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}">
-                            <strong>{{ "%.1f"|format(office.achievement_pct or 0) }}%</strong>
+                    <td style="text-align: right;">{{ office.officer_count or 0 }}</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(office.target or office.annual_revenue_target or 0) }}L</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(office.prorata_target or 0) }}L</td>
+                    <td style="text-align: right; font-weight: 600;">{{ "%.1f"|format(office.total_revenue or 0) }}L</td>
+                    <td style="text-align: right;">
+                        <span class="{% if (office.achievement_pct or 0) >= 100 %}text-success{% elif (office.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 600;">
+                            {{ "%.0f"|format(office.achievement_pct or 0) }}%
                         </span>
                     </td>
-                    <td class="text-right">{{ "%.2f"|format(office.total_expenditure or 0) }}</td>
-                    <td class="text-right">
+                    <td style="text-align: right;">
                         <span class="{% if (office.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            {{ "%.2f"|format(office.surplus_deficit or 0) }}
+                            {{ "%.1f"|format(office.surplus_deficit or 0) }}L
                         </span>
                     </td>
-                    <td class="text-right">
-                        <div class="mini-progress-bar">
-                            <div class="mini-progress-fill" style="width: {{ (office.avg_physical_progress or 0)|round|int }}%"></div>
+                    <td style="text-align: right;">
+                        <div style="display: inline-flex; align-items: center; gap: 6px;">
+                            <div style="width: 50px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                                <div style="width: {{ (office.avg_physical_progress or 0)|round|int }}%; height: 100%; background: #3b82f6;"></div>
+                            </div>
+                            <span style="font-size: 0.75rem;">{{ "%.0f"|format(office.avg_physical_progress or 0) }}%</span>
                         </div>
-                        <span class="progress-text">{{ "%.0f"|format(office.avg_physical_progress or 0) }}%</span>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
-                <tr class="totals-row">
-                    <td><strong>TOTAL</strong></td>
-                    <td class="text-right"><strong>{{ totals.total_officers or 0 }}</strong></td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(totals.total_target or 0) }}</strong></td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(totals.prorata_target or 0) }}</strong></td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(totals.total_revenue or 0) }}</strong></td>
-                    <td class="text-right"><strong>{{ "%.1f"|format(totals.achievement_pct or 0) }}%</strong></td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(totals.total_expenditure or 0) }}</strong></td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(totals.surplus_deficit or 0) }}</strong></td>
-                    <td class="text-right"><strong>{{ "%.0f"|format(totals.avg_physical_progress or 0) }}%</strong></td>
+                <tr style="background: #f8fafc; font-weight: 600;">
+                    <td>TOTAL</td>
+                    <td style="text-align: right;">{{ totals.total_officers or 0 }}</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(totals.total_target or 0) }}L</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(totals.prorata_target or 0) }}L</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(totals.total_revenue or 0) }}L</td>
+                    <td style="text-align: right;">{{ "%.0f"|format(totals.achievement_pct or 0) }}%</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(totals.surplus_deficit or 0) }}L</td>
+                    <td style="text-align: right;">{{ "%.0f"|format(totals.avg_physical_progress or 0) }}%</td>
                 </tr>
             </tfoot>
         </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No office data available</h3>
+            <p>Apply different filters or add assignments to see office-wise data.</p>
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <p class="text-muted text-center" style="padding: 30px;">No office data available.</p>
-    {% endif %}
-</div>
 
-<!-- Domain-wise Revenue -->
-<div class="mis-section card">
-    <h2>Domain-wise Revenue</h2>
+    <!-- Tab Content: Status Overview -->
+    <div id="tab-status" class="tab-content" data-tab-group="mis">
+        {% if progress_by_status %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
+            {% for status in progress_by_status %}
+            <div style="padding: 20px; border-radius: 10px; text-align: center;
+                {% if status.status == 'Completed' %}background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+                {% elif status.status == 'In Progress' %}background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+                {% elif status.status == 'On Hold' %}background: linear-gradient(135deg, #fef3c7, #fde68a);
+                {% elif status.status == 'Pipeline' %}background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
+                {% else %}background: #f8fafc;{% endif %}">
+                <div style="font-size: 1.75rem; font-weight: 700;
+                    {% if status.status == 'Completed' %}color: #16a34a;
+                    {% elif status.status == 'In Progress' %}color: #2563eb;
+                    {% elif status.status == 'On Hold' %}color: #d97706;
+                    {% elif status.status == 'Pipeline' %}color: #7c3aed;
+                    {% else %}color: #64748b;{% endif %}">
+                    {{ status.count }}
+                </div>
+                <div style="font-size: 0.8125rem; font-weight: 500; color: #475569; margin-bottom: 8px;">{{ status.status }}</div>
+                <div style="font-size: 0.75rem; color: #64748b;">
+                    Avg: {{ "%.0f"|format(status.avg_progress or 0) }}%
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No status data available</h3>
+        </div>
+        {% endif %}
+    </div>
 
-    {% if domain_data %}
-    {% set max_domain_revenue = domain_data|map(attribute='total_revenue')|max or 1 %}
-    <div class="table-container">
-        <table>
+    <!-- Tab Content: Domain-wise -->
+    <div id="tab-domain" class="tab-content" data-tab-group="mis">
+        {% if domain_data %}
+        {% set max_domain_revenue = domain_data|map(attribute='total_revenue')|max or 1 %}
+        <table class="compact-table">
             <thead>
                 <tr>
                     <th>Domain</th>
-                    <th class="text-right">Assignments</th>
-                    <th class="text-right">Total Revenue (₹L)</th>
-                    <th class="text-right">Expenditure (₹L)</th>
-                    <th class="text-right">Surplus/Deficit (₹L)</th>
-                    <th style="width: 200px;">Revenue Bar</th>
+                    <th style="text-align: right;">Assignments</th>
+                    <th style="text-align: right;">Revenue</th>
+                    <th style="text-align: right;">Expenditure</th>
+                    <th style="text-align: right;">Surplus/Deficit</th>
+                    <th style="width: 150px;">Chart</th>
                 </tr>
             </thead>
             <tbody>
                 {% for domain in domain_data %}
                 <tr>
                     <td><strong>{{ domain.domain }}</strong></td>
-                    <td class="text-right">{{ domain.assignment_count }}</td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(domain.total_revenue or 0) }}</strong></td>
-                    <td class="text-right">{{ "%.2f"|format(domain.total_expenditure or 0) }}</td>
-                    <td class="text-right">
+                    <td style="text-align: right;">{{ domain.assignment_count }}</td>
+                    <td style="text-align: right; font-weight: 600;">{{ "%.1f"|format(domain.total_revenue or 0) }}L</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(domain.total_expenditure or 0) }}L</td>
+                    <td style="text-align: right;">
                         <span class="{% if (domain.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            {{ "%.2f"|format(domain.surplus_deficit or 0) }}
+                            {{ "%.1f"|format(domain.surplus_deficit or 0) }}L
                         </span>
                     </td>
                     <td>
-                        <div class="revenue-bar">
-                            <div class="revenue-bar-fill"
-                                 style="width: {{ ((domain.total_revenue or 0) / max_domain_revenue * 100)|round|int }}%">
-                            </div>
+                        <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                            <div style="width: {{ ((domain.total_revenue or 0) / max_domain_revenue * 100)|round|int }}%; height: 100%; background: linear-gradient(90deg, #3b82f6, #1d4ed8);"></div>
                         </div>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No domain data available</h3>
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <p class="text-muted text-center" style="padding: 30px;">No domain data available.</p>
-    {% endif %}
-</div>
 
-<!-- Officer-wise Target vs Achievement -->
-<div class="mis-section card">
-    <h2>Officer-wise Target vs Achievement</h2>
-    <p class="text-muted" style="margin-bottom: 15px;">
-        Showing all active officers ({{ totals.total_officers_with_share }} officers)
-    </p>
-
-    {% if officer_data %}
-    <div class="table-container">
-        <table>
+    <!-- Tab Content: Officer-wise -->
+    <div id="tab-officer" class="tab-content" data-tab-group="mis">
+        {% if officer_data %}
+        <p style="color: #64748b; font-size: 0.8125rem; margin-bottom: 12px;">
+            Showing {{ officer_data|length }} officers with revenue shares
+        </p>
+        <table class="compact-table">
             <thead>
                 <tr>
-                    <th>Rank</th>
+                    <th>#</th>
                     <th>Officer</th>
                     <th>Office</th>
-                    <th class="text-right">Annual Target (₹L)</th>
-                    <th class="text-right">Pro-rata (₹L)</th>
-                    <th class="text-right">Total Share (₹L)</th>
-                    <th class="text-right">Achievement %</th>
-                    <th class="text-right">Assignments</th>
+                    <th style="text-align: right;">Target</th>
+                    <th style="text-align: right;">Pro-rata</th>
+                    <th style="text-align: right;">Share</th>
+                    <th style="text-align: right;">Achievement</th>
+                    <th style="text-align: right;">Assignments</th>
                 </tr>
             </thead>
             <tbody>
                 {% for officer in officer_data %}
-                <tr class="{% if officer.is_top %}indicator-top{% elif officer.is_bottom %}indicator-bottom{% endif %}">
+                <tr>
                     <td>{{ loop.index }}</td>
                     <td>
-                        <a href="/mis/officer/{{ officer.officer_id }}">
+                        <a href="/mis/officer/{{ officer.officer_id }}" class="link-primary">
                             <strong>{{ officer.name }}</strong>
                         </a>
-                        {% if officer.is_top and loop.index <= 10 %}<span class="badge badge-success">Top 10</span>{% endif %}
-                        {% if officer.is_bottom %}<span class="badge badge-danger">Bottom 10</span>{% endif %}
+                        {% if officer.is_top and loop.index <= 10 %}<span class="badge badge-success" style="font-size: 0.625rem; margin-left: 4px;">Top 10</span>{% endif %}
+                        {% if officer.is_bottom %}<span class="badge badge-danger" style="font-size: 0.625rem; margin-left: 4px;">Low</span>{% endif %}
                     </td>
                     <td>{{ officer.office_id }}</td>
-                    <td class="text-right">{{ "%.2f"|format(officer.annual_target or 60) }}</td>
-                    <td class="text-right">{{ "%.2f"|format(officer.prorata_target or 0) }}</td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(officer.total_share_amount or 0) }}</strong></td>
-                    <td class="text-right">
-                        <span class="{% if (officer.achievement_pct or 0) >= 100 %}text-success{% elif (officer.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}">
-                            <strong>{{ "%.1f"|format(officer.achievement_pct or 0) }}%</strong>
+                    <td style="text-align: right;">{{ "%.1f"|format(officer.annual_target or 60) }}L</td>
+                    <td style="text-align: right;">{{ "%.1f"|format(officer.prorata_target or 0) }}L</td>
+                    <td style="text-align: right; font-weight: 600;">{{ "%.1f"|format(officer.total_share_amount or 0) }}L</td>
+                    <td style="text-align: right;">
+                        <span class="{% if (officer.achievement_pct or 0) >= 100 %}text-success{% elif (officer.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 600;">
+                            {{ "%.0f"|format(officer.achievement_pct or 0) }}%
                         </span>
                     </td>
-                    <td class="text-right">{{ officer.assignment_count }}</td>
+                    <td style="text-align: right;">{{ officer.assignment_count }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No revenue shares allocated yet</h3>
+            <p>Officer data will appear once revenue shares are allocated to assignments.</p>
+        </div>
+        {% endif %}
     </div>
-    {% else %}
-    <p class="text-muted text-center" style="padding: 30px;">
-        No revenue shares have been allocated yet.
-    </p>
-    {% endif %}
 </div>
-
 {% endblock %}

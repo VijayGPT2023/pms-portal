@@ -3,215 +3,252 @@
 {% block title %}Pre-Revenue Metrics - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3>Pre-Revenue Activity Metrics</h3>
-        <a href="/enquiry/" class="btn btn-outline-primary">View Enquiries</a>
+<div class="tab-container">
+    <!-- Header -->
+    <div class="tab-header">
+        <h1>Pre-Revenue Metrics</h1>
+        <div class="tab-actions">
+            <a href="/enquiry/" class="btn btn-secondary btn-sm">View Enquiries</a>
+            <a href="/enquiry/new" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Enquiry
+            </a>
+        </div>
     </div>
 
     <!-- Filters -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form method="GET" class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label">Financial Year</label>
-                    <select name="fy" class="form-select">
-                        <option value="2024-25" {% if filter_fy == '2024-25' %}selected{% endif %}>2024-25</option>
-                        <option value="2025-26" {% if filter_fy == '2025-26' %}selected{% endif %}>2025-26</option>
-                        <option value="2026-27" {% if filter_fy == '2026-27' %}selected{% endif %}>2026-27</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Office</label>
-                    <select name="office" class="form-select">
-                        <option value="">All Offices</option>
-                        {% for off in offices %}
-                        <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>
-                            {{ off.office_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary">Apply Filters</button>
-                </div>
-            </form>
-        </div>
+    <div class="filter-bar">
+        <form method="GET" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%;">
+            <select name="fy" class="form-control" style="width: auto; min-width: 120px;">
+                <option value="2024-25" {% if filter_fy == '2024-25' %}selected{% endif %}>FY 2024-25</option>
+                <option value="2025-26" {% if filter_fy == '2025-26' %}selected{% endif %}>FY 2025-26</option>
+                <option value="2026-27" {% if filter_fy == '2026-27' %}selected{% endif %}>FY 2026-27</option>
+            </select>
+            <select name="office" class="form-control" style="width: auto; min-width: 140px;">
+                <option value="">All Offices</option>
+                {% for off in offices %}
+                <option value="{{ off.office_id }}" {% if filter_office == off.office_id %}selected{% endif %}>
+                    {{ off.office_name or off.office_id }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            <a href="/mis/pre-revenue" class="btn btn-secondary btn-sm">Reset</a>
+        </form>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card bg-primary text-white">
-                <div class="card-body text-center">
-                    <h2>{{ metrics.total_enquiries or 0 }}</h2>
-                    <p class="mb-0">Total Enquiries</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <h2>{{ metrics.total_prs or 0 }}</h2>
-                    <p class="mb-0">Proposal Requests</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body text-center">
-                    <h2>{{ metrics.total_proposals or 0 }}</h2>
-                    <p class="mb-0">Proposals Submitted</p>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <h2>{{ "%.1f"|format(metrics.conversion_rate or 0) }}%</h2>
-                    <p class="mb-0">Conversion Rate</p>
-                </div>
-            </div>
-        </div>
+    <!-- Pipeline Funnel - Visual -->
+    <div class="pipeline-stages" style="margin: 20px 0;">
+        <a href="/enquiry/" class="pipeline-stage" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8);">
+            <div class="stage-count">{{ metrics.total_enquiries or 0 }}</div>
+            <div class="stage-label">Enquiries</div>
+        </a>
+        <a href="/proposal-request/" class="pipeline-stage" style="background: linear-gradient(135deg, #0ea5e9, #0369a1);">
+            <div class="stage-count">{{ metrics.total_prs or 0 }}</div>
+            <div class="stage-label">Proposal Requests</div>
+        </a>
+        <a href="/proposal/" class="pipeline-stage" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <div class="stage-count">{{ metrics.total_proposals or 0 }}</div>
+            <div class="stage-label">Proposals</div>
+        </a>
+        <a href="/assignment/workorders" class="pipeline-stage" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <div class="stage-count">{{ metrics.work_orders or 0 }}</div>
+            <div class="stage-label">Work Orders</div>
+        </a>
     </div>
 
-    <!-- Value Pipeline -->
-    <div class="row mb-4">
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0">Estimated Pipeline Value</h5>
-                </div>
-                <div class="card-body">
-                    <table class="table">
-                        <tr>
-                            <td>Open Enquiries</td>
-                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.enquiry_value or 0) }} L</strong></td>
-                        </tr>
-                        <tr>
-                            <td>Active Proposal Requests</td>
-                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.pr_value or 0) }} L</strong></td>
-                        </tr>
-                        <tr>
-                            <td>Submitted Proposals</td>
-                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.proposal_value or 0) }} L</strong></td>
-                        </tr>
-                        <tr class="table-success">
-                            <td><strong>Total Pipeline</strong></td>
-                            <td class="text-end"><strong>Rs. {{ "%.2f"|format(metrics.total_pipeline_value or 0) }} L</strong></td>
-                        </tr>
-                    </table>
-                </div>
+    <!-- Conversion Rate Card -->
+    <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 16px 24px; border-radius: 10px; text-align: center; margin-bottom: 20px; color: white;">
+        <div style="font-size: 2rem; font-weight: 700;">{{ "%.1f"|format(metrics.conversion_rate or 0) }}%</div>
+        <div style="font-size: 0.875rem; opacity: 0.9;">Overall Conversion Rate (Enquiry to Work Order)</div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab-btn="prm" onclick="switchTab('tab-pipeline', 'prm')">
+            Pipeline Value
+        </button>
+        <button class="tab-btn" data-tab-btn="prm" onclick="switchTab('tab-status', 'prm')">
+            Stage Status
+        </button>
+        <button class="tab-btn" data-tab-btn="prm" onclick="switchTab('tab-trends', 'prm')">
+            Trends
+        </button>
+    </div>
+
+    <!-- Tab Content: Pipeline Value -->
+    <div id="tab-pipeline" class="tab-content active" data-tab-group="prm">
+        <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+                <h3 style="font-size: 1rem; margin: 0;">Estimated Pipeline Value</h3>
             </div>
+            <table class="compact-table">
+                <thead>
+                    <tr>
+                        <th>Stage</th>
+                        <th style="text-align: right;">Count</th>
+                        <th style="text-align: right;">Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <span class="badge badge-info">Open Enquiries</span>
+                        </td>
+                        <td style="text-align: right;">{{ metrics.enquiry_open or 0 }}</td>
+                        <td style="text-align: right; font-weight: 600;">{{ "%.2f"|format(metrics.enquiry_value or 0) }} L</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <span class="badge badge-primary">Active PRs</span>
+                        </td>
+                        <td style="text-align: right;">{{ metrics.pr_pending or 0 }}</td>
+                        <td style="text-align: right; font-weight: 600;">{{ "%.2f"|format(metrics.pr_value or 0) }} L</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <span class="badge badge-warning">Submitted Proposals</span>
+                        </td>
+                        <td style="text-align: right;">{{ metrics.proposal_submitted or 0 }}</td>
+                        <td style="text-align: right; font-weight: 600;">{{ "%.2f"|format(metrics.proposal_value or 0) }} L</td>
+                    </tr>
+                </tbody>
+                <tfoot>
+                    <tr style="background: #f0fdf4;">
+                        <td><strong>Total Pipeline</strong></td>
+                        <td style="text-align: right;"><strong>{{ (metrics.enquiry_open or 0) + (metrics.pr_pending or 0) + (metrics.proposal_submitted or 0) }}</strong></td>
+                        <td style="text-align: right; font-weight: 700; color: #059669;">{{ "%.2f"|format(metrics.total_pipeline_value or 0) }} L</td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
-        <div class="col-md-6">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0">Stage-wise Status</h5>
-                </div>
-                <div class="card-body">
-                    <!-- Enquiry Status -->
-                    <h6>Enquiries</h6>
-                    <div class="progress mb-3" style="height: 25px;">
-                        {% set total_enq = (metrics.enquiry_open or 0) + (metrics.enquiry_converted or 0) + (metrics.enquiry_dropped or 0) %}
-                        {% if total_enq > 0 %}
-                        <div class="progress-bar bg-primary" style="width: {{ (metrics.enquiry_open or 0) / total_enq * 100 }}%">
-                            Open ({{ metrics.enquiry_open or 0 }})
-                        </div>
-                        <div class="progress-bar bg-success" style="width: {{ (metrics.enquiry_converted or 0) / total_enq * 100 }}%">
-                            Converted ({{ metrics.enquiry_converted or 0 }})
-                        </div>
-                        <div class="progress-bar bg-secondary" style="width: {{ (metrics.enquiry_dropped or 0) / total_enq * 100 }}%">
-                            Dropped ({{ metrics.enquiry_dropped or 0 }})
-                        </div>
-                        {% else %}
-                        <div class="progress-bar bg-light text-dark" style="width: 100%">No data</div>
-                        {% endif %}
-                    </div>
 
-                    <!-- PR Status -->
-                    <h6>Proposal Requests</h6>
-                    <div class="progress mb-3" style="height: 25px;">
-                        {% set total_pr = (metrics.pr_pending or 0) + (metrics.pr_converted or 0) + (metrics.pr_cancelled or 0) %}
-                        {% if total_pr > 0 %}
-                        <div class="progress-bar bg-info" style="width: {{ (metrics.pr_pending or 0) / total_pr * 100 }}%">
-                            Pending ({{ metrics.pr_pending or 0 }})
-                        </div>
-                        <div class="progress-bar bg-success" style="width: {{ (metrics.pr_converted or 0) / total_pr * 100 }}%">
-                            Converted ({{ metrics.pr_converted or 0 }})
-                        </div>
-                        <div class="progress-bar bg-secondary" style="width: {{ (metrics.pr_cancelled or 0) / total_pr * 100 }}%">
-                            Cancelled ({{ metrics.pr_cancelled or 0 }})
-                        </div>
-                        {% else %}
-                        <div class="progress-bar bg-light text-dark" style="width: 100%">No data</div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Proposal Status -->
-                    <h6>Proposals</h6>
-                    <div class="progress" style="height: 25px;">
-                        {% set total_prop = (metrics.proposal_submitted or 0) + (metrics.proposal_won or 0) + (metrics.proposal_lost or 0) %}
-                        {% if total_prop > 0 %}
-                        <div class="progress-bar bg-warning" style="width: {{ (metrics.proposal_submitted or 0) / total_prop * 100 }}%">
-                            Submitted ({{ metrics.proposal_submitted or 0 }})
-                        </div>
-                        <div class="progress-bar bg-success" style="width: {{ (metrics.proposal_won or 0) / total_prop * 100 }}%">
-                            Won ({{ metrics.proposal_won or 0 }})
-                        </div>
-                        <div class="progress-bar bg-danger" style="width: {{ (metrics.proposal_lost or 0) / total_prop * 100 }}%">
-                            Lost ({{ metrics.proposal_lost or 0 }})
-                        </div>
-                        {% else %}
-                        <div class="progress-bar bg-light text-dark" style="width: 100%">No data</div>
-                        {% endif %}
-                    </div>
-                </div>
+        <!-- Quick Stats -->
+        <div class="stats-row" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="stat-mini" style="flex: 1; min-width: 140px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.25rem; font-weight: 600; color: #3b82f6;">{{ "%.2f"|format(metrics.enquiry_value or 0) }} L</div>
+                <div style="font-size: 0.75rem; color: #64748b;">Enquiry Value</div>
+            </div>
+            <div class="stat-mini" style="flex: 1; min-width: 140px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.25rem; font-weight: 600; color: #0ea5e9;">{{ "%.2f"|format(metrics.pr_value or 0) }} L</div>
+                <div style="font-size: 0.75rem; color: #64748b;">PR Value</div>
+            </div>
+            <div class="stat-mini" style="flex: 1; min-width: 140px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
+                <div style="font-size: 1.25rem; font-weight: 600; color: #f59e0b;">{{ "%.2f"|format(metrics.proposal_value or 0) }} L</div>
+                <div style="font-size: 0.75rem; color: #64748b;">Proposal Value</div>
             </div>
         </div>
     </div>
 
-    <!-- Recent Activity -->
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0">Pipeline Funnel</h5>
-        </div>
-        <div class="card-body">
-            <div class="row text-center">
-                <div class="col">
-                    <div class="p-3 bg-primary text-white rounded">
-                        <h3>{{ metrics.total_enquiries or 0 }}</h3>
-                        <p class="mb-0">Enquiries</p>
-                    </div>
-                </div>
-                <div class="col-auto d-flex align-items-center">
-                    <span class="fs-3">→</span>
-                </div>
-                <div class="col">
-                    <div class="p-3 bg-info text-white rounded">
-                        <h3>{{ metrics.total_prs or 0 }}</h3>
-                        <p class="mb-0">Proposal Requests</p>
-                    </div>
-                </div>
-                <div class="col-auto d-flex align-items-center">
-                    <span class="fs-3">→</span>
-                </div>
-                <div class="col">
-                    <div class="p-3 bg-warning text-dark rounded">
-                        <h3>{{ metrics.total_proposals or 0 }}</h3>
-                        <p class="mb-0">Proposals</p>
-                    </div>
-                </div>
-                <div class="col-auto d-flex align-items-center">
-                    <span class="fs-3">→</span>
-                </div>
-                <div class="col">
-                    <div class="p-3 bg-success text-white rounded">
-                        <h3>{{ metrics.work_orders or 0 }}</h3>
-                        <p class="mb-0">Work Orders</p>
-                    </div>
-                </div>
+    <!-- Tab Content: Stage Status -->
+    <div id="tab-status" class="tab-content" data-tab-group="prm">
+        <!-- Enquiries Status -->
+        <div class="card" style="margin-bottom: 16px;">
+            <div class="card-header">
+                <h3 style="font-size: 0.9375rem; margin: 0;">Enquiries Status</h3>
             </div>
+            <div style="padding: 16px;">
+                {% set total_enq = (metrics.enquiry_open or 0) + (metrics.enquiry_converted or 0) + (metrics.enquiry_dropped or 0) %}
+                <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #dbeafe; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #1d4ed8;">{{ metrics.enquiry_open or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #3b82f6;">Open</div>
+                    </div>
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #dcfce7; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #16a34a;">{{ metrics.enquiry_converted or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #22c55e;">Converted</div>
+                    </div>
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #f3f4f6; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #6b7280;">{{ metrics.enquiry_dropped or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #9ca3af;">Dropped</div>
+                    </div>
+                </div>
+                {% if total_enq > 0 %}
+                <div style="height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; display: flex;">
+                    <div style="width: {{ (metrics.enquiry_open or 0) / total_enq * 100 }}%; background: #3b82f6;"></div>
+                    <div style="width: {{ (metrics.enquiry_converted or 0) / total_enq * 100 }}%; background: #22c55e;"></div>
+                    <div style="width: {{ (metrics.enquiry_dropped or 0) / total_enq * 100 }}%; background: #9ca3af;"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- PRs Status -->
+        <div class="card" style="margin-bottom: 16px;">
+            <div class="card-header">
+                <h3 style="font-size: 0.9375rem; margin: 0;">Proposal Requests Status</h3>
+            </div>
+            <div style="padding: 16px;">
+                {% set total_pr = (metrics.pr_pending or 0) + (metrics.pr_converted or 0) + (metrics.pr_cancelled or 0) %}
+                <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #e0f2fe; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #0369a1;">{{ metrics.pr_pending or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #0ea5e9;">Pending</div>
+                    </div>
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #dcfce7; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #16a34a;">{{ metrics.pr_converted or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #22c55e;">Converted</div>
+                    </div>
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #f3f4f6; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #6b7280;">{{ metrics.pr_cancelled or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #9ca3af;">Cancelled</div>
+                    </div>
+                </div>
+                {% if total_pr > 0 %}
+                <div style="height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; display: flex;">
+                    <div style="width: {{ (metrics.pr_pending or 0) / total_pr * 100 }}%; background: #0ea5e9;"></div>
+                    <div style="width: {{ (metrics.pr_converted or 0) / total_pr * 100 }}%; background: #22c55e;"></div>
+                    <div style="width: {{ (metrics.pr_cancelled or 0) / total_pr * 100 }}%; background: #9ca3af;"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Proposals Status -->
+        <div class="card">
+            <div class="card-header">
+                <h3 style="font-size: 0.9375rem; margin: 0;">Proposals Status</h3>
+            </div>
+            <div style="padding: 16px;">
+                {% set total_prop = (metrics.proposal_submitted or 0) + (metrics.proposal_won or 0) + (metrics.proposal_lost or 0) %}
+                <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #fef3c7; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #b45309;">{{ metrics.proposal_submitted or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #f59e0b;">Submitted</div>
+                    </div>
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #dcfce7; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #16a34a;">{{ metrics.proposal_won or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #22c55e;">Won</div>
+                    </div>
+                    <div style="flex: 1; min-width: 80px; text-align: center; padding: 10px; background: #fee2e2; border-radius: 8px;">
+                        <div style="font-weight: 600; color: #dc2626;">{{ metrics.proposal_lost or 0 }}</div>
+                        <div style="font-size: 0.75rem; color: #ef4444;">Lost</div>
+                    </div>
+                </div>
+                {% if total_prop > 0 %}
+                <div style="height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; display: flex;">
+                    <div style="width: {{ (metrics.proposal_submitted or 0) / total_prop * 100 }}%; background: #f59e0b;"></div>
+                    <div style="width: {{ (metrics.proposal_won or 0) / total_prop * 100 }}%; background: #22c55e;"></div>
+                    <div style="width: {{ (metrics.proposal_lost or 0) / total_prop * 100 }}%; background: #ef4444;"></div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Content: Trends -->
+    <div id="tab-trends" class="tab-content" data-tab-group="prm">
+        <div class="empty-state" style="padding: 60px 20px; text-align: center;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5" style="margin-bottom: 16px;">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            <h3 style="color: #64748b; margin-bottom: 8px;">Trend Analysis</h3>
+            <p style="color: #94a3b8; font-size: 0.875rem;">Monthly trends and conversion analytics will be displayed here when more data is available.</p>
         </div>
     </div>
 </div>
