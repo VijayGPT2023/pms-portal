@@ -42,6 +42,10 @@
         <h3 style="color: #d69e2e; margin: 0;">{{ pending_invoices|length }}</h3>
         <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Invoice Req</p>
     </div>
+    <div class="card" style="text-align: center; padding: 15px;">
+        <h3 style="color: #9f7aea; margin: 0;">{{ pending_tentative_dates|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Tentative Date</p>
+    </div>
 </div>
 
 <!-- Summary Cards - Training -->
@@ -313,6 +317,49 @@
                         </form>
                         <button type="button" class="btn btn-sm btn-danger"
                                 onclick="showRejectModal('revenue', {{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Pending Tentative Date Changes -->
+{% if pending_tentative_dates %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Pending Tentative Date Changes</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment</th>
+                    <th>Milestone</th>
+                    <th>Target Date</th>
+                    <th>Requested Tentative</th>
+                    <th>Reason</th>
+                    <th>Requested By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_tentative_dates %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.assignment_id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title }}</td>
+                    <td>{{ item.target_date }}</td>
+                    <td><strong>{{ item.tentative_date }}</strong></td>
+                    <td>{{ item.tentative_date_reason or '-' }}</td>
+                    <td>{{ item.requested_by_name }}</td>
+                    <td>
+                        <form method="POST" action="/approvals/tentative-date/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('tentative-date', {{ item.id }})">Reject</button>
                     </td>
                 </tr>
                 {% endfor %}
@@ -622,7 +669,7 @@
 {% endif %}
 
 <!-- No Pending Items -->
-{% if not pending_assignments and not unallocated_assignments and not pending_cost_estimations and not pending_team_constitutions and not pending_milestone_plans and not pending_revenue_shares and not pending_invoices and not pending_revenue and not pending_milestones and not pending_training_programmes and not unallocated_training and not pending_training_budget and not pending_training_trainers and not pending_training_revenue %}
+{% if not pending_assignments and not unallocated_assignments and not pending_cost_estimations and not pending_team_constitutions and not pending_milestone_plans and not pending_revenue_shares and not pending_invoices and not pending_tentative_dates and not pending_revenue and not pending_milestones and not pending_training_programmes and not unallocated_training and not pending_training_budget and not pending_training_trainers and not pending_training_revenue %}
 <div class="card" style="text-align: center; padding: 50px;">
     <h3 style="color: #48bb78;">All Caught Up!</h3>
     <p class="text-muted">No pending approvals at this time.</p>

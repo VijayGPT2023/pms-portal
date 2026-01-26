@@ -1025,3 +1025,242 @@ async def office_domain_detail(request: Request, office_id: str, domain: str):
     """
     # Redirect to the domain/office route (same data, different path)
     return RedirectResponse(url=f"/mis/domain/{domain}/office/{office_id}", status_code=302)
+
+
+# ============================================================
+# OFFICE FINANCIAL MIS
+# Shows: Value in hand, New value, Target billable, Tentative billable,
+#        Invoiced, Received, Expense, Net Revenue
+# ============================================================
+
+@router.get("/financial", response_class=HTMLResponse)
+async def office_financial_mis(
+    request: Request,
+    financial_year: Optional[str] = Query(None),
+    filter_office: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None)
+):
+    """
+    Office-level Financial MIS with milestone-based billing projections.
+    Shows billable amounts based on target dates vs tentative dates.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    # Default to current FY if not specified
+    if not financial_year:
+        today = date.today()
+        if today.month >= 4:
+            financial_year = f"{today.year}-{str(today.year + 1)[-2:]}"
+        else:
+            financial_year = f"{today.year - 1}-{str(today.year)[-2:]}"
+
+    fy_start, fy_end = parse_financial_year(financial_year)
+    fy_progress = calculate_fy_progress()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Build office filter
+        office_filter = ""
+        office_params = []
+        if filter_office:
+            office_filter = "AND a.office_id = ?"
+            office_params = [filter_office]
+
+        # Build date filter for period
+        period_filter = ""
+        period_params = []
+        if date_from:
+            period_filter += " AND m.target_date >= ?"
+            period_params.append(date_from)
+        if date_to:
+            period_filter += " AND m.target_date <= ?"
+            period_params.append(date_to)
+
+        # If no date filter, use current FY
+        if not date_from and not date_to and fy_start and fy_end:
+            period_filter = " AND m.target_date BETWEEN ? AND ?"
+            period_params = [fy_start.isoformat(), fy_end.isoformat()]
+
+        # Get all offices
+        cursor.execute("SELECT office_id, office_name, annual_revenue_target FROM offices ORDER BY office_id")
+        offices = {row['office_id']: dict(row) for row in cursor.fetchall()}
+
+        # Initialize office data
+        office_financial = {}
+        for oid, odata in offices.items():
+            office_financial[oid] = {
+                'office_id': oid,
+                'office_name': odata['office_name'],
+                'annual_target': odata['annual_revenue_target'] or 0,
+                'total_value_in_hand': 0,  # Total assignment value (active/in-progress)
+                'new_value_gained': 0,      # New assignments in period
+                'billable_target': 0,       # Billable as per target date
+                'billable_tentative': 0,    # Billable as per tentative date
+                'invoiced_amount': 0,       # Actual invoice raised
+                'payment_received': 0,      # Payment received
+                'total_expense': 0,         # Total expenditure
+                'net_revenue': 0,           # Payment - Expense
+                'assignment_count': 0
+            }
+
+        # Get total assignment value in hand (active assignments)
+        cursor.execute(f"""
+            SELECT a.office_id,
+                   COUNT(*) as assignment_count,
+                   COALESCE(SUM(a.gross_value), 0) as total_value
+            FROM assignments a
+            WHERE a.status IN ('ACTIVE', 'IN_PROGRESS', 'APPROVED')
+            {office_filter}
+            GROUP BY a.office_id
+        """, office_params)
+        for row in cursor.fetchall():
+            if row['office_id'] in office_financial:
+                office_financial[row['office_id']]['total_value_in_hand'] = row['total_value'] or 0
+                office_financial[row['office_id']]['assignment_count'] = row['assignment_count'] or 0
+
+        # Get new assignments gained in period
+        new_assignment_filter = ""
+        new_params = list(office_params)
+        if fy_start and fy_end:
+            new_assignment_filter = " AND a.work_order_date BETWEEN ? AND ?"
+            new_params.extend([fy_start.isoformat(), fy_end.isoformat()])
+
+        cursor.execute(f"""
+            SELECT a.office_id,
+                   COALESCE(SUM(a.gross_value), 0) as new_value
+            FROM assignments a
+            WHERE 1=1 {office_filter} {new_assignment_filter}
+            GROUP BY a.office_id
+        """, new_params)
+        for row in cursor.fetchall():
+            if row['office_id'] in office_financial:
+                office_financial[row['office_id']]['new_value_gained'] = row['new_value'] or 0
+
+        # Get billable amounts based on TARGET dates (milestones due in period)
+        all_params = office_params + period_params
+        cursor.execute(f"""
+            SELECT a.office_id,
+                   COALESCE(SUM(a.gross_value * m.revenue_percent / 100), 0) as billable_amount
+            FROM milestones m
+            JOIN assignments a ON m.assignment_id = a.id
+            WHERE m.status IN ('Pending', 'In Progress', 'Completed')
+            {office_filter} {period_filter}
+            GROUP BY a.office_id
+        """, all_params)
+        for row in cursor.fetchall():
+            if row['office_id'] in office_financial:
+                office_financial[row['office_id']]['billable_target'] = row['billable_amount'] or 0
+
+        # Get billable amounts based on TENTATIVE dates
+        tentative_filter = period_filter.replace('m.target_date', 'COALESCE(m.tentative_date, m.target_date)')
+        cursor.execute(f"""
+            SELECT a.office_id,
+                   COALESCE(SUM(a.gross_value * m.revenue_percent / 100), 0) as billable_amount
+            FROM milestones m
+            JOIN assignments a ON m.assignment_id = a.id
+            WHERE m.status IN ('Pending', 'In Progress', 'Completed')
+            AND m.tentative_date_status = 'APPROVED'
+            {office_filter} {tentative_filter}
+            GROUP BY a.office_id
+        """, all_params)
+        for row in cursor.fetchall():
+            if row['office_id'] in office_financial:
+                office_financial[row['office_id']]['billable_tentative'] = row['billable_amount'] or 0
+
+        # Get actual invoiced amounts
+        cursor.execute(f"""
+            SELECT a.office_id,
+                   COALESCE(SUM(a.gross_value * m.revenue_percent / 100), 0) as invoiced_amount
+            FROM milestones m
+            JOIN assignments a ON m.assignment_id = a.id
+            WHERE m.invoice_raised = 1
+            {office_filter}
+            GROUP BY a.office_id
+        """, office_params)
+        for row in cursor.fetchall():
+            if row['office_id'] in office_financial:
+                office_financial[row['office_id']]['invoiced_amount'] = row['invoiced_amount'] or 0
+
+        # Get payment received
+        cursor.execute(f"""
+            SELECT a.office_id,
+                   COALESCE(SUM(a.gross_value * m.revenue_percent / 100), 0) as received_amount
+            FROM milestones m
+            JOIN assignments a ON m.assignment_id = a.id
+            WHERE m.payment_received = 1
+            {office_filter}
+            GROUP BY a.office_id
+        """, office_params)
+        for row in cursor.fetchall():
+            if row['office_id'] in office_financial:
+                office_financial[row['office_id']]['payment_received'] = row['received_amount'] or 0
+
+        # Get total expenses
+        cursor.execute(f"""
+            SELECT a.office_id,
+                   COALESCE(SUM(a.total_expenditure), 0) as total_expense
+            FROM assignments a
+            WHERE 1=1 {office_filter}
+            GROUP BY a.office_id
+        """, office_params)
+        for row in cursor.fetchall():
+            if row['office_id'] in office_financial:
+                office_financial[row['office_id']]['total_expense'] = row['total_expense'] or 0
+
+        # Calculate net revenue for each office
+        for oid in office_financial:
+            office_financial[oid]['net_revenue'] = (
+                office_financial[oid]['payment_received'] - office_financial[oid]['total_expense']
+            )
+
+        # Convert to list and filter out empty offices if office filter applied
+        financial_data = list(office_financial.values())
+        if filter_office:
+            financial_data = [d for d in financial_data if d['office_id'] == filter_office]
+        else:
+            financial_data = [d for d in financial_data if d['assignment_count'] > 0 or d['total_value_in_hand'] > 0]
+
+        # Sort by net revenue
+        financial_data = sorted(financial_data, key=lambda x: x['net_revenue'], reverse=True)
+
+        # Calculate totals
+        totals = {
+            'total_value_in_hand': sum(d['total_value_in_hand'] for d in financial_data),
+            'new_value_gained': sum(d['new_value_gained'] for d in financial_data),
+            'billable_target': sum(d['billable_target'] for d in financial_data),
+            'billable_tentative': sum(d['billable_tentative'] for d in financial_data),
+            'invoiced_amount': sum(d['invoiced_amount'] for d in financial_data),
+            'payment_received': sum(d['payment_received'] for d in financial_data),
+            'total_expense': sum(d['total_expense'] for d in financial_data),
+            'net_revenue': sum(d['net_revenue'] for d in financial_data),
+            'assignment_count': sum(d['assignment_count'] for d in financial_data)
+        }
+
+        # Get office list for filter
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        all_offices = [dict(row) for row in cursor.fetchall()]
+
+    return templates.TemplateResponse(
+        "mis_financial.html",
+        {
+            "request": request,
+            "user": user,
+            "financial_data": financial_data,
+            "totals": totals,
+            "offices": all_offices,
+            "filter_office": filter_office,
+            "financial_year": financial_year,
+            "financial_years": get_financial_years(),
+            "date_from": date_from,
+            "date_to": date_to,
+            "fy_progress": fy_progress,
+            "breadcrumb": [
+                {"label": "MIS Dashboard", "url": "/mis"},
+                {"label": "Financial MIS", "url": None}
+            ]
+        }
+    )

@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Financial MIS - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="tab-container">
+    <!-- Header -->
+    <div class="tab-header">
+        <h1>Office Financial MIS</h1>
+        <div class="tab-actions">
+            <a href="/mis" class="btn btn-secondary btn-sm">Back to MIS</a>
+        </div>
+    </div>
+
+    <!-- Breadcrumb -->
+    <div style="padding: 10px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+        {% for item in breadcrumb %}
+            {% if item.url %}
+            <a href="{{ item.url }}" style="color: #3b82f6;">{{ item.label }}</a>
+            <span style="color: #94a3b8; margin: 0 8px;">/</span>
+            {% else %}
+            <span style="color: #64748b;">{{ item.label }}</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- Filters -->
+    <div style="padding: 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+        <form method="GET" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.75rem; color: #64748b;">Financial Year</label>
+                <select name="financial_year" class="form-control" style="min-width: 120px;">
+                    {% for fy in financial_years %}
+                    <option value="{{ fy }}" {% if fy == financial_year %}selected{% endif %}>{{ fy }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.75rem; color: #64748b;">Office</label>
+                <select name="filter_office" class="form-control" style="min-width: 150px;">
+                    <option value="">All Offices</option>
+                    {% for office in offices %}
+                    <option value="{{ office.office_id }}" {% if office.office_id == filter_office %}selected{% endif %}>
+                        {{ office.office_id }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.75rem; color: #64748b;">From Date</label>
+                <input type="date" name="date_from" class="form-control" value="{{ date_from or '' }}">
+            </div>
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.75rem; color: #64748b;">To Date</label>
+                <input type="date" name="date_to" class="form-control" value="{{ date_to or '' }}">
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Apply Filter</button>
+        </form>
+    </div>
+
+    <!-- Summary Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; padding: 20px;">
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, #dbeafe, #bfdbfe);">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #1d4ed8;">{{ "%.1f"|format(totals.total_value_in_hand) }}L</div>
+            <div style="font-size: 0.75rem; color: #3b82f6;">Value in Hand</div>
+        </div>
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, #dcfce7, #bbf7d0);">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #166534;">{{ "%.1f"|format(totals.new_value_gained) }}L</div>
+            <div style="font-size: 0.75rem; color: #16a34a;">New Value (FY)</div>
+        </div>
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, #fef3c7, #fde68a);">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #92400e;">{{ "%.1f"|format(totals.billable_target) }}L</div>
+            <div style="font-size: 0.75rem; color: #b45309;">Billable (Target)</div>
+        </div>
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, #f3e8ff, #e9d5ff);">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #7c3aed;">{{ "%.1f"|format(totals.billable_tentative) }}L</div>
+            <div style="font-size: 0.75rem; color: #8b5cf6;">Billable (Tentative)</div>
+        </div>
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, #fce7f3, #fbcfe8);">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #be185d;">{{ "%.1f"|format(totals.invoiced_amount) }}L</div>
+            <div style="font-size: 0.75rem; color: #db2777;">Invoiced</div>
+        </div>
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, #d1fae5, #a7f3d0);">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #047857;">{{ "%.1f"|format(totals.payment_received) }}L</div>
+            <div style="font-size: 0.75rem; color: #059669;">Received</div>
+        </div>
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, #fee2e2, #fecaca);">
+            <div style="font-size: 1.5rem; font-weight: 700; color: #991b1b;">{{ "%.1f"|format(totals.total_expense) }}L</div>
+            <div style="font-size: 0.75rem; color: #dc2626;">Expense</div>
+        </div>
+        <div class="card" style="padding: 15px; text-align: center; background: linear-gradient(135deg, {% if totals.net_revenue >= 0 %}#dcfce7, #bbf7d0{% else %}#fee2e2, #fecaca{% endif %});">
+            <div style="font-size: 1.5rem; font-weight: 700; color: {% if totals.net_revenue >= 0 %}#166534{% else %}#991b1b{% endif %};">{{ "%.1f"|format(totals.net_revenue) }}L</div>
+            <div style="font-size: 0.75rem; color: {% if totals.net_revenue >= 0 %}#16a34a{% else %}#dc2626{% endif %};">Net Revenue</div>
+        </div>
+    </div>
+
+    <!-- Office-wise Financial Table -->
+    <div class="card" style="margin: 0 20px 20px;">
+        <div class="card-header">
+            <h3 style="margin: 0;">Office-wise Financial Summary</h3>
+        </div>
+        <div class="table-container">
+            <table class="compact-table">
+                <thead>
+                    <tr>
+                        <th style="text-align: left;">Office</th>
+                        <th style="text-align: right;">Assignments</th>
+                        <th style="text-align: right;">Value in Hand (L)</th>
+                        <th style="text-align: right;">New Value (L)</th>
+                        <th style="text-align: right;">Billable Target (L)</th>
+                        <th style="text-align: right;">Billable Tentative (L)</th>
+                        <th style="text-align: right;">Invoiced (L)</th>
+                        <th style="text-align: right;">Received (L)</th>
+                        <th style="text-align: right;">Expense (L)</th>
+                        <th style="text-align: right;">Net Revenue (L)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in financial_data %}
+                    <tr>
+                        <td>
+                            <a href="/mis/office/{{ item.office_id }}">
+                                <strong>{{ item.office_id }}</strong>
+                            </a>
+                            <br><span style="font-size: 0.75rem; color: #64748b;">{{ item.office_name }}</span>
+                        </td>
+                        <td style="text-align: right;">{{ item.assignment_count }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(item.total_value_in_hand) }}</td>
+                        <td style="text-align: right; color: #16a34a;">{{ "%.1f"|format(item.new_value_gained) }}</td>
+                        <td style="text-align: right; color: #b45309;">{{ "%.1f"|format(item.billable_target) }}</td>
+                        <td style="text-align: right; color: #8b5cf6;">
+                            {{ "%.1f"|format(item.billable_tentative) }}
+                            {% if item.billable_tentative != item.billable_target %}
+                            <span style="font-size: 0.625rem; color: {% if item.billable_tentative < item.billable_target %}#dc2626{% else %}#16a34a{% endif %};">
+                                {% if item.billable_tentative < item.billable_target %}&darr;{% else %}&uarr;{% endif %}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: right; color: #db2777;">{{ "%.1f"|format(item.invoiced_amount) }}</td>
+                        <td style="text-align: right; color: #047857;">{{ "%.1f"|format(item.payment_received) }}</td>
+                        <td style="text-align: right; color: #dc2626;">{{ "%.1f"|format(item.total_expense) }}</td>
+                        <td style="text-align: right; font-weight: 600; color: {% if item.net_revenue >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            {{ "%.1f"|format(item.net_revenue) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot style="background: #f1f5f9; font-weight: 600;">
+                    <tr>
+                        <td>TOTAL</td>
+                        <td style="text-align: right;">{{ totals.assignment_count }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(totals.total_value_in_hand) }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(totals.new_value_gained) }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(totals.billable_target) }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(totals.billable_tentative) }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(totals.invoiced_amount) }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(totals.payment_received) }}</td>
+                        <td style="text-align: right;">{{ "%.1f"|format(totals.total_expense) }}</td>
+                        <td style="text-align: right; color: {% if totals.net_revenue >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                            {{ "%.1f"|format(totals.net_revenue) }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div style="padding: 0 20px 20px;">
+        <div class="card" style="padding: 15px;">
+            <h4 style="margin: 0 0 10px; color: #475569;">Column Definitions</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px; font-size: 0.8125rem;">
+                <div><strong>Value in Hand:</strong> Total gross value of active assignments</div>
+                <div><strong>New Value:</strong> Gross value of assignments gained in the period</div>
+                <div><strong>Billable (Target):</strong> Amount due based on milestone target dates</div>
+                <div><strong>Billable (Tentative):</strong> Amount due based on tentative dates</div>
+                <div><strong>Invoiced:</strong> Amount for which invoice has been raised</div>
+                <div><strong>Received:</strong> Payment actually received from client</div>
+                <div><strong>Expense:</strong> Total expenditure incurred</div>
+                <div><strong>Net Revenue:</strong> Received - Expense</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -46,7 +46,20 @@
                     <div class="form-group">
                         <label>Target Date</label>
                         <input type="date" name="milestone_{{ loop.index0 }}_target_date" class="form-control"
-                               value="{{ m.target_date or '' }}">
+                               value="{{ m.target_date or '' }}" {% if m.id and not user.is_admin %}readonly{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label>Tentative Date
+                            {% if m.tentative_date_status == 'PENDING' %}
+                            <span class="badge badge-warning" style="font-size: 0.625rem;">Pending Approval</span>
+                            {% elif m.tentative_date_status == 'REJECTED' %}
+                            <span class="badge badge-danger" style="font-size: 0.625rem;">Rejected</span>
+                            {% endif %}
+                        </label>
+                        <input type="date" name="milestone_{{ loop.index0 }}_tentative_date" class="form-control tentative-date"
+                               value="{{ m.tentative_date or m.target_date or '' }}"
+                               data-original="{{ m.tentative_date or m.target_date or '' }}"
+                               data-milestone-id="{{ m.id }}">
                     </div>
                 </div>
 
@@ -112,6 +125,58 @@
     </form>
 </div>
 
+<!-- Tentative Date Change Requests (for Team Leaders) -->
+{% if milestones and milestones|length > 0 %}
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Request Tentative Date Change</h2>
+    </div>
+    <div style="padding: 20px;">
+        <p style="color: #64748b; margin-bottom: 15px;">
+            Target dates cannot be changed (except by Admin). Team Leaders can request changes to Tentative Dates, which require Head approval.
+        </p>
+        <form method="POST" action="/assignment/milestones/{{ assignment.id }}/request-tentative-change" id="tentativeDateForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Select Milestone</label>
+                    <select name="milestone_id" class="form-control" required id="tentativeMilestoneSelect">
+                        <option value="">-- Select Milestone --</option>
+                        {% for m in milestones %}
+                        <option value="{{ m.id }}" data-current-tentative="{{ m.tentative_date or m.target_date }}">
+                            Milestone {{ loop.index }}: {{ m.title }} (Current: {{ m.tentative_date or m.target_date or 'Not Set' }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>New Tentative Date</label>
+                    <input type="date" name="new_tentative_date" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Reason for Change *</label>
+                <textarea name="reason" class="form-control" rows="2" required placeholder="Explain why the tentative date needs to be changed..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-warning">Request Tentative Date Change</button>
+        </form>
+
+        <!-- Show pending tentative date requests -->
+        {% set pending_requests = milestones | selectattr('tentative_date_status', 'equalto', 'PENDING') | list %}
+        {% if pending_requests %}
+        <div style="margin-top: 20px; padding: 15px; background: #fefcbf; border-radius: 8px;">
+            <h4 style="margin: 0 0 10px;">Pending Tentative Date Requests</h4>
+            {% for m in pending_requests %}
+            <div style="padding: 8px 0; border-bottom: 1px solid #e2e8f0;">
+                <strong>{{ m.title }}</strong>: {{ m.target_date }} → {{ m.tentative_date }}
+                {% if m.tentative_date_reason %}<br><em style="color: #64748b;">Reason: {{ m.tentative_date_reason }}</em>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Submit for Approval Section -->
 <div class="card" style="margin-top: 20px;">
     <div class="card-header">
@@ -165,7 +230,11 @@
             </div>
             <div class="form-group">
                 <label>Target Date</label>
-                <input type="date" name="milestone___INDEX___target_date" class="form-control">
+                <input type="date" name="milestone___INDEX___target_date" class="form-control target-date-input">
+            </div>
+            <div class="form-group">
+                <label>Tentative Date</label>
+                <input type="date" name="milestone___INDEX___tentative_date" class="form-control tentative-date-input">
             </div>
         </div>
 

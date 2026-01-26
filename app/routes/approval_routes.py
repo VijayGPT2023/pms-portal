@@ -253,6 +253,21 @@ async def approvals_page(request: Request):
         """, office_params)
         pending_training_revenue = [dict(row) for row in cursor.fetchall()]
 
+        # ============================================================
+        # Get pending Tentative Date Change Requests
+        # ============================================================
+        cursor.execute(f"""
+            SELECT m.*, a.assignment_no, a.title as assignment_title, a.office_id,
+                   o.name as requested_by_name
+            FROM milestones m
+            JOIN assignments a ON m.assignment_id = a.id
+            LEFT JOIN officers o ON m.tentative_date_requested_by = o.officer_id
+            WHERE m.tentative_date_status = 'PENDING'
+            {office_filter}
+            ORDER BY m.tentative_date_requested_at DESC
+        """, office_params)
+        pending_tentative_dates = [dict(row) for row in cursor.fetchall()]
+
     return templates.TemplateResponse("approvals.html", {
         "request": request,
         "user": user,
@@ -266,6 +281,7 @@ async def approvals_page(request: Request):
         "pending_milestones": pending_milestones,
         "pending_team": pending_team,
         "pending_invoices": pending_invoices,
+        "pending_tentative_dates": pending_tentative_dates,
         "office_officers": office_officers,
         # Training approvals
         "pending_training_programmes": pending_training_programmes,
@@ -861,5 +877,74 @@ async def reject_revenue_shares(request: Request, assignment_id: int,
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
             VALUES (?, 'REJECT', 'revenue_shares', ?, ?)
         """, (user['officer_id'], assignment_id, rejection_remarks))
+
+    return RedirectResponse(url="/approvals", status_code=302)
+
+
+# ============================================================
+# Tentative Date Change Approval Routes
+# ============================================================
+
+@router.post("/tentative-date/{milestone_id}/approve")
+async def approve_tentative_date(request: Request, milestone_id: int):
+    """Head approves tentative date change request."""
+    user, redirect = require_approver_access(request)
+    if redirect:
+        return redirect
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE milestones
+            SET tentative_date_status = 'APPROVED',
+                tentative_date_approved_by = ?,
+                tentative_date_approved_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (user['officer_id'], milestone_id))
+
+        # Get assignment_id for logging
+        cursor.execute("SELECT assignment_id FROM milestones WHERE id = ?", (milestone_id,))
+        milestone = cursor.fetchone()
+        if milestone:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'APPROVE', 'tentative_date', ?, 'Tentative date change approved')
+            """, (user['officer_id'], milestone['assignment_id']))
+
+    return RedirectResponse(url="/approvals", status_code=302)
+
+
+@router.post("/tentative-date/{milestone_id}/reject")
+async def reject_tentative_date(request: Request, milestone_id: int,
+                                rejection_remarks: str = Form("")):
+    """Head rejects tentative date change request."""
+    user, redirect = require_approver_access(request)
+    if redirect:
+        return redirect
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Get the original target_date to revert tentative_date
+        cursor.execute("SELECT assignment_id, target_date FROM milestones WHERE id = ?", (milestone_id,))
+        milestone = cursor.fetchone()
+
+        if milestone:
+            cursor.execute("""
+                UPDATE milestones
+                SET tentative_date = ?,
+                    tentative_date_status = 'REJECTED',
+                    tentative_date_approved_by = ?,
+                    tentative_date_approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (milestone['target_date'], user['officer_id'], milestone_id))
+
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'REJECT', 'tentative_date', ?, ?)
+            """, (user['officer_id'], milestone['assignment_id'], rejection_remarks or 'Tentative date change rejected'))
 
     return RedirectResponse(url="/approvals", status_code=302)

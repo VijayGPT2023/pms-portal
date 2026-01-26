@@ -479,18 +479,21 @@ async def save_milestones(request: Request, assignment_id: int):
                              (assignment_id,))
                 next_no = cursor.fetchone()[0]
 
+                target_date = data.get('target_date') or None
                 cursor.execute("""
                     INSERT INTO milestones
-                    (assignment_id, milestone_no, title, description, target_date, revenue_percent,
+                    (assignment_id, milestone_no, title, description, target_date, tentative_date,
+                     tentative_date_status, revenue_percent,
                      invoice_raised, invoice_raised_date, payment_received, payment_received_date,
                      status, remarks)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     assignment_id,
                     next_no,
                     title,
                     data.get('description', ''),
-                    data.get('target_date') or None,
+                    target_date,
+                    target_date,  # tentative_date defaults to target_date
                     float(data.get('revenue_percent', 0) or 0),
                     invoice_raised,
                     data.get('invoice_raised_date') or None,
@@ -559,6 +562,49 @@ async def save_milestones(request: Request, assignment_id: int):
         """, (physical_progress, timeline_progress, invoice_amount, amount_received, total_revenue, assignment_id))
 
     return RedirectResponse(url=f"/assignment/view/{assignment_id}", status_code=302)
+
+
+@router.post("/milestones/{assignment_id}/request-tentative-change")
+async def request_tentative_date_change(request: Request, assignment_id: int):
+    """Request a tentative date change (by Team Leader, requires Head approval)."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    assignment = get_assignment(assignment_id)
+    if not assignment:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    form_data = await request.form()
+    milestone_id = form_data.get('milestone_id')
+    new_tentative_date = form_data.get('new_tentative_date')
+    reason = form_data.get('reason', '').strip()
+
+    if not milestone_id or not new_tentative_date:
+        return RedirectResponse(url=f"/assignment/milestones/{assignment_id}", status_code=302)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Update milestone with pending tentative date change
+        cursor.execute("""
+            UPDATE milestones SET
+                tentative_date = ?,
+                tentative_date_status = 'PENDING',
+                tentative_date_reason = ?,
+                tentative_date_requested_by = ?,
+                tentative_date_requested_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND assignment_id = ?
+        """, (new_tentative_date, reason, user['officer_id'], milestone_id, assignment_id))
+
+        # Log the request
+        cursor.execute("""
+            INSERT INTO approval_history (action_by, action_type, assignment_id, details)
+            VALUES (?, 'TENTATIVE_DATE_REQUEST', ?, ?)
+        """, (user['officer_id'], assignment_id, f"milestone_id={milestone_id}, new_date={new_tentative_date}, reason={reason}"))
+
+    return RedirectResponse(url=f"/assignment/milestones/{assignment_id}", status_code=302)
 
 
 @router.get("/new", response_class=HTMLResponse)

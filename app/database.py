@@ -531,6 +531,38 @@ def init_database():
             pass  # Column already exists
 
         # ============================================================
+        # Milestone Tentative Date Columns (for TL adjustment with Head approval)
+        # ============================================================
+        try:
+            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date DATE")
+        except:
+            pass  # Column already exists
+        try:
+            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_status TEXT DEFAULT 'APPROVED'")
+        except:
+            pass  # PENDING, APPROVED, REJECTED - default APPROVED means same as target
+        try:
+            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_reason TEXT")
+        except:
+            pass  # Reason for changing tentative date
+        try:
+            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_requested_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_requested_at TIMESTAMP")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_approved_by TEXT")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_approved_at TIMESTAMP")
+        except:
+            pass
+
+        # ============================================================
         # Assignment Workflow Approval Columns
         # ============================================================
 
