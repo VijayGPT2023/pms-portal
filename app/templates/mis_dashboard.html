@@ -3,6 +3,183 @@
 {% block title %}MIS Analytics - PMS Portal{% endblock %}
 
 {% block content %}
+<style>
+/* MIS Dashboard Specific Styles */
+.mis-grid { display: grid; gap: 16px; margin-bottom: 20px; }
+.mis-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.mis-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+.chart-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border: 1px solid #e2e8f0;
+}
+.chart-card h3 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.chart-card h3 svg { color: #64748b; }
+
+/* Horizontal Bar Chart */
+.h-bar-chart { display: flex; flex-direction: column; gap: 8px; }
+.h-bar-item {
+    display: grid;
+    grid-template-columns: 70px 1fr 60px;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+}
+.h-bar-item .label { font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h-bar-item .bar-wrap { height: 20px; background: #f1f5f9; border-radius: 4px; overflow: hidden; position: relative; }
+.h-bar-item .bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
+.h-bar-item .bar span { font-size: 0.625rem; font-weight: 600; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.h-bar-item .value { text-align: right; font-weight: 600; color: #475569; }
+
+/* Officer Cards */
+.officer-list { display: flex; flex-direction: column; gap: 6px; }
+.officer-item {
+    display: grid;
+    grid-template-columns: 24px 1fr 55px;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 0.75rem;
+}
+.officer-item.top { background: linear-gradient(90deg, #dcfce7, #f0fdf4); }
+.officer-item.bottom { background: linear-gradient(90deg, #fee2e2, #fef2f2); }
+.officer-item .rank {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.625rem;
+}
+.officer-item.top .rank { background: #10b981; color: white; }
+.officer-item.bottom .rank { background: #ef4444; color: white; }
+.officer-item .name { font-weight: 500; color: #334155; }
+.officer-item .office { font-size: 0.625rem; color: #64748b; }
+.officer-item .achievement { font-weight: 700; text-align: right; }
+.officer-item.top .achievement { color: #059669; }
+.officer-item.bottom .achievement { color: #dc2626; }
+
+/* Donut Chart */
+.donut-container { display: flex; align-items: center; gap: 16px; }
+.donut-chart {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    position: relative;
+    flex-shrink: 0;
+}
+.donut-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+.donut-center .value { font-size: 1.125rem; font-weight: 700; color: #1e293b; }
+.donut-center .label { font-size: 0.625rem; color: #64748b; }
+.donut-legend { display: flex; flex-direction: column; gap: 6px; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }
+.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.legend-item .count { font-weight: 600; color: #334155; }
+.legend-item .label { color: #64748b; }
+
+/* Quick Stats Grid */
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.quick-stat {
+    padding: 12px;
+    border-radius: 10px;
+    text-align: center;
+}
+.quick-stat.primary { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
+.quick-stat.success { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+.quick-stat.warning { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+.quick-stat.info { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
+.quick-stat .value { font-size: 1.25rem; font-weight: 700; }
+.quick-stat .label { font-size: 0.6875rem; opacity: 0.9; }
+
+/* Gauge Chart */
+.gauge-wrap { text-align: center; padding: 10px; }
+.gauge {
+    width: 120px;
+    height: 60px;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+}
+.gauge-bg {
+    width: 120px;
+    height: 60px;
+    border-radius: 120px 120px 0 0;
+    background: #e2e8f0;
+    position: absolute;
+    top: 0;
+}
+.gauge-fill {
+    width: 120px;
+    height: 60px;
+    border-radius: 120px 120px 0 0;
+    position: absolute;
+    top: 0;
+    transform-origin: center bottom;
+    transform: rotate(-90deg);
+    transition: transform 0.8s ease;
+}
+.gauge-mask {
+    width: 80px;
+    height: 40px;
+    background: white;
+    border-radius: 80px 80px 0 0;
+    position: absolute;
+    bottom: 0;
+    left: 20px;
+}
+.gauge-value {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+.gauge-label { font-size: 0.75rem; color: #64748b; margin-top: 8px; }
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .mis-grid-3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+    .mis-grid-2, .mis-grid-3 { grid-template-columns: 1fr; }
+    .quick-stats { grid-template-columns: repeat(2, 1fr); }
+    .donut-container { flex-direction: column; }
+    .h-bar-item { grid-template-columns: 60px 1fr 50px; }
+}
+@media (max-width: 480px) {
+    .quick-stats { grid-template-columns: 1fr 1fr; }
+    .quick-stat { padding: 10px 8px; }
+    .quick-stat .value { font-size: 1rem; }
+}
+</style>
+
 <div class="tab-container">
     <!-- Header -->
     <div class="tab-header">
@@ -10,88 +187,286 @@
         <div class="tab-actions">
             <a href="/mis/pre-revenue" class="btn btn-info btn-sm">Pre-Revenue</a>
             <a href="/mis/assignments" class="btn btn-secondary btn-sm">All Assignments</a>
-            {% if fy_progress %}
-            <div style="display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #f1f5f9; border-radius: 6px;">
-                <span style="font-size: 0.75rem; color: #64748b;">FY {{ financial_year or 'Current' }}:</span>
-                <div style="width: 60px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                    <div style="width: {{ (fy_progress * 100)|round|int }}%; height: 100%; background: #3b82f6;"></div>
-                </div>
-                <span style="font-size: 0.75rem; font-weight: 600; color: #3b82f6;">{{ (fy_progress * 100)|round|int }}%</span>
-            </div>
-            {% endif %}
         </div>
     </div>
 
-    <!-- Summary Stats -->
-    <div class="stats-row" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-        <div class="stat-mini" style="flex: 1; min-width: 150px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); padding: 16px; border-radius: 10px; text-align: center; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.total_target or 0) }}L</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">Annual Target</div>
+    <!-- Quick Stats Row -->
+    <div class="quick-stats">
+        <div class="quick-stat primary">
+            <div class="value">{{ "%.1f"|format(totals.total_target or 0) }}L</div>
+            <div class="label">Annual Target</div>
         </div>
-        <div class="stat-mini" style="flex: 1; min-width: 150px; background: linear-gradient(135deg, #f59e0b, #d97706); padding: 16px; border-radius: 10px; text-align: center; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.prorata_target or 0) }}L</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">Pro-rata Target</div>
+        <div class="quick-stat warning">
+            <div class="value">{{ "%.1f"|format(totals.prorata_target or 0) }}L</div>
+            <div class="label">Pro-rata Target</div>
         </div>
-        <div class="stat-mini" style="flex: 1; min-width: 150px; background: linear-gradient(135deg, #10b981, #059669); padding: 16px; border-radius: 10px; text-align: center; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.total_revenue or 0) }}L</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">Total Revenue</div>
+        <div class="quick-stat success">
+            <div class="value">{{ "%.1f"|format(totals.total_revenue or 0) }}L</div>
+            <div class="label">Total Revenue</div>
         </div>
-        <div class="stat-mini" style="flex: 1; min-width: 150px; background: {% if (totals.total_revenue or 0) >= (totals.prorata_target or 1) %}linear-gradient(135deg, #10b981, #059669){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; padding: 16px; border-radius: 10px; text-align: center; color: white;">
-            <div style="font-size: 1.5rem; font-weight: 700;">{{ "%.1f"|format(totals.achievement_pct or 0) }}%</div>
-            <div style="font-size: 0.75rem; opacity: 0.9;">Achievement</div>
-        </div>
-    </div>
-
-    <!-- Secondary Stats -->
-    <div class="stats-row" style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
-        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 1.25rem; font-weight: 600; color: #1e293b;">{{ totals.total_assignments }}</div>
-            <div style="font-size: 0.75rem; color: #64748b;">Assignments</div>
-        </div>
-        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 1.25rem; font-weight: 600; color: #1e293b;">{{ "%.1f"|format(totals.total_expenditure or 0) }}L</div>
-            <div style="font-size: 0.75rem; color: #64748b;">Expenditure</div>
-        </div>
-        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 1.25rem; font-weight: 600; color: {% if (totals.surplus_deficit or 0) >= 0 %}#10b981{% else %}#ef4444{% endif %};">{{ "%.1f"|format(totals.surplus_deficit or 0) }}L</div>
-            <div style="font-size: 0.75rem; color: #64748b;">Surplus/Deficit</div>
-        </div>
-        <div class="stat-mini" style="flex: 1; min-width: 120px; background: #f8fafc; padding: 14px; border-radius: 8px; text-align: center;">
-            <div style="font-size: 1.25rem; font-weight: 600; color: #3b82f6;">{{ "%.0f"|format(totals.avg_physical_progress or 0) }}%</div>
-            <div style="font-size: 0.75rem; color: #64748b;">Avg Progress</div>
+        <div class="quick-stat {% if (totals.achievement_pct or 0) >= 100 %}success{% else %}info{% endif %}">
+            <div class="value">{{ "%.0f"|format(totals.achievement_pct or 0) }}%</div>
+            <div class="label">Achievement</div>
         </div>
     </div>
 
     <!-- Filters -->
-    <div class="filter-bar">
-        <form method="GET" action="/mis" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%;">
-            <select name="financial_year" class="form-control" style="width: auto; min-width: 100px;">
+    <div class="filter-bar" style="margin-bottom: 16px;">
+        <form method="GET" action="/mis" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%;">
+            <select name="financial_year" class="form-control" style="width: auto; min-width: 90px; font-size: 0.8125rem; padding: 6px 8px;">
                 <option value="">All FY</option>
                 {% for fy in financial_years %}
                 <option value="{{ fy }}" {% if financial_year == fy %}selected{% endif %}>{{ fy }}</option>
                 {% endfor %}
             </select>
-            <select name="filter_office" class="form-control" style="width: auto; min-width: 120px;">
+            <select name="filter_office" class="form-control" style="width: auto; min-width: 100px; font-size: 0.8125rem; padding: 6px 8px;">
                 <option value="">All Offices</option>
                 {% for office in offices %}
                 <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>{{ office.office_id }}</option>
                 {% endfor %}
             </select>
-            <select name="filter_domain" class="form-control" style="width: auto; min-width: 120px;">
+            <select name="filter_domain" class="form-control" style="width: auto; min-width: 100px; font-size: 0.8125rem; padding: 6px 8px;">
                 <option value="">All Domains</option>
                 {% for domain in domains %}
                 <option value="{{ domain }}" {% if filter_domain == domain %}selected{% endif %}>{{ domain }}</option>
                 {% endfor %}
             </select>
-            <input type="date" name="date_from" value="{{ date_from or '' }}" class="form-control" style="width: auto;" placeholder="From">
-            <input type="date" name="date_to" value="{{ date_to or '' }}" class="form-control" style="width: auto;" placeholder="To">
             <button type="submit" class="btn btn-primary btn-sm">Filter</button>
             <a href="/mis" class="btn btn-secondary btn-sm">Reset</a>
+            {% if fy_progress %}
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #64748b;">
+                <span>FY {{ financial_year or 'Current' }}:</span>
+                <div style="width: 50px; height: 5px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
+                    <div style="width: {{ (fy_progress * 100)|round|int }}%; height: 100%; background: #3b82f6;"></div>
+                </div>
+                <span style="font-weight: 600; color: #3b82f6;">{{ (fy_progress * 100)|round|int }}%</span>
+            </div>
+            {% endif %}
         </form>
     </div>
 
+    <!-- Charts Row 1: Office Performance + Achievement Gauge + Status Distribution -->
+    <div class="mis-grid mis-grid-3">
+        <!-- Office Performance Chart -->
+        <div class="chart-card" style="grid-column: span 2;">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                Office-wise Performance (Target vs Revenue)
+            </h3>
+            {% if office_data %}
+            {% set max_target = office_data|map(attribute='target')|max or 1 %}
+            <div class="h-bar-chart">
+                {% for office in office_data[:8] %}
+                <div class="h-bar-item">
+                    <div class="label">{{ office.office_id }}</div>
+                    <div class="bar-wrap">
+                        <!-- Target bar (light) -->
+                        <div style="position: absolute; height: 100%; width: {{ ((office.target or 0) / max_target * 100)|round|int }}%; background: #e2e8f0; border-radius: 4px;"></div>
+                        <!-- Revenue bar -->
+                        <div class="bar" style="width: {{ ((office.total_revenue or 0) / max_target * 100)|round|int }}%; background: {% if (office.achievement_pct or 0) >= 100 %}linear-gradient(90deg, #10b981, #059669){% elif (office.achievement_pct or 0) >= 75 %}linear-gradient(90deg, #f59e0b, #d97706){% else %}linear-gradient(90deg, #ef4444, #dc2626){% endif %}; position: relative; z-index: 1;">
+                            <span>{{ "%.0f"|format(office.achievement_pct or 0) }}%</span>
+                        </div>
+                    </div>
+                    <div class="value">{{ "%.1f"|format(office.total_revenue or 0) }}L</div>
+                </div>
+                {% endfor %}
+            </div>
+            <div style="margin-top: 10px; display: flex; gap: 16px; font-size: 0.6875rem; color: #64748b;">
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: #e2e8f0; border-radius: 2px; margin-right: 4px;"></span>Target</span>
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 2px; margin-right: 4px;"></span>≥100%</span>
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: #f59e0b; border-radius: 2px; margin-right: 4px;"></span>75-99%</span>
+                <span><span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 2px; margin-right: 4px;"></span>&lt;75%</span>
+            </div>
+            {% else %}
+            <div style="padding: 20px; text-align: center; color: #64748b;">No office data available</div>
+            {% endif %}
+        </div>
+
+        <!-- Status Distribution Donut -->
+        <div class="chart-card">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/>
+                </svg>
+                Status Distribution
+            </h3>
+            {% if progress_by_status %}
+            {% set total_count = progress_by_status|map(attribute='count')|sum or 1 %}
+            {% set colors = {'Completed': '#10b981', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Pipeline': '#8b5cf6', 'Cancelled': '#64748b'} %}
+            <div class="donut-container">
+                <div class="donut-chart" style="background: conic-gradient(
+                    {% set ns = namespace(angle=0) %}
+                    {% for status in progress_by_status %}
+                    {{ colors.get(status.status, '#94a3b8') }} {{ ns.angle }}deg {{ ns.angle + (status.count / total_count * 360) }}deg{% if not loop.last %},{% endif %}
+                    {% set ns.angle = ns.angle + (status.count / total_count * 360) %}
+                    {% endfor %}
+                );">
+                    <div class="donut-mask" style="width: 60px; height: 60px; background: white; border-radius: 50%; position: absolute; top: 20px; left: 20px;"></div>
+                    <div class="donut-center">
+                        <div class="value">{{ totals.total_assignments }}</div>
+                        <div class="label">Total</div>
+                    </div>
+                </div>
+                <div class="donut-legend">
+                    {% for status in progress_by_status %}
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background: {{ colors.get(status.status, '#94a3b8') }};"></div>
+                        <span class="count">{{ status.count }}</span>
+                        <span class="label">{{ status.status }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <div style="padding: 20px; text-align: center; color: #64748b;">No status data</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Charts Row 2: Top 10 + Bottom 10 Officers -->
+    <div class="mis-grid mis-grid-2" style="margin-bottom: 20px;">
+        <!-- Top 10 Officers -->
+        <div class="chart-card">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2l3 7h7l-5.5 4.5 2 7L12 16l-6.5 4.5 2-7L2 9h7l3-7z"/>
+                </svg>
+                Top 10 Officers
+                <span style="margin-left: auto; font-size: 0.625rem; font-weight: 400; color: #10b981;">▲ Highest Revenue</span>
+            </h3>
+            {% if officer_data %}
+            <div class="officer-list">
+                {% for officer in officer_data[:10] %}
+                <div class="officer-item top">
+                    <div class="rank">{{ loop.index }}</div>
+                    <div>
+                        <div class="name">{{ officer.name[:20] }}{% if officer.name|length > 20 %}...{% endif %}</div>
+                        <div class="office">{{ officer.office_id }} • {{ "%.1f"|format(officer.total_share_amount or 0) }}L</div>
+                    </div>
+                    <div class="achievement">{{ "%.0f"|format(officer.achievement_pct or 0) }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="padding: 20px; text-align: center; color: #64748b;">No officer data</div>
+            {% endif %}
+        </div>
+
+        <!-- Bottom 10 Officers -->
+        <div class="chart-card">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Bottom 10 Officers
+                <span style="margin-left: auto; font-size: 0.625rem; font-weight: 400; color: #ef4444;">▼ Needs Attention</span>
+            </h3>
+            {% if officer_data and officer_data|length > 10 %}
+            <div class="officer-list">
+                {% for officer in officer_data[-10:]|reverse %}
+                <div class="officer-item bottom">
+                    <div class="rank">{{ officer_data|length - loop.index + 1 }}</div>
+                    <div>
+                        <div class="name">{{ officer.name[:20] }}{% if officer.name|length > 20 %}...{% endif %}</div>
+                        <div class="office">{{ officer.office_id }} • {{ "%.1f"|format(officer.total_share_amount or 0) }}L</div>
+                    </div>
+                    <div class="achievement">{{ "%.0f"|format(officer.achievement_pct or 0) }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% elif officer_data %}
+            <div style="padding: 20px; text-align: center; color: #64748b;">Less than 10 officers - showing all in Top 10</div>
+            {% else %}
+            <div style="padding: 20px; text-align: center; color: #64748b;">No officer data</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Charts Row 3: Domain Revenue + Key Metrics -->
+    <div class="mis-grid mis-grid-3">
+        <!-- Domain Revenue Chart -->
+        <div class="chart-card" style="grid-column: span 2;">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 21H4.6C4.03995 21 3.75992 21 3.54601 20.891C3.35785 20.7951 3.20487 20.6422 3.10899 20.454C3 20.2401 3 19.9601 3 19.4V3"/>
+                    <path d="M7 14l4-4 4 4 6-6"/>
+                </svg>
+                Domain-wise Revenue Distribution
+            </h3>
+            {% if domain_data %}
+            {% set max_domain_revenue = domain_data|map(attribute='total_revenue')|max or 1 %}
+            {% set domain_colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316'] %}
+            <div class="h-bar-chart">
+                {% for domain in domain_data[:8] %}
+                <div class="h-bar-item">
+                    <div class="label">{{ domain.domain[:10] }}{% if domain.domain|length > 10 %}..{% endif %}</div>
+                    <div class="bar-wrap">
+                        <div class="bar" style="width: {{ ((domain.total_revenue or 0) / max_domain_revenue * 100)|round|int }}%; background: {{ domain_colors[loop.index0 % 8] }};">
+                            <span>{{ domain.assignment_count }}</span>
+                        </div>
+                    </div>
+                    <div class="value">{{ "%.1f"|format(domain.total_revenue or 0) }}L</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="padding: 20px; text-align: center; color: #64748b;">No domain data available</div>
+            {% endif %}
+        </div>
+
+        <!-- Key Metrics Gauges -->
+        <div class="chart-card">
+            <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+                </svg>
+                Key Metrics
+            </h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <!-- Achievement Gauge -->
+                <div class="gauge-wrap">
+                    {% set ach_pct = (totals.achievement_pct or 0)|int %}
+                    {% set ach_angle = -90 + (ach_pct * 1.8) %}
+                    <div class="gauge">
+                        <div class="gauge-bg"></div>
+                        <div class="gauge-fill" style="background: {% if ach_pct >= 100 %}#10b981{% elif ach_pct >= 75 %}#f59e0b{% else %}#ef4444{% endif %}; transform: rotate({{ ach_angle if ach_angle <= 90 else 90 }}deg);"></div>
+                        <div class="gauge-mask"></div>
+                        <div class="gauge-value">{{ ach_pct }}%</div>
+                    </div>
+                    <div class="gauge-label">Pro-rata Achievement</div>
+                </div>
+                <!-- Progress Gauge -->
+                <div class="gauge-wrap">
+                    {% set prog_pct = (totals.avg_physical_progress or 0)|int %}
+                    {% set prog_angle = -90 + (prog_pct * 1.8) %}
+                    <div class="gauge">
+                        <div class="gauge-bg"></div>
+                        <div class="gauge-fill" style="background: #3b82f6; transform: rotate({{ prog_angle if prog_angle <= 90 else 90 }}deg);"></div>
+                        <div class="gauge-mask"></div>
+                        <div class="gauge-value">{{ prog_pct }}%</div>
+                    </div>
+                    <div class="gauge-label">Avg Progress</div>
+                </div>
+            </div>
+            <!-- Mini Stats -->
+            <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div style="padding: 10px; background: #f0fdf4; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1rem; font-weight: 700; color: #16a34a;">{{ "%.1f"|format(totals.surplus_deficit or 0) }}L</div>
+                    <div style="font-size: 0.625rem; color: #4ade80;">Surplus</div>
+                </div>
+                <div style="padding: 10px; background: #f8fafc; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1rem; font-weight: 700; color: #334155;">{{ totals.total_offices or 0 }}</div>
+                    <div style="font-size: 0.625rem; color: #64748b;">Offices</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tab Navigation -->
-    <div class="tab-nav">
+    <div class="tab-nav" style="margin-top: 20px;">
         <button class="tab-btn active" data-tab-btn="mis" onclick="switchTab('tab-office', 'mis')">
             Office-wise
         </button>
