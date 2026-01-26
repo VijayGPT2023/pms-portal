@@ -129,6 +129,14 @@ body.has-sidebar {
     overflow: hidden;
 }
 
+/* Enable touch scrolling on all scrollable elements */
+.main-content,
+.tab-content,
+.compact-table {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+}
+
 /* ============================================
    Sidebar Navigation
    ============================================ */
@@ -2909,6 +2917,14 @@ body.has-sidebar .footer {
         padding: 72px 12px 12px;
         height: auto;
         min-height: 100vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Allow body scroll on mobile */
+    body.has-sidebar {
+        overflow: auto;
+        overflow-x: hidden;
     }
 
     /* Tab container mobile */
