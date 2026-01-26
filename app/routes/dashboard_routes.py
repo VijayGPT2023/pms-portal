@@ -107,14 +107,14 @@ async def dashboard(
 
         elif active_role in ('DDG-I', 'DDG-II'):
             # DDG sees offices and groups reporting to them
+            # Both regional offices (CHN, HYD) and group offices (HRM, IE) use office_id
             view_title = f"{active_role} View"
             view_type = "ddg"
 
             role_offices = get_offices_for_ddg(cursor, active_role)
             role_groups = get_groups_for_ddg(cursor, active_role)
 
-            # Both offices and groups are matched against office_id
-            # e.g., "RD Chennai", "RD Mumbai" for offices and "IE Group", "AB Group" for groups
+            # Combine offices and groups - both are matched against office_id
             all_office_ids = role_offices + role_groups
 
             if all_office_ids:
@@ -143,14 +143,14 @@ async def dashboard(
                 params = []
 
         elif active_role == 'GROUP_HEAD' and scope_value:
-            # Group Head sees assignments in their group (by office_id, e.g., "HRM Group")
+            # Group Head sees assignments in their group office (e.g., office_id = 'HRM', 'IE', 'Finance')
             view_title = f"Group Head ({scope_value}) View"
             view_type = "group"
             query = """
                 SELECT
                     a.id, a.assignment_no, a.type, a.title, a.client, a.office_id,
                     a.status, a.gross_value, a.invoice_amount, a.amount_received,
-                    a.total_revenue, a.details_filled, a.team_leader_officer_id,
+                    a.total_revenue, a.details_filled, a.team_leader_officer_id, a.domain,
                     (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as share_count
                 FROM assignments a
                 WHERE a.office_id = ?
@@ -378,7 +378,7 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
         summary['total_contribution'] = summary['total_revenue'] + summary['notional_revenue']
 
     elif view_type == 'group':
-        # Group Head stats (by office_id, e.g., "HRM Group", "Finance Group")
+        # Group Head stats (by office_id, e.g., "HRM", "Finance", "IE" - group offices)
         cursor.execute("""
             SELECT
                 COUNT(*) as assignment_count,
@@ -396,7 +396,7 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
         summary['prorata_target'] = round(summary['target'] * fy_progress, 2)
         summary['achievement_pct'] = round((summary['total_revenue'] / summary['target'] * 100), 1) if summary['target'] > 0 else 0
 
-        # Get officers count in this group
+        # Get officers count in this group office
         cursor.execute("""
             SELECT COUNT(DISTINCT rs.officer_id) as officer_count
             FROM revenue_shares rs

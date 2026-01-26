@@ -18,8 +18,8 @@ def setup_roles():
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Find Umashankar and Shirish Paliwal
-        cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE '%Umashankar%'")
+        # Find Umashankar (name is "Uma Shankar Prasad") and Shirish Paliwal
+        cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE '%Uma%Shankar%' OR name LIKE '%Umashankar%'")
         umashankar = cursor.fetchone()
 
         cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE '%Shirish%' OR name LIKE '%Paliwal%'")
@@ -28,18 +28,21 @@ def setup_roles():
         if umashankar:
             print(f"Found Umashankar: {umashankar['name']} ({umashankar['officer_id']})")
 
+            # Remove existing roles for this officer first
+            cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (umashankar['officer_id'],))
+
             # Assign DDG-I role
             cursor.execute("""
-                INSERT OR REPLACE INTO officer_roles
+                INSERT INTO officer_roles
                 (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
                 VALUES (?, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
             """, (umashankar['officer_id'],))
 
-            # Assign Group Head HRM role
+            # Assign Group Head HRM role (scope_value is the actual office_id)
             cursor.execute("""
-                INSERT OR REPLACE INTO officer_roles
+                INSERT INTO officer_roles
                 (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                VALUES (?, 'GROUP_HEAD', 'GROUP', 'HRM', 0, 'ADMIN')
+                VALUES (?, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
             """, (umashankar['officer_id'],))
 
             # Update legacy admin_role_id
@@ -56,18 +59,21 @@ def setup_roles():
         if shirish:
             print(f"Found Shirish Paliwal: {shirish['name']} ({shirish['officer_id']})")
 
+            # Remove existing roles for this officer first
+            cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (shirish['officer_id'],))
+
             # Assign DDG-II role
             cursor.execute("""
-                INSERT OR REPLACE INTO officer_roles
+                INSERT INTO officer_roles
                 (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
                 VALUES (?, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
             """, (shirish['officer_id'],))
 
-            # Assign Group Head Finance role
+            # Assign Group Head Finance role (scope_value is the actual office_id)
             cursor.execute("""
-                INSERT OR REPLACE INTO officer_roles
+                INSERT INTO officer_roles
                 (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                VALUES (?, 'GROUP_HEAD', 'GROUP', 'Finance', 0, 'ADMIN')
+                VALUES (?, 'GROUP_HEAD', 'GROUP', 'Finance Group', 0, 'ADMIN')
             """, (shirish['officer_id'],))
 
             # Update legacy admin_role_id
@@ -81,46 +87,43 @@ def setup_roles():
         else:
             print("Shirish Paliwal not found in database")
 
-        # Verify reporting hierarchy exists
-        cursor.execute("SELECT COUNT(*) FROM reporting_hierarchy")
-        count = cursor.fetchone()[0]
-        print(f"\nReporting hierarchy entries: {count}")
+        # Clear and rebuild reporting hierarchy
+        cursor.execute("DELETE FROM reporting_hierarchy")
+        print("\nRebuilding reporting hierarchy...")
 
-        if count == 0:
-            print("Inserting default reporting hierarchy...")
-            # Groups reporting to DDG-I
-            ddg1_groups = ['IE', 'AB', 'ES', 'IT', 'Admin']
-            ddg1_offices = ['CHN', 'HYD', 'BLR', 'GNR', 'MUM', 'JAI']
+        # Groups reporting to DDG-I (use actual office_id values)
+        ddg1_groups = ['IE Group', 'AB Group', 'ES Group', 'IT Group', 'Admin Group']
+        ddg1_offices = ['RD Chennai', 'RD Hyderabad', 'RD Bengaluru', 'RD Gandhinagar', 'RD Mumbai', 'RD Jaipur']
 
-            # Groups reporting to DDG-II
-            ddg2_groups = ['ECA', 'EM', 'IS', 'Finance', 'HRM']
-            ddg2_offices = ['CHD', 'KNP', 'GUW', 'PAT', 'KOL', 'BBS']
+        # Groups reporting to DDG-II (use actual office_id values)
+        ddg2_groups = ['ECA Group', 'EM Group', 'IS Group', 'Finance Group', 'HRM Group']
+        ddg2_offices = ['RD Chandigarh', 'RD Kanpur', 'RD Guwahati', 'RD Patna', 'RD Kolkata', 'RD Bhubneswar']
 
-            for group in ddg1_groups:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('GROUP', ?, 'DDG-I')
-                """, (group,))
+        for group in ddg1_groups:
+            cursor.execute("""
+                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                VALUES ('GROUP', ?, 'DDG-I')
+            """, (group,))
 
-            for office in ddg1_offices:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('OFFICE', ?, 'DDG-I')
-                """, (office,))
+        for office in ddg1_offices:
+            cursor.execute("""
+                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                VALUES ('OFFICE', ?, 'DDG-I')
+            """, (office,))
 
-            for group in ddg2_groups:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('GROUP', ?, 'DDG-II')
-                """, (group,))
+        for group in ddg2_groups:
+            cursor.execute("""
+                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                VALUES ('GROUP', ?, 'DDG-II')
+            """, (group,))
 
-            for office in ddg2_offices:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('OFFICE', ?, 'DDG-II')
-                """, (office,))
+        for office in ddg2_offices:
+            cursor.execute("""
+                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                VALUES ('OFFICE', ?, 'DDG-II')
+            """, (office,))
 
-            print("Default hierarchy inserted.")
+        print("Reporting hierarchy updated.")
 
         # Show current role assignments
         print("\n--- Current Role Assignments ---")
