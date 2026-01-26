@@ -132,13 +132,13 @@
                     {% for role in roles %}
                     <tr>
                         <td>
-                            <strong>{{ role.role_id }}</strong>
+                            <strong>{{ role.role_type }}</strong>
                             {% if role.is_primary %}
                             <span class="badge badge-success" style="font-size: 0.625rem; margin-left: 4px;">Primary</span>
                             {% endif %}
                         </td>
                         <td>
-                            {{ role.scope }}
+                            {{ role.scope_type or '-' }}
                             {% if role.scope_value %}
                             <span style="color: #64748b;">- {{ role.scope_value }}</span>
                             {% endif %}

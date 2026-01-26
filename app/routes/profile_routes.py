@@ -33,7 +33,7 @@ async def view_profile(request: Request):
 
         # Get all roles for this officer
         cursor.execute("""
-            SELECT role_id, scope, scope_value, is_primary, effective_from
+            SELECT id, role_type, scope_type, scope_value, is_primary, effective_from
             FROM officer_roles
             WHERE officer_id = ? AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
             ORDER BY is_primary DESC, effective_from DESC
