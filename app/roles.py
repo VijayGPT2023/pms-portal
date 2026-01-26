@@ -126,8 +126,8 @@ ROLE_PERMISSIONS = {
 
 def get_user_roles(user: dict) -> list:
     """
-    Get all roles of a user from officer_roles table.
-    Returns list of role dicts with role_type and scope info.
+    Get all roles of a user from officer_roles table, assignments, and add Individual view.
+    Returns list of role dicts with role_type and scope info, sorted by hierarchy.
     """
     if not user:
         return []
@@ -139,9 +139,12 @@ def get_user_roles(user: dict) -> list:
     from app.database import get_db
 
     roles_list = []
+    seen_roles = set()  # Track unique roles
 
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # Get roles from officer_roles table
         cursor.execute("""
             SELECT role_type, scope_type, scope_value, is_primary
             FROM officer_roles
@@ -151,22 +154,68 @@ def get_user_roles(user: dict) -> list:
         """, (officer_id,))
 
         for row in cursor.fetchall():
-            roles_list.append({
-                'role_type': row['role_type'],
-                'scope_type': row['scope_type'],
-                'scope_value': row['scope_value'],
-                'is_primary': row['is_primary']
-            })
+            role_key = f"{row['role_type']}:{row['scope_value'] or ''}"
+            if role_key not in seen_roles:
+                seen_roles.add(role_key)
+                roles_list.append({
+                    'role_type': row['role_type'],
+                    'scope_type': row['scope_type'],
+                    'scope_value': row['scope_value'],
+                    'is_primary': row['is_primary']
+                })
+
+        # Check if user is team leader of any active assignment
+        cursor.execute("""
+            SELECT COUNT(*) as tl_count FROM assignments
+            WHERE team_leader_officer_id = ?
+            AND status IN ('ACTIVE', 'IN_PROGRESS')
+        """, (officer_id,))
+        tl_result = cursor.fetchone()
+
+        if tl_result and tl_result['tl_count'] > 0:
+            tl_key = f"{ROLE_TEAM_LEADER}:"
+            if tl_key not in seen_roles:
+                seen_roles.add(tl_key)
+                roles_list.append({
+                    'role_type': ROLE_TEAM_LEADER,
+                    'scope_type': 'ASSIGNMENT',
+                    'scope_value': None,
+                    'is_primary': 0
+                })
 
     # Also check legacy admin_role_id field
     admin_role = user.get('admin_role_id', '')
-    if admin_role and not any(r['role_type'] == admin_role for r in roles_list):
-        roles_list.append({
-            'role_type': admin_role,
-            'scope_type': 'GLOBAL',
-            'scope_value': None,
-            'is_primary': 1 if not roles_list else 0
-        })
+    if admin_role and admin_role != ROLE_OFFICER:
+        role_key = f"{admin_role}:"
+        if role_key not in seen_roles:
+            seen_roles.add(role_key)
+            roles_list.append({
+                'role_type': admin_role,
+                'scope_type': 'GLOBAL',
+                'scope_value': None,
+                'is_primary': 1 if not roles_list else 0
+            })
+
+    # Always add OFFICER (Individual) role as the last option
+    roles_list.append({
+        'role_type': ROLE_OFFICER,
+        'scope_type': 'INDIVIDUAL',
+        'scope_value': None,
+        'is_primary': 1 if not roles_list else 0
+    })
+
+    # Sort by role hierarchy (highest first)
+    def role_sort_key(r):
+        try:
+            return ALL_ROLES.index(r['role_type'])
+        except ValueError:
+            return 999
+
+    roles_list.sort(key=role_sort_key)
+
+    # Mark the first (highest) role as primary if none is marked
+    if roles_list and not any(r['is_primary'] for r in roles_list):
+        roles_list[0]['is_primary'] = 1
 
     return roles_list
 

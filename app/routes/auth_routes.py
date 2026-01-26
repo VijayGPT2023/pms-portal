@@ -8,6 +8,7 @@ from app.auth import authenticate_officer, create_session, delete_session, seria
 from app.config import SESSION_COOKIE_NAME
 from app.dependencies import get_current_user
 from app.templates_config import templates
+from app.roles import get_user_roles
 
 router = APIRouter()
 
@@ -38,8 +39,12 @@ async def login_submit(request: Request, email: str = Form(...), password: str =
             status_code=401
         )
 
-    # Create session and set cookie
-    session_id = create_session(officer['officer_id'])
+    # Get user's roles and determine the highest (default) role
+    user_roles = get_user_roles(officer)
+    default_role = user_roles[0]['role_type'] if user_roles else None
+
+    # Create session and set cookie with default active role
+    session_id = create_session(officer['officer_id'], active_role=default_role)
     token = serialize_session(session_id)
 
     response = RedirectResponse(url="/dashboard", status_code=302)

@@ -317,6 +317,16 @@ body.has-sidebar {
     margin-bottom: 12px;
 }
 
+.role-switcher-label {
+    display: block;
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+
 .role-select {
     width: 100%;
     padding: 8px 12px;

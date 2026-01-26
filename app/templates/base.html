@@ -163,11 +163,21 @@
         <div class="sidebar-footer">
             {% if user.roles and user.roles|length > 1 %}
             <div class="role-switcher">
+                <label class="role-switcher-label">View as:</label>
                 <form action="/profile/switch-role" method="POST" id="roleSwitchForm">
                     <select name="role_type" onchange="document.getElementById('roleSwitchForm').submit()" class="role-select">
                         {% for role in user.roles %}
                         <option value="{{ role.role_type }}" {% if user.active_role == role.role_type or (not user.active_role and role.is_primary) %}selected{% endif %}>
-                            {{ role.role_type }}{% if role.scope_value %} ({{ role.scope_value }}){% endif %}
+                            {% if role.role_type == 'DG' %}Director General
+                            {% elif role.role_type == 'DDG-I' %}DDG-I
+                            {% elif role.role_type == 'DDG-II' %}DDG-II
+                            {% elif role.role_type == 'RD_HEAD' %}RD Head{% if role.scope_value %} ({{ role.scope_value }}){% endif %}
+                            {% elif role.role_type == 'GROUP_HEAD' %}Group Head{% if role.scope_value %} ({{ role.scope_value }}){% endif %}
+                            {% elif role.role_type == 'TEAM_LEADER' %}Team Leader
+                            {% elif role.role_type == 'OFFICER' %}Individual
+                            {% elif role.role_type == 'ADMIN' %}Administrator
+                            {% else %}{{ role.role_type }}{% if role.scope_value %} ({{ role.scope_value }}){% endif %}
+                            {% endif %}
                         </option>
                         {% endfor %}
                     </select>
