@@ -689,3 +689,339 @@ async def assignments_list(
             "sort_order": sort_order
         }
     )
+
+
+# ============================================
+# TOP-DOWN MIS DRILL-DOWN ROUTES
+# Multiple navigation paths:
+#   Path A: NPC → Domain → Office → Assignment → Officer
+#   Path B: NPC → Office → Domain → Assignment → Officer
+#   Path C: NPC → Officer → Assignment (direct)
+# ============================================
+
+@router.get("/domain/{domain}", response_class=HTMLResponse)
+async def domain_detail(
+    request: Request,
+    domain: str,
+    filter_office: Optional[str] = Query(None)
+):
+    """
+    Domain-level drill-down view.
+    Path A: NPC → Domain → (Offices in this domain)
+    Shows all offices working in this domain with their revenue.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    fy_progress = calculate_fy_progress()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Get office breakdown for this domain
+        cursor.execute("""
+            SELECT
+                a.office_id,
+                o.office_name,
+                COUNT(*) as assignment_count,
+                SUM(COALESCE(a.total_revenue, 0)) as total_revenue,
+                SUM(COALESCE(a.gross_value, 0)) as total_value,
+                SUM(COALESCE(a.total_expenditure, 0)) as total_expenditure,
+                AVG(COALESCE(a.physical_progress_percent, 0)) as avg_progress
+            FROM assignments a
+            LEFT JOIN offices o ON a.office_id = o.office_id
+            WHERE a.domain = ?
+            GROUP BY a.office_id, o.office_name
+            ORDER BY total_revenue DESC
+        """, (domain,))
+        offices_in_domain = [dict(row) for row in cursor.fetchall()]
+
+        # Get all assignments in this domain
+        conditions = "WHERE a.domain = ?"
+        params = [domain]
+
+        if filter_office:
+            conditions += " AND a.office_id = ?"
+            params.append(filter_office)
+
+        cursor.execute(f"""
+            SELECT
+                a.*,
+                o.office_name,
+                (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as team_size
+            FROM assignments a
+            LEFT JOIN offices o ON a.office_id = o.office_id
+            {conditions}
+            ORDER BY a.total_revenue DESC
+        """, params)
+        assignments = [dict(row) for row in cursor.fetchall()]
+
+        # Get officer contributions in this domain
+        cursor.execute("""
+            SELECT
+                rs.officer_id,
+                off.name,
+                off.office_id,
+                off.designation,
+                COUNT(DISTINCT rs.assignment_id) as assignment_count,
+                SUM(rs.share_amount) as total_share
+            FROM revenue_shares rs
+            JOIN assignments a ON rs.assignment_id = a.id
+            JOIN officers off ON rs.officer_id = off.officer_id
+            WHERE a.domain = ?
+            GROUP BY rs.officer_id, off.name, off.office_id, off.designation
+            ORDER BY total_share DESC
+            LIMIT 20
+        """, (domain,))
+        top_officers = [dict(row) for row in cursor.fetchall()]
+
+        # Domain summary
+        total_revenue = sum(o['total_revenue'] or 0 for o in offices_in_domain)
+        total_value = sum(o['total_value'] or 0 for o in offices_in_domain)
+
+        summary = {
+            'total_offices': len(offices_in_domain),
+            'total_assignments': sum(o['assignment_count'] for o in offices_in_domain),
+            'total_revenue': total_revenue,
+            'total_value': total_value,
+            'total_expenditure': sum(o['total_expenditure'] or 0 for o in offices_in_domain),
+            'avg_progress': sum(o['avg_progress'] or 0 for o in offices_in_domain) / len(offices_in_domain) if offices_in_domain else 0
+        }
+
+        # Get list of offices for filter
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        all_offices = [dict(row) for row in cursor.fetchall()]
+
+    return templates.TemplateResponse(
+        "mis_domain.html",
+        {
+            "request": request,
+            "user": user,
+            "domain": domain,
+            "offices_in_domain": offices_in_domain,
+            "assignments": assignments,
+            "top_officers": top_officers,
+            "summary": summary,
+            "all_offices": all_offices,
+            "filter_office": filter_office,
+            "fy_progress": fy_progress,
+            "breadcrumb": [
+                {"label": "MIS Dashboard", "url": "/mis"},
+                {"label": f"Domain: {domain}", "url": None}
+            ]
+        }
+    )
+
+
+@router.get("/domain/{domain}/office/{office_id}", response_class=HTMLResponse)
+async def domain_office_detail(request: Request, domain: str, office_id: str):
+    """
+    Domain + Office drill-down view.
+    Path A continued: NPC → Domain → Office → (Assignments)
+    Shows assignments for a specific office within a specific domain.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    fy_progress = calculate_fy_progress()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Get office info
+        cursor.execute("SELECT * FROM offices WHERE office_id = ?", (office_id,))
+        office = cursor.fetchone()
+        if not office:
+            return RedirectResponse(url=f"/mis/domain/{domain}", status_code=302)
+        office = dict(office)
+
+        # Get assignments for this domain + office combination
+        cursor.execute("""
+            SELECT
+                a.*,
+                (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as team_size,
+                (SELECT COUNT(*) FROM milestones m WHERE m.assignment_id = a.id) as milestone_count
+            FROM assignments a
+            WHERE a.domain = ? AND a.office_id = ?
+            ORDER BY a.total_revenue DESC
+        """, (domain, office_id))
+        assignments = [dict(row) for row in cursor.fetchall()]
+
+        # Get officers working on these assignments
+        cursor.execute("""
+            SELECT
+                rs.officer_id,
+                off.name,
+                off.designation,
+                COUNT(DISTINCT rs.assignment_id) as assignment_count,
+                SUM(rs.share_amount) as total_share,
+                AVG(rs.share_percent) as avg_share_pct
+            FROM revenue_shares rs
+            JOIN assignments a ON rs.assignment_id = a.id
+            JOIN officers off ON rs.officer_id = off.officer_id
+            WHERE a.domain = ? AND a.office_id = ?
+            GROUP BY rs.officer_id, off.name, off.designation
+            ORDER BY total_share DESC
+        """, (domain, office_id))
+        officers = [dict(row) for row in cursor.fetchall()]
+
+        # Summary
+        summary = {
+            'total_assignments': len(assignments),
+            'total_revenue': sum(a['total_revenue'] or 0 for a in assignments),
+            'total_value': sum(a['gross_value'] or 0 for a in assignments),
+            'total_officers': len(officers),
+            'avg_progress': sum(a['physical_progress_percent'] or 0 for a in assignments) / len(assignments) if assignments else 0
+        }
+
+    return templates.TemplateResponse(
+        "mis_domain_office.html",
+        {
+            "request": request,
+            "user": user,
+            "domain": domain,
+            "office": office,
+            "assignments": assignments,
+            "officers": officers,
+            "summary": summary,
+            "fy_progress": fy_progress,
+            "breadcrumb": [
+                {"label": "MIS Dashboard", "url": "/mis"},
+                {"label": f"Domain: {domain}", "url": f"/mis/domain/{domain}"},
+                {"label": office['office_name'], "url": None}
+            ]
+        }
+    )
+
+
+@router.get("/officers", response_class=HTMLResponse)
+async def officers_direct(
+    request: Request,
+    filter_office: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("achievement"),
+    sort_order: Optional[str] = Query("desc")
+):
+    """
+    Direct officer list without office grouping.
+    Path C: NPC → Officer → (Assignments)
+    Shows all officers ranked by achievement across the organization.
+    """
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    fy_progress = calculate_fy_progress()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Get all active officers with their revenue data
+        conditions = "WHERE off.is_active = 1"
+        params = []
+
+        if filter_office:
+            conditions += " AND off.office_id = ?"
+            params.append(filter_office)
+
+        cursor.execute(f"""
+            SELECT
+                off.officer_id,
+                off.name,
+                off.office_id,
+                off.designation,
+                off.annual_target,
+                COALESCE(revenue_data.assignment_count, 0) as assignment_count,
+                COALESCE(revenue_data.total_share_amount, 0) as real_revenue,
+                COALESCE(notional_data.notional_revenue, 0) as notional_revenue
+            FROM officers off
+            LEFT JOIN (
+                SELECT
+                    rs.officer_id,
+                    COUNT(DISTINCT rs.assignment_id) as assignment_count,
+                    SUM(rs.share_amount) as total_share_amount
+                FROM revenue_shares rs
+                GROUP BY rs.officer_id
+            ) revenue_data ON off.officer_id = revenue_data.officer_id
+            LEFT JOIN (
+                SELECT
+                    officer_id,
+                    SUM(notional_value) as notional_revenue
+                FROM non_revenue_suggestions
+                WHERE status = 'COMPLETED'
+                GROUP BY officer_id
+            ) notional_data ON off.officer_id = notional_data.officer_id
+            {conditions}
+        """, params)
+        officers = [dict(row) for row in cursor.fetchall()]
+
+        # Calculate achievement percentages
+        for o in officers:
+            target = o['annual_target'] or 60.0
+            o['prorata_target'] = round(target * fy_progress, 2)
+            o['total_contribution'] = (o['real_revenue'] or 0) + (o['notional_revenue'] or 0)
+            o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
+            o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
+
+        # Sort officers
+        if sort_by == "revenue":
+            officers = sorted(officers, key=lambda x: x['total_contribution'] or 0, reverse=(sort_order == "desc"))
+        elif sort_by == "name":
+            officers = sorted(officers, key=lambda x: x['name'] or '', reverse=(sort_order == "desc"))
+        else:  # achievement (default)
+            officers = sorted(officers, key=lambda x: x['achievement_pct'] or 0, reverse=(sort_order == "desc"))
+
+        # Mark top and bottom performers
+        active_performers = [o for o in officers if o['achievement_pct'] > 0]
+        top_10 = set(o['officer_id'] for o in active_performers[:10])
+        bottom_10 = set(o['officer_id'] for o in active_performers[-10:]) if len(active_performers) > 10 else set()
+
+        for o in officers:
+            o['is_top'] = o['officer_id'] in top_10
+            o['is_bottom'] = o['officer_id'] in bottom_10 and o['officer_id'] not in top_10
+
+        # Get filter options
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        offices_list = [dict(row) for row in cursor.fetchall()]
+
+        # Summary stats
+        summary = {
+            'total_officers': len(officers),
+            'total_real_revenue': sum(o['real_revenue'] or 0 for o in officers),
+            'total_notional_revenue': sum(o['notional_revenue'] or 0 for o in officers),
+            'total_contribution': sum(o['total_contribution'] or 0 for o in officers),
+            'avg_achievement_pct': sum(o['achievement_pct'] for o in officers) / len(officers) if officers else 0,
+            'officers_above_target': len([o for o in officers if o['prorata_achievement_pct'] >= 100]),
+            'officers_below_target': len([o for o in officers if 0 < o['prorata_achievement_pct'] < 100])
+        }
+
+    return templates.TemplateResponse(
+        "mis_officers.html",
+        {
+            "request": request,
+            "user": user,
+            "officers": officers,
+            "offices_list": offices_list,
+            "summary": summary,
+            "filter_office": filter_office,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+            "fy_progress": fy_progress,
+            "breadcrumb": [
+                {"label": "MIS Dashboard", "url": "/mis"},
+                {"label": "All Officers", "url": None}
+            ]
+        }
+    )
+
+
+@router.get("/office/{office_id}/domain/{domain}", response_class=HTMLResponse)
+async def office_domain_detail(request: Request, office_id: str, domain: str):
+    """
+    Office + Domain drill-down view (Path B).
+    Path B: NPC → Office → Domain → (Assignments)
+    Shows assignments for a specific domain within a specific office.
+    """
+    # Redirect to the domain/office route (same data, different path)
+    return RedirectResponse(url=f"/mis/domain/{domain}/office/{office_id}", status_code=302)

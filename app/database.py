@@ -400,6 +400,7 @@ def init_database():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id TEXT UNIQUE NOT NULL,
                 officer_id TEXT NOT NULL,
+                active_role TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 expires_at TIMESTAMP NOT NULL,
                 FOREIGN KEY (officer_id) REFERENCES officers(officer_id) ON DELETE CASCADE

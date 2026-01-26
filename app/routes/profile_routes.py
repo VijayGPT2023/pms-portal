@@ -7,7 +7,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.templates_config import templates
-from app.auth import hash_password, verify_password
+from app.auth import hash_password, verify_password, update_session_role, deserialize_session
 
 router = APIRouter()
 
@@ -150,18 +150,26 @@ async def change_password_submit(
 @router.post("/profile/switch-role", response_class=HTMLResponse)
 async def switch_role(
     request: Request,
-    role_id: str = Form(...)
+    role_type: str = Form(...)
 ):
     """Switch active role for multi-role users."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
-    # Store selected role in session (via cookie or session update)
-    # For now, we'll redirect back to dashboard with the role context
-    # Full implementation would update session data
+    # Get session ID from cookie
+    session_token = request.cookies.get("session")
+    if session_token:
+        session_id = deserialize_session(session_token)
+        if session_id:
+            # Verify user has this role
+            user_roles = user.get('roles', [])
+            valid_role = any(r['role_type'] == role_type for r in user_roles)
 
-    return RedirectResponse(
-        url=f"/dashboard?active_role={role_id}",
-        status_code=302
-    )
+            if valid_role:
+                # Update session with new active role
+                update_session_role(session_id, role_type)
+
+    # Redirect back to the referring page or dashboard
+    referer = request.headers.get('referer', '/dashboard')
+    return RedirectResponse(url=referer, status_code=302)

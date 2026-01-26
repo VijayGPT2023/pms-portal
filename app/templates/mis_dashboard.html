@@ -185,6 +185,7 @@
     <div class="tab-header">
         <h1>MIS / Analytics</h1>
         <div class="tab-actions">
+            <a href="/mis/officers" class="btn btn-primary btn-sm">All Officers</a>
             <a href="/mis/pre-revenue" class="btn btn-info btn-sm">Pre-Revenue</a>
             <a href="/mis/assignments" class="btn btn-secondary btn-sm">All Assignments</a>
         </div>
@@ -402,7 +403,7 @@
             <div class="h-bar-chart">
                 {% for domain in domain_data[:8] %}
                 <div class="h-bar-item">
-                    <div class="label">{{ domain.domain[:10] }}{% if domain.domain|length > 10 %}..{% endif %}</div>
+                    <a href="/mis/domain/{{ domain.domain }}" class="label" style="color: inherit; text-decoration: none;" title="View {{ domain.domain }} details">{{ domain.domain[:10] }}{% if domain.domain|length > 10 %}..{% endif %}</a>
                     <div class="bar-wrap">
                         <div class="bar" style="width: {{ ((domain.total_revenue or 0) / max_domain_revenue * 100)|round|int }}%; background: {{ domain_colors[loop.index0 % 8] }};">
                             <span>{{ domain.assignment_count }}</span>
@@ -603,7 +604,7 @@
             <tbody>
                 {% for domain in domain_data %}
                 <tr>
-                    <td><strong>{{ domain.domain }}</strong></td>
+                    <td><a href="/mis/domain/{{ domain.domain }}" class="text-primary" style="font-weight: 600;">{{ domain.domain }}</a></td>
                     <td style="text-align: right;">{{ domain.assignment_count }}</td>
                     <td style="text-align: right; font-weight: 600;">{{ "%.1f"|format(domain.total_revenue or 0) }}L</td>
                     <td style="text-align: right;">{{ "%.1f"|format(domain.total_expenditure or 0) }}L</td>

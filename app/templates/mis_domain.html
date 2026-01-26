@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}MIS - {{ domain }} | PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" style="margin-bottom: 16px;">
+        {% for item in breadcrumb %}
+            {% if item.url %}
+                <a href="{{ item.url }}">{{ item.label }}</a> &raquo;
+            {% else %}
+                <span>{{ item.label }}</span>
+            {% endif %}
+        {% endfor %}
+    </nav>
+
+    <!-- Header -->
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+            <h1 style="font-size: 1.5rem; margin: 0;">Domain: {{ domain }}</h1>
+            <p style="color: var(--gray-500); margin: 4px 0 0;">Drill-down by office and assignment</p>
+        </div>
+        <a href="/mis" class="btn btn-ghost">Back to MIS</a>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <div class="stat-card">
+            <div class="stat-label">Offices</div>
+            <div class="stat-value">{{ summary.total_offices }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Assignments</div>
+            <div class="stat-value">{{ summary.total_assignments }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Revenue</div>
+            <div class="stat-value">{{ "%.2f"|format(summary.total_revenue) }}L</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Gross Value</div>
+            <div class="stat-value">{{ "%.2f"|format(summary.total_value) }}L</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Avg Progress</div>
+            <div class="stat-value">{{ "%.1f"|format(summary.avg_progress) }}%</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+        <!-- Offices in this Domain -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Offices Working in {{ domain }}</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Office</th>
+                            <th style="text-align: right;">Projects</th>
+                            <th style="text-align: right;">Revenue</th>
+                            <th style="text-align: right;">Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for office in offices_in_domain %}
+                        <tr>
+                            <td>
+                                <a href="/mis/domain/{{ domain }}/office/{{ office.office_id }}" class="text-primary" style="font-weight: 500;">
+                                    {{ office.office_name or office.office_id }}
+                                </a>
+                            </td>
+                            <td style="text-align: right;">{{ office.assignment_count }}</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(office.total_revenue or 0) }}L</td>
+                            <td style="text-align: right;">
+                                <span class="progress-badge">{{ "%.0f"|format(office.avg_progress or 0) }}%</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Top Officers in this Domain -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Top Officers in {{ domain }}</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Officer</th>
+                            <th>Office</th>
+                            <th style="text-align: right;">Projects</th>
+                            <th style="text-align: right;">Share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for officer in top_officers[:10] %}
+                        <tr>
+                            <td>
+                                <a href="/mis/officer/{{ officer.officer_id }}" class="text-primary">
+                                    {{ officer.name }}
+                                </a>
+                                <div style="font-size: 0.75rem; color: var(--gray-500);">{{ officer.designation }}</div>
+                            </td>
+                            <td>{{ officer.office_id }}</td>
+                            <td style="text-align: right;">{{ officer.assignment_count }}</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(officer.total_share or 0) }}L</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Assignments List -->
+    <div class="card" style="margin-top: 24px;">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>Assignments in {{ domain }}</h3>
+            <form method="GET" style="display: flex; gap: 8px;">
+                <select name="filter_office" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Offices</option>
+                    {% for office in all_offices %}
+                    <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                        {{ office.office_name or office.office_id }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Assignment</th>
+                        <th>Office</th>
+                        <th>Client</th>
+                        <th style="text-align: right;">Value</th>
+                        <th style="text-align: right;">Revenue</th>
+                        <th style="text-align: center;">Team</th>
+                        <th style="text-align: center;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in assignments[:50] %}
+                    <tr>
+                        <td>
+                            <a href="/assignment/{{ a.id }}" class="text-primary" style="font-weight: 500;">
+                                {{ a.assignment_no }}
+                            </a>
+                            <div style="font-size: 0.75rem; color: var(--gray-600); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ a.title }}
+                            </div>
+                        </td>
+                        <td>{{ a.office_name or a.office_id }}</td>
+                        <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ a.client }}
+                        </td>
+                        <td style="text-align: right;">{{ "%.2f"|format(a.gross_value or 0) }}L</td>
+                        <td style="text-align: right;">{{ "%.2f"|format(a.total_revenue or 0) }}L</td>
+                        <td style="text-align: center;">{{ a.team_size }}</td>
+                        <td style="text-align: center;">
+                            <span class="status-badge status-{{ (a.status or 'pending')|lower|replace(' ', '-') }}">
+                                {{ a.status or 'Pending' }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+}
+.breadcrumb a {
+    color: var(--primary-600);
+}
+.progress-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--gray-100);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+</style>
+{% endblock %}

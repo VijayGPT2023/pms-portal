@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}MIS - {{ domain }} / {{ office.office_name }} | PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" style="margin-bottom: 16px;">
+        {% for item in breadcrumb %}
+            {% if item.url %}
+                <a href="{{ item.url }}">{{ item.label }}</a> &raquo;
+            {% else %}
+                <span>{{ item.label }}</span>
+            {% endif %}
+        {% endfor %}
+    </nav>
+
+    <!-- Header -->
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+            <h1 style="font-size: 1.5rem; margin: 0;">{{ office.office_name or office.office_id }}</h1>
+            <p style="color: var(--gray-500); margin: 4px 0 0;">Domain: {{ domain }}</p>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <a href="/mis/domain/{{ domain }}" class="btn btn-ghost">Back to Domain</a>
+            <a href="/mis/office/{{ office.office_id }}" class="btn btn-ghost">View Office</a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <div class="stat-card">
+            <div class="stat-label">Assignments</div>
+            <div class="stat-value">{{ summary.total_assignments }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Revenue</div>
+            <div class="stat-value">{{ "%.2f"|format(summary.total_revenue) }}L</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Gross Value</div>
+            <div class="stat-value">{{ "%.2f"|format(summary.total_value) }}L</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Officers</div>
+            <div class="stat-value">{{ summary.total_officers }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Avg Progress</div>
+            <div class="stat-value">{{ "%.1f"|format(summary.avg_progress) }}%</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+        <!-- Assignments -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Assignments</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Assignment</th>
+                            <th>Client</th>
+                            <th style="text-align: right;">Value</th>
+                            <th style="text-align: right;">Revenue</th>
+                            <th style="text-align: center;">Progress</th>
+                            <th style="text-align: center;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in assignments %}
+                        <tr>
+                            <td>
+                                <a href="/assignment/{{ a.id }}" class="text-primary" style="font-weight: 500;">
+                                    {{ a.assignment_no }}
+                                </a>
+                                <div style="font-size: 0.75rem; color: var(--gray-600); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                    {{ a.title }}
+                                </div>
+                            </td>
+                            <td style="max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                {{ a.client }}
+                            </td>
+                            <td style="text-align: right;">{{ "%.2f"|format(a.gross_value or 0) }}L</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(a.total_revenue or 0) }}L</td>
+                            <td style="text-align: center;">
+                                <div class="progress-bar-mini">
+                                    <div class="progress-fill" style="width: {{ a.physical_progress_percent or 0 }}%;"></div>
+                                </div>
+                                <span style="font-size: 0.75rem;">{{ a.physical_progress_percent or 0 }}%</span>
+                            </td>
+                            <td style="text-align: center;">
+                                <span class="status-badge status-{{ (a.status or 'pending')|lower|replace(' ', '-') }}">
+                                    {{ a.status or 'Pending' }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not assignments %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--gray-500); padding: 32px;">
+                                No assignments found
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Officers -->
+        <div class="card">
+            <div class="card-header">
+                <h3>Team Members</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Officer</th>
+                            <th style="text-align: right;">Share</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for o in officers %}
+                        <tr>
+                            <td>
+                                <a href="/mis/officer/{{ o.officer_id }}" class="text-primary">
+                                    {{ o.name }}
+                                </a>
+                                <div style="font-size: 0.75rem; color: var(--gray-500);">
+                                    {{ o.designation }} | {{ o.assignment_count }} projects
+                                </div>
+                            </td>
+                            <td style="text-align: right;">
+                                <div style="font-weight: 600;">{{ "%.2f"|format(o.total_share or 0) }}L</div>
+                                <div style="font-size: 0.75rem; color: var(--gray-500);">
+                                    {{ "%.1f"|format(o.avg_share_pct or 0) }}% avg
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not officers %}
+                        <tr>
+                            <td colspan="2" style="text-align: center; color: var(--gray-500); padding: 24px;">
+                                No officers assigned
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+}
+.breadcrumb a {
+    color: var(--primary-600);
+}
+.progress-bar-mini {
+    width: 60px;
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: 3px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+}
+.progress-fill {
+    height: 100%;
+    background: var(--primary-500);
+    border-radius: 3px;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}MIS - All Officers | PMS Portal{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb" style="margin-bottom: 16px;">
+        {% for item in breadcrumb %}
+            {% if item.url %}
+                <a href="{{ item.url }}">{{ item.label }}</a> &raquo;
+            {% else %}
+                <span>{{ item.label }}</span>
+            {% endif %}
+        {% endfor %}
+    </nav>
+
+    <!-- Header -->
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+            <h1 style="font-size: 1.5rem; margin: 0;">All Officers</h1>
+            <p style="color: var(--gray-500); margin: 4px 0 0;">Organization-wide officer performance ranking</p>
+        </div>
+        <a href="/mis" class="btn btn-ghost">Back to MIS</a>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px;">
+        <div class="stat-card">
+            <div class="stat-label">Total Officers</div>
+            <div class="stat-value">{{ summary.total_officers }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Real Revenue</div>
+            <div class="stat-value">{{ "%.2f"|format(summary.total_real_revenue) }}L</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Notional Revenue</div>
+            <div class="stat-value">{{ "%.2f"|format(summary.total_notional_revenue) }}L</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Total Contribution</div>
+            <div class="stat-value">{{ "%.2f"|format(summary.total_contribution) }}L</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Above Pro-rata</div>
+            <div class="stat-value" style="color: var(--accent-green);">{{ summary.officers_above_target }}</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Below Pro-rata</div>
+            <div class="stat-value" style="color: var(--accent-amber);">{{ summary.officers_below_target }}</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card" style="margin-bottom: 24px;">
+        <div class="card-body" style="padding: 16px;">
+            <form method="GET" style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                <div>
+                    <label style="font-size: 0.75rem; color: var(--gray-500); display: block; margin-bottom: 4px;">Office</label>
+                    <select name="filter_office" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="">All Offices</option>
+                        {% for office in offices_list %}
+                        <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                            {{ office.office_name or office.office_id }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 0.75rem; color: var(--gray-500); display: block; margin-bottom: 4px;">Sort By</label>
+                    <select name="sort_by" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="achievement" {% if sort_by == 'achievement' %}selected{% endif %}>Achievement %</option>
+                        <option value="revenue" {% if sort_by == 'revenue' %}selected{% endif %}>Total Revenue</option>
+                        <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size: 0.75rem; color: var(--gray-500); display: block; margin-bottom: 4px;">Order</label>
+                    <select name="sort_order" class="form-select form-select-sm" onchange="this.form.submit()">
+                        <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Descending</option>
+                        <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Ascending</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Officers Table -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Officer Performance Ranking</h3>
+            <span style="color: var(--gray-500); font-size: 0.875rem;">FY Progress: {{ "%.1f"|format(fy_progress * 100) }}%</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">#</th>
+                        <th>Officer</th>
+                        <th>Office</th>
+                        <th style="text-align: right;">Real <span class="info-tooltip" data-tooltip="Revenue from Assignments & Training" tabindex="0">i</span></th>
+                        <th style="text-align: right;">Notional <span class="info-tooltip" data-tooltip="Notional value from Non-Revenue activities" tabindex="0">i</span></th>
+                        <th style="text-align: right;">Total <span class="info-tooltip" data-tooltip="Real + Notional Revenue" tabindex="0">i</span></th>
+                        <th style="text-align: right;">Pro-rata Target <span class="info-tooltip" data-tooltip="Annual target adjusted for FY progress" tabindex="0">i</span></th>
+                        <th style="text-align: right;">Achievement %</th>
+                        <th style="text-align: center;">Projects</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for o in officers %}
+                    <tr class="{% if o.is_top %}row-highlight-green{% elif o.is_bottom %}row-highlight-red{% endif %}">
+                        <td style="color: var(--gray-500);">{{ loop.index }}</td>
+                        <td>
+                            <a href="/mis/officer/{{ o.officer_id }}" class="text-primary" style="font-weight: 500;">
+                                {{ o.name }}
+                            </a>
+                            <div style="font-size: 0.75rem; color: var(--gray-500);">{{ o.designation }}</div>
+                        </td>
+                        <td>
+                            <a href="/mis/office/{{ o.office_id }}" class="text-muted">{{ o.office_id }}</a>
+                        </td>
+                        <td style="text-align: right;">{{ "%.2f"|format(o.real_revenue or 0) }}L</td>
+                        <td style="text-align: right;">{{ "%.2f"|format(o.notional_revenue or 0) }}L</td>
+                        <td style="text-align: right; font-weight: 600;">{{ "%.2f"|format(o.total_contribution or 0) }}L</td>
+                        <td style="text-align: right; color: var(--gray-500);">{{ "%.2f"|format(o.prorata_target or 0) }}L</td>
+                        <td style="text-align: right;">
+                            {% if o.prorata_achievement_pct >= 100 %}
+                            <span style="color: var(--accent-green); font-weight: 600;">{{ "%.1f"|format(o.achievement_pct) }}%</span>
+                            {% elif o.prorata_achievement_pct >= 75 %}
+                            <span style="color: var(--accent-amber); font-weight: 500;">{{ "%.1f"|format(o.achievement_pct) }}%</span>
+                            {% elif o.prorata_achievement_pct > 0 %}
+                            <span style="color: var(--accent-red);">{{ "%.1f"|format(o.achievement_pct) }}%</span>
+                            {% else %}
+                            <span style="color: var(--gray-400);">0%</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align: center;">{{ o.assignment_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+.breadcrumb {
+    font-size: 0.875rem;
+    color: var(--gray-500);
+}
+.breadcrumb a {
+    color: var(--primary-600);
+}
+.row-highlight-green {
+    background: rgba(34, 197, 94, 0.05);
+}
+.row-highlight-red {
+    background: rgba(239, 68, 68, 0.05);
+}
+</style>
+{% endblock %}

@@ -41,7 +41,7 @@ def generate_session_id() -> str:
     return secrets.token_urlsafe(32)
 
 
-def create_session(officer_id: str) -> str:
+def create_session(officer_id: str, active_role: str = None) -> str:
     """Create a new session for an officer and return the session ID."""
     session_id = generate_session_id()
     expires_at = datetime.now() + timedelta(seconds=SESSION_MAX_AGE)
@@ -52,12 +52,23 @@ def create_session(officer_id: str) -> str:
         cursor.execute("DELETE FROM sessions WHERE officer_id = ?", (officer_id,))
         # Create new session
         cursor.execute(
-            """INSERT INTO sessions (session_id, officer_id, expires_at)
-               VALUES (?, ?, ?)""",
-            (session_id, officer_id, expires_at)
+            """INSERT INTO sessions (session_id, officer_id, active_role, expires_at)
+               VALUES (?, ?, ?, ?)""",
+            (session_id, officer_id, active_role, expires_at)
         )
 
     return session_id
+
+
+def update_session_role(session_id: str, active_role: str) -> bool:
+    """Update the active role for an existing session."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE sessions SET active_role = ? WHERE session_id = ?",
+            (active_role, session_id)
+        )
+        return cursor.rowcount > 0
 
 
 def validate_session(session_id: str) -> Optional[dict]:
@@ -71,7 +82,7 @@ def validate_session(session_id: str) -> Optional[dict]:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT s.officer_id, s.expires_at, o.name, o.email, o.office_id, o.designation, o.admin_role_id
+            """SELECT s.officer_id, s.expires_at, s.active_role, o.name, o.email, o.office_id, o.designation, o.admin_role_id
                FROM sessions s
                JOIN officers o ON s.officer_id = o.officer_id
                WHERE s.session_id = ? AND o.is_active = 1""",
@@ -94,6 +105,7 @@ def validate_session(session_id: str) -> Optional[dict]:
         from app.roles import get_user_role, get_user_roles, get_user_permissions, get_user_role_display, ROLE_ADMIN
 
         admin_role = row['admin_role_id']
+        active_role = row['active_role']
         user_data = {
             'officer_id': row['officer_id'],
             'name': row['name'],
@@ -101,7 +113,8 @@ def validate_session(session_id: str) -> Optional[dict]:
             'office_id': row['office_id'],
             'designation': row['designation'],
             'admin_role_id': admin_role,
-            'is_admin': admin_role == ROLE_ADMIN
+            'is_admin': admin_role == ROLE_ADMIN,
+            'active_role': active_role
         }
 
         # Add role and permissions
