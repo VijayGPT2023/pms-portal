@@ -227,13 +227,18 @@ async def mis_dashboard(
             o['achievement_pct'] = round((o['total_share_amount'] / target * 100), 1) if target > 0 else 0
             o['prorata_achievement_pct'] = round((o['total_share_amount'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
 
-        # Mark top 10 and bottom 10 officers
-        top_10_officers = set(o['officer_id'] for o in officer_data[:10])
-        bottom_10_officers = set(o['officer_id'] for o in officer_data[-10:] if len(officer_data) > 10)
+        # Mark top 10 and bottom 10 officers BY ACHIEVEMENT % (not by value)
+        sorted_officers_by_achievement = sorted([o for o in officer_data if o['achievement_pct'] > 0],
+                                                key=lambda x: x['achievement_pct'], reverse=True)
+        top_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[:10])
+        bottom_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[-10:] if len(sorted_officers_by_achievement) > 10)
 
         for o in officer_data:
             o['is_top'] = o['officer_id'] in top_10_officers
             o['is_bottom'] = o['officer_id'] in bottom_10_officers and o['officer_id'] not in top_10_officers
+
+        # Sort officer_data by achievement % by default
+        officer_data = sorted(officer_data, key=lambda x: x['achievement_pct'] or 0, reverse=True)
 
         # 4. Physical Progress Summary
         progress_query = f"""
@@ -282,14 +287,15 @@ async def mis_dashboard(
             'fy_progress_pct': round(fy_progress * 100, 1)
         }
 
-        # Apply sorting to office data
+        # Apply sorting to office data (default: by achievement %)
         if sort_by == 'revenue':
             office_data = sorted(office_data, key=lambda x: x['total_revenue'] or 0,
                                reverse=(sort_order == 'desc'))
         elif sort_by == 'timeline':
             office_data = sorted(office_data, key=lambda x: x['avg_physical_progress'] or 0,
                                reverse=(sort_order == 'desc'))
-        elif sort_by == 'achievement':
+        else:
+            # Default: sort by achievement %
             office_data = sorted(office_data, key=lambda x: x['achievement_pct'] or 0,
                                reverse=(sort_order == 'desc'))
 
@@ -367,7 +373,6 @@ async def office_detail(request: Request, office_id: str):
             LEFT JOIN revenue_shares rs ON o.officer_id = rs.officer_id
             WHERE o.office_id = ? AND o.is_active = 1
             GROUP BY o.officer_id
-            ORDER BY total_share DESC
         """, (office_id,))
         officers = [dict(row) for row in cursor.fetchall()]
 
@@ -376,6 +381,9 @@ async def office_detail(request: Request, office_id: str):
             target = o.get('annual_target', 60.0) or 60.0
             o['prorata_target'] = round(target * fy_progress, 2)
             o['achievement_pct'] = round((o['total_share'] / target * 100), 1) if target > 0 else 0
+
+        # Sort officers by achievement % (not by total value)
+        officers = sorted(officers, key=lambda x: x['achievement_pct'] or 0, reverse=True)
 
         # Get status breakdown for this office
         cursor.execute("""
