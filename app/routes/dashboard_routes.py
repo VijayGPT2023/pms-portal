@@ -143,7 +143,7 @@ async def dashboard(
                 params = []
 
         elif active_role == 'GROUP_HEAD' and scope_value:
-            # Group Head sees assignments in their group/domain
+            # Group Head sees assignments in their group (by office_id, e.g., "HRM Group")
             view_title = f"Group Head ({scope_value}) View"
             view_type = "group"
             query = """
@@ -153,7 +153,7 @@ async def dashboard(
                     a.total_revenue, a.details_filled, a.team_leader_officer_id,
                     (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as share_count
                 FROM assignments a
-                WHERE a.domain = ?
+                WHERE a.office_id = ?
             """
             params = [scope_value]
 
@@ -378,31 +378,30 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
         summary['total_contribution'] = summary['total_revenue'] + summary['notional_revenue']
 
     elif view_type == 'group':
-        # Group Head stats
+        # Group Head stats (by office_id, e.g., "HRM Group", "Finance Group")
         cursor.execute("""
             SELECT
                 COUNT(*) as assignment_count,
                 COALESCE(SUM(total_revenue), 0) as total_revenue,
-                COALESCE(SUM(gross_value), 0) as total_value,
-                COUNT(DISTINCT office_id) as office_count
+                COALESCE(SUM(gross_value), 0) as total_value
             FROM assignments
-            WHERE domain = ?
+            WHERE office_id = ?
         """, (scope_value,))
         row = cursor.fetchone()
         if row:
             summary = dict(row)
         else:
-            summary = {'assignment_count': 0, 'total_revenue': 0, 'total_value': 0, 'office_count': 0}
+            summary = {'assignment_count': 0, 'total_revenue': 0, 'total_value': 0}
         summary['target'] = summary.get('total_value', 0)
         summary['prorata_target'] = round(summary['target'] * fy_progress, 2)
         summary['achievement_pct'] = round((summary['total_revenue'] / summary['target'] * 100), 1) if summary['target'] > 0 else 0
 
-        # Get officers count in this domain
+        # Get officers count in this group
         cursor.execute("""
             SELECT COUNT(DISTINCT rs.officer_id) as officer_count
             FROM revenue_shares rs
             JOIN assignments a ON rs.assignment_id = a.id
-            WHERE a.domain = ?
+            WHERE a.office_id = ?
         """, (scope_value,))
         officer_row = cursor.fetchone()
         summary['officer_count'] = officer_row['officer_count'] if officer_row else 0
