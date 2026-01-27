@@ -8,7 +8,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.database import get_db, init_database
+from app.database import get_db, init_database, USE_POSTGRES
 
 def setup_roles():
     """Setup initial role assignments."""
@@ -29,33 +29,62 @@ def setup_roles():
             print(f"Found Umashankar: {umashankar['name']} ({umashankar['officer_id']})")
 
             # Remove existing roles for this officer first
-            cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (umashankar['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("DELETE FROM officer_roles WHERE officer_id = %s", (umashankar['officer_id'],))
+            else:
+                cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (umashankar['officer_id'],))
 
             # Assign DDG-I role
-            cursor.execute("""
-                INSERT INTO officer_roles
-                (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                VALUES (?, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
-            """, (umashankar['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (%s, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
+                """, (umashankar['officer_id'],))
+            else:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (?, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
+                """, (umashankar['officer_id'],))
 
             # Assign Group Head HRM role (scope_value is the actual office_id)
-            cursor.execute("""
-                INSERT INTO officer_roles
-                (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                VALUES (?, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
-            """, (umashankar['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (%s, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
+                """, (umashankar['officer_id'],))
+            else:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (?, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
+                """, (umashankar['officer_id'],))
 
             # Assign Team Leader role
-            cursor.execute("""
-                INSERT INTO officer_roles
-                (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                VALUES (?, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
-            """, (umashankar['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (%s, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
+                """, (umashankar['officer_id'],))
+            else:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (?, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
+                """, (umashankar['officer_id'],))
 
             # Update legacy admin_role_id
-            cursor.execute("""
-                UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = ?
-            """, (umashankar['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = %s
+                """, (umashankar['officer_id'],))
+            else:
+                cursor.execute("""
+                    UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = ?
+                """, (umashankar['officer_id'],))
 
             print("  - Assigned DDG-I (Primary)")
             print("  - Assigned Group Head (HRM Group)")
@@ -68,26 +97,48 @@ def setup_roles():
             print(f"Found Shirish Paliwal: {shirish['name']} ({shirish['officer_id']})")
 
             # Remove existing roles for this officer first
-            cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (shirish['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("DELETE FROM officer_roles WHERE officer_id = %s", (shirish['officer_id'],))
+            else:
+                cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (shirish['officer_id'],))
 
             # Assign DDG-II role
-            cursor.execute("""
-                INSERT INTO officer_roles
-                (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                VALUES (?, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
-            """, (shirish['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (%s, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
+                """, (shirish['officer_id'],))
+            else:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (?, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
+                """, (shirish['officer_id'],))
 
             # Assign Group Head Finance role (scope_value is the actual office_id)
-            cursor.execute("""
-                INSERT INTO officer_roles
-                (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                VALUES (?, 'GROUP_HEAD', 'GROUP', 'Finance Group', 0, 'ADMIN')
-            """, (shirish['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (%s, 'GROUP_HEAD', 'GROUP', 'Finance Group', 0, 'ADMIN')
+                """, (shirish['officer_id'],))
+            else:
+                cursor.execute("""
+                    INSERT INTO officer_roles
+                    (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                    VALUES (?, 'GROUP_HEAD', 'GROUP', 'Finance Group', 0, 'ADMIN')
+                """, (shirish['officer_id'],))
 
             # Update legacy admin_role_id
-            cursor.execute("""
-                UPDATE officers SET admin_role_id = 'DDG-II' WHERE officer_id = ?
-            """, (shirish['officer_id'],))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    UPDATE officers SET admin_role_id = 'DDG-II' WHERE officer_id = %s
+                """, (shirish['officer_id'],))
+            else:
+                cursor.execute("""
+                    UPDATE officers SET admin_role_id = 'DDG-II' WHERE officer_id = ?
+                """, (shirish['officer_id'],))
 
             print("  - Assigned DDG-II (Primary)")
             print("  - Assigned Group Head (Finance)")
@@ -108,28 +159,56 @@ def setup_roles():
         ddg2_offices = ['RD Chandigarh', 'RD Kanpur', 'RD Guwahati', 'RD Patna', 'RD Kolkata', 'RD Bhubneswar']
 
         for group in ddg1_groups:
-            cursor.execute("""
-                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                VALUES ('GROUP', ?, 'DDG-I')
-            """, (group,))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('GROUP', %s, 'DDG-I')
+                    ON CONFLICT DO NOTHING
+                """, (group,))
+            else:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('GROUP', ?, 'DDG-I')
+                """, (group,))
 
         for office in ddg1_offices:
-            cursor.execute("""
-                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                VALUES ('OFFICE', ?, 'DDG-I')
-            """, (office,))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('OFFICE', %s, 'DDG-I')
+                    ON CONFLICT DO NOTHING
+                """, (office,))
+            else:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('OFFICE', ?, 'DDG-I')
+                """, (office,))
 
         for group in ddg2_groups:
-            cursor.execute("""
-                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                VALUES ('GROUP', ?, 'DDG-II')
-            """, (group,))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('GROUP', %s, 'DDG-II')
+                    ON CONFLICT DO NOTHING
+                """, (group,))
+            else:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('GROUP', ?, 'DDG-II')
+                """, (group,))
 
         for office in ddg2_offices:
-            cursor.execute("""
-                INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                VALUES ('OFFICE', ?, 'DDG-II')
-            """, (office,))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('OFFICE', %s, 'DDG-II')
+                    ON CONFLICT DO NOTHING
+                """, (office,))
+            else:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    VALUES ('OFFICE', ?, 'DDG-II')
+                """, (office,))
 
         print("Reporting hierarchy updated.")
 
