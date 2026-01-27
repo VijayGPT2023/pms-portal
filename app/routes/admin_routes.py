@@ -942,184 +942,176 @@ async def setup_roles_page(request: Request):
         return redirect
 
     results = []
+    ph = '%s' if USE_POSTGRES else '?'
 
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Find Umashankar
-        cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE '%Uma%Shankar%' OR name LIKE '%Umashankar%'")
+        # STEP 1: Show all existing offices
+        results.append("=== STEP 1: Existing Offices in Database ===")
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        offices = [dict(row) for row in cursor.fetchall()]
+        for off in offices:
+            results.append(f"  {off['office_id']}: {off['office_name']}")
+
+        if not offices:
+            results.append("  (No offices found - please import officers first)")
+
+        # Build office_id mapping - map common patterns to DDG
+        # DDG-I: Regional offices in South/West + IE, AB, ES, IT, Admin groups
+        # DDG-II: Regional offices in North/East + ECA, EM, IS, Finance, HRM groups
+        ddg1_patterns = ['CHN', 'Chennai', 'HYD', 'Hyderabad', 'BLR', 'Bengaluru', 'Bangalore',
+                         'GNR', 'Gandhinagar', 'MUM', 'Mumbai', 'JAI', 'Jaipur',
+                         'IE', 'AB', 'ES', 'IT', 'Admin']
+        ddg2_patterns = ['CHD', 'Chandigarh', 'KNP', 'Kanpur', 'GUW', 'Guwahati',
+                         'PAT', 'Patna', 'KOL', 'Kolkata', 'BBS', 'Bhubaneswar', 'Bhubneswar',
+                         'ECA', 'EM', 'IS', 'Finance', 'HRM']
+
+        ddg1_offices = []
+        ddg2_offices = []
+        for off in offices:
+            oid = off['office_id']
+            oname = off['office_name'] or ''
+            # Check if matches DDG-I patterns
+            if any(p.lower() in oid.lower() or p.lower() in oname.lower() for p in ddg1_patterns):
+                ddg1_offices.append(oid)
+            # Check if matches DDG-II patterns
+            elif any(p.lower() in oid.lower() or p.lower() in oname.lower() for p in ddg2_patterns):
+                ddg2_offices.append(oid)
+            # HQ and NPC offices don't report to DDG
+
+        results.append("")
+        results.append("=== STEP 2: Office to DDG Mapping ===")
+        results.append(f"  DDG-I offices: {', '.join(ddg1_offices) if ddg1_offices else '(none)'}")
+        results.append(f"  DDG-II offices: {', '.join(ddg2_offices) if ddg2_offices else '(none)'}")
+
+        # STEP 3: Find Umashankar and Shirish
+        results.append("")
+        results.append("=== STEP 3: Setting Up Officer Roles ===")
+
+        cursor.execute("SELECT officer_id, name, office_id FROM officers WHERE name LIKE '%Uma%Shankar%' OR name LIKE '%Umashankar%'")
         umashankar = cursor.fetchone()
 
-        # Find Shirish Paliwal
-        cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE '%Shirish%' OR name LIKE '%Paliwal%'")
+        cursor.execute("SELECT officer_id, name, office_id FROM officers WHERE name LIKE '%Shirish%' OR name LIKE '%Paliwal%'")
         shirish = cursor.fetchone()
 
+        # Determine HRM office_id from Umashankar's office or find HRM-like office
+        hrm_office_id = None
         if umashankar:
-            results.append(f"Found Umashankar: {umashankar['name']} ({umashankar['officer_id']})")
+            hrm_office_id = umashankar['office_id']
+        # Also check for explicit HRM office
+        for off in offices:
+            if 'HRM' in off['office_id'].upper() or 'HRM' in (off['office_name'] or '').upper():
+                hrm_office_id = off['office_id']
+                break
+
+        # Determine Finance office_id from Shirish's office or find Finance-like office
+        finance_office_id = None
+        if shirish:
+            finance_office_id = shirish['office_id']
+        # Also check for explicit Finance office
+        for off in offices:
+            if 'FINANCE' in off['office_id'].upper() or 'FINANCE' in (off['office_name'] or '').upper():
+                finance_office_id = off['office_id']
+                break
+
+        if umashankar:
+            results.append(f"Found Umashankar: {umashankar['name']} ({umashankar['officer_id']}) - Office: {umashankar['office_id']}")
 
             # Remove existing roles
-            if USE_POSTGRES:
-                cursor.execute("DELETE FROM officer_roles WHERE officer_id = %s", (umashankar['officer_id'],))
-            else:
-                cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (umashankar['officer_id'],))
+            cursor.execute(f"DELETE FROM officer_roles WHERE officer_id = {ph}", (umashankar['officer_id'],))
 
             # Assign DDG-I role (Primary)
-            if USE_POSTGRES:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (%s, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
-                """, (umashankar['officer_id'],))
-            else:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (?, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
-                """, (umashankar['officer_id'],))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
+            """, (umashankar['officer_id'],))
 
-            # Assign Group Head HRM role
-            if USE_POSTGRES:
-                cursor.execute("""
+            # Assign Group Head role with actual office_id as scope_value
+            if hrm_office_id:
+                cursor.execute(f"""
                     INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (%s, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
-                """, (umashankar['officer_id'],))
-            else:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (?, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
-                """, (umashankar['officer_id'],))
+                    VALUES ({ph}, 'GROUP_HEAD', 'GROUP', {ph}, 0, 'ADMIN')
+                """, (umashankar['officer_id'], hrm_office_id))
+                results.append(f"  - Assigned GROUP_HEAD (scope: {hrm_office_id})")
 
             # Assign Team Leader role
-            if USE_POSTGRES:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (%s, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
-                """, (umashankar['officer_id'],))
-            else:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (?, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
-                """, (umashankar['officer_id'],))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
+            """, (umashankar['officer_id'],))
 
             # Update legacy admin_role_id
-            if USE_POSTGRES:
-                cursor.execute("UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = %s", (umashankar['officer_id'],))
-            else:
-                cursor.execute("UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = ?", (umashankar['officer_id'],))
+            cursor.execute(f"UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = {ph}", (umashankar['officer_id'],))
 
             results.append("  - Assigned DDG-I (Primary)")
-            results.append("  - Assigned GROUP_HEAD (HRM Group)")
             results.append("  - Assigned TEAM_LEADER")
 
         else:
             results.append("Umashankar not found in database")
 
         if shirish:
-            results.append(f"Found Shirish: {shirish['name']} ({shirish['officer_id']})")
+            results.append(f"Found Shirish: {shirish['name']} ({shirish['officer_id']}) - Office: {shirish['office_id']}")
 
             # Remove existing roles
-            if USE_POSTGRES:
-                cursor.execute("DELETE FROM officer_roles WHERE officer_id = %s", (shirish['officer_id'],))
-            else:
-                cursor.execute("DELETE FROM officer_roles WHERE officer_id = ?", (shirish['officer_id'],))
+            cursor.execute(f"DELETE FROM officer_roles WHERE officer_id = {ph}", (shirish['officer_id'],))
 
             # Assign DDG-II role
-            if USE_POSTGRES:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (%s, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
-                """, (shirish['officer_id'],))
-            else:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (?, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
-                """, (shirish['officer_id'],))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
+            """, (shirish['officer_id'],))
 
-            # Assign Group Head Finance role
-            if USE_POSTGRES:
-                cursor.execute("""
+            # Assign Group Head Finance role with actual office_id as scope_value
+            if finance_office_id:
+                cursor.execute(f"""
                     INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (%s, 'GROUP_HEAD', 'GROUP', 'Finance Group', 0, 'ADMIN')
-                """, (shirish['officer_id'],))
-            else:
-                cursor.execute("""
-                    INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
-                    VALUES (?, 'GROUP_HEAD', 'GROUP', 'Finance Group', 0, 'ADMIN')
-                """, (shirish['officer_id'],))
+                    VALUES ({ph}, 'GROUP_HEAD', 'GROUP', {ph}, 0, 'ADMIN')
+                """, (shirish['officer_id'], finance_office_id))
+                results.append(f"  - Assigned GROUP_HEAD (scope: {finance_office_id})")
 
             # Update legacy admin_role_id
-            if USE_POSTGRES:
-                cursor.execute("UPDATE officers SET admin_role_id = 'DDG-II' WHERE officer_id = %s", (shirish['officer_id'],))
-            else:
-                cursor.execute("UPDATE officers SET admin_role_id = 'DDG-II' WHERE officer_id = ?", (shirish['officer_id'],))
+            cursor.execute(f"UPDATE officers SET admin_role_id = 'DDG-II' WHERE officer_id = {ph}", (shirish['officer_id'],))
 
             results.append("  - Assigned DDG-II (Primary)")
-            results.append("  - Assigned GROUP_HEAD (Finance Group)")
 
         else:
             results.append("Shirish Paliwal not found in database")
 
-        # Setup reporting hierarchy
+        # STEP 4: Setup reporting hierarchy using ACTUAL office_ids
+        results.append("")
+        results.append("=== STEP 4: Rebuilding Reporting Hierarchy ===")
         cursor.execute("DELETE FROM reporting_hierarchy")
-        results.append("")
-        results.append("Rebuilding reporting hierarchy...")
 
-        ddg1_groups = ['IE Group', 'AB Group', 'ES Group', 'IT Group', 'Admin Group']
-        ddg1_offices = ['RD Chennai', 'RD Hyderabad', 'RD Bengaluru', 'RD Gandhinagar', 'RD Mumbai', 'RD Jaipur']
-        ddg2_groups = ['ECA Group', 'EM Group', 'IS Group', 'Finance Group', 'HRM Group']
-        ddg2_offices = ['RD Chandigarh', 'RD Kanpur', 'RD Guwahati', 'RD Patna', 'RD Kolkata', 'RD Bhubneswar']
-
-        for group in ddg1_groups:
+        for oid in ddg1_offices:
             if USE_POSTGRES:
                 cursor.execute("""
                     INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('GROUP', %s, 'DDG-I') ON CONFLICT DO NOTHING
-                """, (group,))
+                    VALUES ('OFFICE', %s, 'DDG-I') ON CONFLICT (entity_type, entity_value) DO UPDATE SET reports_to_role = 'DDG-I'
+                """, (oid,))
             else:
                 cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('GROUP', ?, 'DDG-I')
-                """, (group,))
-
-        for office in ddg1_offices:
-            if USE_POSTGRES:
-                cursor.execute("""
-                    INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('OFFICE', %s, 'DDG-I') ON CONFLICT DO NOTHING
-                """, (office,))
-            else:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    INSERT OR REPLACE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
                     VALUES ('OFFICE', ?, 'DDG-I')
-                """, (office,))
+                """, (oid,))
+            results.append(f"  {oid} -> DDG-I")
 
-        for group in ddg2_groups:
+        for oid in ddg2_offices:
             if USE_POSTGRES:
                 cursor.execute("""
                     INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('GROUP', %s, 'DDG-II') ON CONFLICT DO NOTHING
-                """, (group,))
+                    VALUES ('OFFICE', %s, 'DDG-II') ON CONFLICT (entity_type, entity_value) DO UPDATE SET reports_to_role = 'DDG-II'
+                """, (oid,))
             else:
                 cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('GROUP', ?, 'DDG-II')
-                """, (group,))
-
-        for office in ddg2_offices:
-            if USE_POSTGRES:
-                cursor.execute("""
-                    INSERT INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
-                    VALUES ('OFFICE', %s, 'DDG-II') ON CONFLICT DO NOTHING
-                """, (office,))
-            else:
-                cursor.execute("""
-                    INSERT OR IGNORE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
+                    INSERT OR REPLACE INTO reporting_hierarchy (entity_type, entity_value, reports_to_role)
                     VALUES ('OFFICE', ?, 'DDG-II')
-                """, (office,))
+                """, (oid,))
+            results.append(f"  {oid} -> DDG-II")
 
-        results.append("Reporting hierarchy updated.")
-
-        # Show current assignments
+        # STEP 5: Show current role assignments
         results.append("")
-        results.append("--- Current Role Assignments ---")
+        results.append("=== STEP 5: Current Role Assignments ===")
         cursor.execute("""
             SELECT r.*, o.name as officer_name
             FROM officer_roles r
@@ -1131,8 +1123,17 @@ async def setup_roles_page(request: Request):
             primary = "[PRIMARY]" if row['is_primary'] else ""
             results.append(f"  {row['officer_name']}: {row['role_type']} {scope} {primary}")
 
+        # STEP 6: Show reporting hierarchy
         results.append("")
-        results.append("Role setup complete!")
+        results.append("=== STEP 6: Reporting Hierarchy ===")
+        cursor.execute("SELECT entity_type, entity_value, reports_to_role FROM reporting_hierarchy ORDER BY reports_to_role, entity_value")
+        for row in cursor.fetchall():
+            results.append(f"  {row['entity_value']} ({row['entity_type']}) -> {row['reports_to_role']}")
+
+        results.append("")
+        results.append("=== Role setup complete! ===")
+        results.append("")
+        results.append("IMPORTANT: Please log out and log back in to see the updated roles.")
 
     html_content = """
     <!DOCTYPE html>
