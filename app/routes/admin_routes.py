@@ -1155,3 +1155,283 @@ async def setup_roles_page(request: Request):
     </html>
     """
     return HTMLResponse(content=html_content)
+
+
+@router.get("/diagnostics", response_class=HTMLResponse)
+async def diagnostics_page(request: Request):
+    """
+    Comprehensive diagnostic page showing all data mappings.
+    Helps identify role and office mapping issues.
+    """
+    user, redirect = require_admin_access(request)
+    if redirect:
+        return redirect
+
+    from app.roles import get_user_roles
+
+    results = []
+    results.append("=" * 80)
+    results.append("COMPREHENSIVE DIAGNOSTIC REPORT")
+    results.append("=" * 80)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # 1. Current User Info
+        results.append("\n" + "=" * 60)
+        results.append("1. CURRENT USER INFO")
+        results.append("=" * 60)
+        results.append(f"  Officer ID: {user['officer_id']}")
+        results.append(f"  Name: {user['name']}")
+        results.append(f"  Email: {user['email']}")
+        results.append(f"  Office ID: {user['office_id']}")
+        results.append(f"  Designation: {user['designation']}")
+        results.append(f"  Admin Role ID: {user.get('admin_role_id', 'None')}")
+        results.append(f"  Active Role: {user.get('active_role', 'None')}")
+        results.append(f"  Is Admin: {user.get('is_admin', False)}")
+        results.append(f"  Computed Role: {user.get('role', 'None')}")
+        results.append(f"  Role Display: {user.get('role_display', 'None')}")
+        results.append(f"  Permissions: {user.get('permissions', [])}")
+        results.append(f"\n  Available Roles from get_user_roles():")
+        for role in user.get('roles', []):
+            results.append(f"    - {role['role_type']} (scope: {role.get('scope_type', 'N/A')}={role.get('scope_value', 'N/A')})")
+
+        # 2. All Offices
+        results.append("\n" + "=" * 60)
+        results.append("2. ALL OFFICES (from offices table)")
+        results.append("=" * 60)
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        offices = cursor.fetchall()
+        for row in offices:
+            results.append(f"  {row['office_id']} -> {row['office_name']}")
+
+        # 3. All Officers with their Office IDs
+        results.append("\n" + "=" * 60)
+        results.append("3. ALL OFFICERS (with office_id and admin_role_id)")
+        results.append("=" * 60)
+        cursor.execute("""
+            SELECT officer_id, name, email, office_id, designation, admin_role_id, is_active
+            FROM officers
+            ORDER BY office_id, name
+        """)
+        officers = cursor.fetchall()
+        for row in officers:
+            active_mark = "[ACTIVE]" if row['is_active'] else "[INACTIVE]"
+            admin_role = row['admin_role_id'] if row['admin_role_id'] else "None"
+            results.append(f"  {row['officer_id']}: {row['name']}")
+            results.append(f"      Office: {row['office_id']}, Admin Role: {admin_role} {active_mark}")
+
+        # 4. All Officer Roles
+        results.append("\n" + "=" * 60)
+        results.append("4. ALL OFFICER_ROLES (role assignments)")
+        results.append("=" * 60)
+        cursor.execute("""
+            SELECT r.*, o.name as officer_name, o.office_id as officer_office
+            FROM officer_roles r
+            JOIN officers o ON r.officer_id = o.officer_id
+            ORDER BY o.name, r.role_type
+        """)
+        roles_data = cursor.fetchall()
+        if roles_data:
+            for row in roles_data:
+                primary = "[PRIMARY]" if row['is_primary'] else ""
+                scope = f"scope: {row['scope_type']}={row['scope_value']}" if row['scope_value'] else "no scope"
+                results.append(f"  {row['officer_name']} (office: {row['officer_office']})")
+                results.append(f"      Role: {row['role_type']}, {scope} {primary}")
+        else:
+            results.append("  NO ROLES FOUND IN officer_roles TABLE!")
+
+        # 5. Reporting Hierarchy
+        results.append("\n" + "=" * 60)
+        results.append("5. REPORTING_HIERARCHY (Office->DDG mapping)")
+        results.append("=" * 60)
+        cursor.execute("""
+            SELECT entity_type, entity_value, reports_to_role
+            FROM reporting_hierarchy
+            ORDER BY reports_to_role, entity_value
+        """)
+        hierarchy = cursor.fetchall()
+        if hierarchy:
+            ddg1_offices = []
+            ddg2_offices = []
+            for row in hierarchy:
+                if row['reports_to_role'] == 'DDG-I':
+                    ddg1_offices.append(row['entity_value'])
+                else:
+                    ddg2_offices.append(row['entity_value'])
+            results.append(f"  DDG-I offices ({len(ddg1_offices)}): {', '.join(ddg1_offices)}")
+            results.append(f"  DDG-II offices ({len(ddg2_offices)}): {', '.join(ddg2_offices)}")
+        else:
+            results.append("  NO ENTRIES IN reporting_hierarchy TABLE!")
+
+        # 6. Team Leader Assignments
+        results.append("\n" + "=" * 60)
+        results.append("6. TEAM LEADER ASSIGNMENTS")
+        results.append("=" * 60)
+        cursor.execute("""
+            SELECT DISTINCT a.team_leader_officer_id, o.name, o.office_id
+            FROM assignments a
+            JOIN officers o ON a.team_leader_officer_id = o.officer_id
+            WHERE a.team_leader_officer_id IS NOT NULL
+            ORDER BY o.name
+        """)
+        team_leaders = cursor.fetchall()
+        if team_leaders:
+            for row in team_leaders:
+                results.append(f"  {row['name']} (ID: {row['team_leader_officer_id']}, Office: {row['office_id']})")
+        else:
+            results.append("  No team leaders assigned to any assignments")
+
+        # 7. Assignments Summary
+        results.append("\n" + "=" * 60)
+        results.append("7. ASSIGNMENTS SUMMARY (by office_id)")
+        results.append("=" * 60)
+        cursor.execute("""
+            SELECT office_id, COUNT(*) as count
+            FROM assignments
+            GROUP BY office_id
+            ORDER BY office_id
+        """)
+        assignment_summary = cursor.fetchall()
+        if assignment_summary:
+            for row in assignment_summary:
+                results.append(f"  {row['office_id']}: {row['count']} assignments")
+        else:
+            results.append("  No assignments found")
+
+        # 8. Sample Assignments Detail
+        results.append("\n" + "=" * 60)
+        results.append("8. SAMPLE ASSIGNMENTS (first 10)")
+        results.append("=" * 60)
+        cursor.execute("""
+            SELECT a.id, a.assignment_no, a.office_id, a.team_leader_officer_id, a.type,
+                   tl.name as team_leader_name
+            FROM assignments a
+            LEFT JOIN officers tl ON a.team_leader_officer_id = tl.officer_id
+            ORDER BY a.id
+            LIMIT 10
+        """)
+        sample_assignments = cursor.fetchall()
+        if sample_assignments:
+            for row in sample_assignments:
+                tl_name = row['team_leader_name'] if row['team_leader_name'] else "None"
+                results.append(f"  #{row['id']} ({row['assignment_no']})")
+                results.append(f"      Office: {row['office_id']}, TL: {tl_name}, Type: {row['type']}")
+        else:
+            results.append("  No assignments found")
+
+        # 9. Cross-check: Office IDs in assignments vs offices table
+        results.append("\n" + "=" * 60)
+        results.append("9. DATA INTEGRITY CHECK")
+        results.append("=" * 60)
+
+        # Get all unique office_ids from assignments
+        cursor.execute("SELECT DISTINCT office_id FROM assignments")
+        assignment_offices = set(row['office_id'] for row in cursor.fetchall())
+
+        # Get all office_ids from offices table
+        cursor.execute("SELECT office_id FROM offices")
+        valid_offices = set(row['office_id'] for row in cursor.fetchall())
+
+        # Get all entity_values from reporting_hierarchy
+        cursor.execute("SELECT entity_value FROM reporting_hierarchy WHERE entity_type = 'OFFICE'")
+        hierarchy_offices = set(row['entity_value'] for row in cursor.fetchall())
+
+        # Get all scope_values from officer_roles
+        cursor.execute("SELECT DISTINCT scope_value FROM officer_roles WHERE scope_value IS NOT NULL")
+        role_scope_values = set(row['scope_value'] for row in cursor.fetchall())
+
+        # Check for mismatches
+        orphan_assignment_offices = assignment_offices - valid_offices
+        if orphan_assignment_offices:
+            results.append(f"  [WARNING] Assignments with invalid office_id: {orphan_assignment_offices}")
+        else:
+            results.append("  [OK] All assignment office_ids exist in offices table")
+
+        missing_hierarchy = valid_offices - hierarchy_offices
+        if missing_hierarchy:
+            results.append(f"  [WARNING] Offices NOT in reporting_hierarchy: {missing_hierarchy}")
+        else:
+            results.append("  [OK] All offices have reporting hierarchy entries")
+
+        invalid_scope = role_scope_values - valid_offices
+        if invalid_scope:
+            results.append(f"  [WARNING] officer_roles.scope_value NOT matching offices: {invalid_scope}")
+        else:
+            results.append("  [OK] All officer_role scope_values match offices")
+
+        # 10. Check current user's office mapping
+        results.append("\n" + "=" * 60)
+        results.append("10. CURRENT USER ROLE RESOLUTION DEBUG")
+        results.append("=" * 60)
+
+        user_office = user['office_id']
+        results.append(f"  User's office_id: {user_office}")
+
+        # Check if office exists
+        cursor.execute(f"SELECT office_id, office_name FROM offices WHERE office_id = {ph()}", (user_office,))
+        office_row = cursor.fetchone()
+        if office_row:
+            results.append(f"  [OK] Office exists: {office_row['office_name']}")
+        else:
+            results.append(f"  [ERROR] Office ID '{user_office}' NOT FOUND in offices table!")
+
+        # Check reporting hierarchy
+        cursor.execute(f"SELECT reports_to_role FROM reporting_hierarchy WHERE entity_value = {ph()}", (user_office,))
+        hierarchy_row = cursor.fetchone()
+        if hierarchy_row:
+            results.append(f"  [OK] Office reports to: {hierarchy_row['reports_to_role']}")
+        else:
+            results.append(f"  [ERROR] Office '{user_office}' NOT in reporting_hierarchy!")
+
+        # Check user's role entries
+        cursor.execute(f"SELECT * FROM officer_roles WHERE officer_id = {ph()}", (user['officer_id'],))
+        user_roles_db = cursor.fetchall()
+        if user_roles_db:
+            results.append(f"  User has {len(user_roles_db)} role(s) in officer_roles:")
+            for role in user_roles_db:
+                results.append(f"    - {role['role_type']} (scope: {role['scope_type']}={role['scope_value']})")
+        else:
+            results.append("  [INFO] No entries in officer_roles for this user")
+            results.append("         Roles will be determined from admin_role_id and team assignments")
+
+    results.append("\n" + "=" * 80)
+    results.append("END OF DIAGNOSTIC REPORT")
+    results.append("=" * 80)
+
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>System Diagnostics</title>
+        <style>
+            body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #eee; }
+            pre {
+                background: #16213e;
+                color: #0f0;
+                padding: 20px;
+                border-radius: 5px;
+                overflow-x: auto;
+                white-space: pre-wrap;
+                word-wrap: break-word;
+            }
+            h2 { color: #e94560; }
+            a { color: #0f4c75; background: #eee; padding: 5px 10px; text-decoration: none; border-radius: 3px; }
+            a:hover { background: #fff; }
+            .actions { margin: 20px 0; }
+            .actions a { margin-right: 10px; }
+        </style>
+    </head>
+    <body>
+        <h2>System Diagnostics</h2>
+        <div class="actions">
+            <a href="/admin/setup-roles">Run Role Setup</a>
+            <a href="/admin/diagnostics">Refresh</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/logout">Logout & Re-login</a>
+        </div>
+        <pre>""" + "\n".join(results) + """</pre>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)

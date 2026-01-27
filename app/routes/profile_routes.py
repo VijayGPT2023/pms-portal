@@ -8,6 +8,7 @@ from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.templates_config import templates
 from app.auth import hash_password, verify_password, update_session_role, deserialize_session
+from app.config import SESSION_COOKIE_NAME
 
 router = APIRouter()
 
@@ -200,7 +201,7 @@ async def switch_role(
         return RedirectResponse(url="/login", status_code=302)
 
     # Get session ID from cookie
-    session_token = request.cookies.get("session")
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
     if session_token:
         session_id = deserialize_session(session_token)
         if session_id:
