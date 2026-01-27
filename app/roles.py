@@ -449,7 +449,7 @@ def can_receive_revenue(user: dict, assignment_id: int = None) -> bool:
             if USE_POSTGRES:
                 cursor.execute("""
                     SELECT role FROM assignment_team
-                    WHERE assignment_id = %s AND officer_id = %s AND is_active = true
+                    WHERE assignment_id = %s AND officer_id = %s AND is_active = 1
                 """, (assignment_id, user.get('officer_id')))
             else:
                 cursor.execute("""

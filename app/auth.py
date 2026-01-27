@@ -99,7 +99,7 @@ def validate_session(session_id: str) -> Optional[dict]:
                 """SELECT s.officer_id, s.expires_at, s.active_role, o.name, o.email, o.office_id, o.designation, o.admin_role_id
                    FROM sessions s
                    JOIN officers o ON s.officer_id = o.officer_id
-                   WHERE s.session_id = %s AND o.is_active = true""",
+                   WHERE s.session_id = %s AND o.is_active = 1""",
                 (session_id,)
             )
         else:
