@@ -7,7 +7,7 @@ from datetime import date
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import RedirectResponse, HTMLResponse
 
-from app.database import get_db
+from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.templates_config import templates
 from app.roles import get_user_roles
@@ -45,18 +45,20 @@ def get_active_role_info(user: dict):
 
 def get_offices_for_ddg(cursor, ddg_role: str):
     """Get list of offices that report to a DDG role."""
-    cursor.execute("""
+    ph = '%s' if USE_POSTGRES else '?'
+    cursor.execute(f"""
         SELECT entity_value FROM reporting_hierarchy
-        WHERE entity_type = 'OFFICE' AND reports_to_role = ?
+        WHERE entity_type = 'OFFICE' AND reports_to_role = {ph}
     """, (ddg_role,))
     return [row['entity_value'] for row in cursor.fetchall()]
 
 
 def get_groups_for_ddg(cursor, ddg_role: str):
     """Get list of groups that report to a DDG role."""
-    cursor.execute("""
+    ph = '%s' if USE_POSTGRES else '?'
+    cursor.execute(f"""
         SELECT entity_value FROM reporting_hierarchy
-        WHERE entity_type = 'GROUP' AND reports_to_role = ?
+        WHERE entity_type = 'GROUP' AND reports_to_role = {ph}
     """, (ddg_role,))
     return [row['entity_value'] for row in cursor.fetchall()]
 
@@ -118,7 +120,8 @@ async def dashboard(
             all_office_ids = role_offices + role_groups
 
             if all_office_ids:
-                placeholders = ','.join(['?' for _ in all_office_ids])
+                ph = '%s' if USE_POSTGRES else '?'
+                placeholders = ','.join([ph for _ in all_office_ids])
 
                 query = f"""
                     SELECT
@@ -146,14 +149,15 @@ async def dashboard(
             # Group Head sees assignments in their group office (e.g., office_id = 'HRM', 'IE', 'Finance')
             view_title = f"Group Head ({scope_value}) View"
             view_type = "group"
-            query = """
+            ph = '%s' if USE_POSTGRES else '?'
+            query = f"""
                 SELECT
                     a.id, a.assignment_no, a.type, a.title, a.client, a.office_id,
                     a.status, a.gross_value, a.invoice_amount, a.amount_received,
                     a.total_revenue, a.details_filled, a.team_leader_officer_id, a.domain,
                     (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as share_count
                 FROM assignments a
-                WHERE a.office_id = ?
+                WHERE a.office_id = {ph}
             """
             params = [scope_value]
 
@@ -161,14 +165,15 @@ async def dashboard(
             # RD Head sees assignments in their office
             view_title = f"RD Head ({scope_value}) View"
             view_type = "office"
-            query = """
+            ph = '%s' if USE_POSTGRES else '?'
+            query = f"""
                 SELECT
                     a.id, a.assignment_no, a.type, a.title, a.client, a.office_id,
                     a.status, a.gross_value, a.invoice_amount, a.amount_received,
                     a.total_revenue, a.details_filled, a.team_leader_officer_id,
                     (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as share_count
                 FROM assignments a
-                WHERE a.office_id = ?
+                WHERE a.office_id = {ph}
             """
             params = [scope_value]
 
@@ -176,14 +181,15 @@ async def dashboard(
             # Team Leader sees assignments where they are TL
             view_title = "Team Leader View"
             view_type = "team_leader"
-            query = """
+            ph = '%s' if USE_POSTGRES else '?'
+            query = f"""
                 SELECT
                     a.id, a.assignment_no, a.type, a.title, a.client, a.office_id,
                     a.status, a.gross_value, a.invoice_amount, a.amount_received,
                     a.total_revenue, a.details_filled, a.team_leader_officer_id,
                     (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as share_count
                 FROM assignments a
-                WHERE a.team_leader_officer_id = ?
+                WHERE a.team_leader_officer_id = {ph}
             """
             params = [user['officer_id']]
 
@@ -206,7 +212,8 @@ async def dashboard(
             # OFFICER (Individual) - shows assignments where user has revenue share
             view_title = "My Dashboard"
             view_type = "individual"
-            query = """
+            ph = '%s' if USE_POSTGRES else '?'
+            query = f"""
                 SELECT DISTINCT
                     a.id, a.assignment_no, a.type, a.title, a.client, a.office_id,
                     a.status, a.gross_value, a.invoice_amount, a.amount_received,
@@ -214,21 +221,22 @@ async def dashboard(
                     rs.share_percent, rs.share_amount
                 FROM assignments a
                 JOIN revenue_shares rs ON a.id = rs.assignment_id
-                WHERE rs.officer_id = ?
+                WHERE rs.officer_id = {ph}
             """
             params = [user['officer_id']]
 
         # Apply additional filters
+        ph = '%s' if USE_POSTGRES else '?'
         if filter_office and view_type in ('npc', 'ddg'):
-            query += " AND a.office_id = ?"
+            query += f" AND a.office_id = {ph}"
             params.append(filter_office)
 
         if filter_type:
-            query += " AND a.type = ?"
+            query += f" AND a.type = {ph}"
             params.append(filter_type)
 
         if filter_status:
-            query += " AND a.status = ?"
+            query += f" AND a.status = {ph}"
             params.append(filter_status)
 
         query += " ORDER BY a.assignment_no DESC LIMIT 100"
@@ -243,9 +251,10 @@ async def dashboard(
         # Get offices for filter dropdown
         if view_type in ('npc', 'ddg'):
             if role_offices:
+                ph = '%s' if USE_POSTGRES else '?'
                 cursor.execute(f"""
                     SELECT office_id, office_name FROM offices
-                    WHERE office_id IN ({','.join(['?' for _ in role_offices])})
+                    WHERE office_id IN ({','.join([ph for _ in role_offices])})
                     ORDER BY office_id
                 """, role_offices)
             else:
@@ -289,17 +298,18 @@ async def dashboard(
 def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_offices, role_groups, fy_progress):
     """Get summary statistics based on view type."""
     summary = {}
+    ph = '%s' if USE_POSTGRES else '?'
 
     if view_type == 'individual':
         # Individual stats: officer's own performance
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 COUNT(DISTINCT rs.assignment_id) as assignment_count,
                 COALESCE(SUM(rs.share_amount), 0) as total_share,
                 o.annual_target
             FROM revenue_shares rs
             JOIN officers o ON rs.officer_id = o.officer_id
-            WHERE rs.officer_id = ?
+            WHERE rs.officer_id = {ph}
             GROUP BY o.annual_target
         """, (user['officer_id'],))
         row = cursor.fetchone()
@@ -313,10 +323,10 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
                       'prorata_target': round(60 * fy_progress, 2), 'achievement_pct': 0}
 
         # Get notional revenue for individual
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COALESCE(SUM(notional_value), 0) as notional
             FROM non_revenue_suggestions
-            WHERE officer_id = ? AND status = 'COMPLETED'
+            WHERE officer_id = {ph} AND status = 'COMPLETED'
         """, (user['officer_id'],))
         notional_row = cursor.fetchone()
         summary['notional_revenue'] = notional_row['notional'] if notional_row else 0
@@ -324,13 +334,13 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
 
     elif view_type == 'team_leader':
         # Team Leader stats
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 COUNT(*) as assignment_count,
                 COALESCE(SUM(total_revenue), 0) as total_revenue,
                 COALESCE(SUM(gross_value), 0) as total_value
             FROM assignments
-            WHERE team_leader_officer_id = ?
+            WHERE team_leader_officer_id = {ph}
         """, (user['officer_id'],))
         row = cursor.fetchone()
         if row:
@@ -346,7 +356,7 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
     elif view_type == 'office':
         # RD Head / Office stats
         office_id = scope_value or user['office_id']
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 COUNT(*) as assignment_count,
                 COALESCE(SUM(total_revenue), 0) as total_revenue,
@@ -354,7 +364,7 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
                 o.officer_count
             FROM assignments a
             JOIN offices o ON a.office_id = o.office_id
-            WHERE a.office_id = ?
+            WHERE a.office_id = {ph}
             GROUP BY o.annual_revenue_target, o.officer_count
         """, (office_id,))
         row = cursor.fetchone()
@@ -368,10 +378,10 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
                       'prorata_target': 0, 'achievement_pct': 0, 'officer_count': 0}
 
         # Get notional revenue for office
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COALESCE(SUM(notional_value), 0) as notional
             FROM non_revenue_suggestions
-            WHERE office_id = ? AND status = 'COMPLETED'
+            WHERE office_id = {ph} AND status = 'COMPLETED'
         """, (office_id,))
         notional_row = cursor.fetchone()
         summary['notional_revenue'] = notional_row['notional'] if notional_row else 0
@@ -379,13 +389,13 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
 
     elif view_type == 'group':
         # Group Head stats (by office_id, e.g., "HRM", "Finance", "IE" - group offices)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 COUNT(*) as assignment_count,
                 COALESCE(SUM(total_revenue), 0) as total_revenue,
                 COALESCE(SUM(gross_value), 0) as total_value
             FROM assignments
-            WHERE office_id = ?
+            WHERE office_id = {ph}
         """, (scope_value,))
         row = cursor.fetchone()
         if row:
@@ -397,11 +407,11 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
         summary['achievement_pct'] = round((summary['total_revenue'] / summary['target'] * 100), 1) if summary['target'] > 0 else 0
 
         # Get officers count in this group office
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT COUNT(DISTINCT rs.officer_id) as officer_count
             FROM revenue_shares rs
             JOIN assignments a ON rs.assignment_id = a.id
-            WHERE a.office_id = ?
+            WHERE a.office_id = {ph}
         """, (scope_value,))
         officer_row = cursor.fetchone()
         summary['officer_count'] = officer_row['officer_count'] if officer_row else 0
@@ -414,7 +424,7 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
         all_office_ids = role_offices + role_groups
 
         if all_office_ids:
-            placeholders = ','.join(['?' for _ in all_office_ids])
+            placeholders = ','.join([ph for _ in all_office_ids])
 
             cursor.execute(f"""
                 SELECT
@@ -432,7 +442,7 @@ def get_summary_stats(cursor, user, view_type, active_role, scope_value, role_of
 
             # Get target from offices (only actual offices, not groups)
             if role_offices:
-                office_placeholders = ','.join(['?' for _ in role_offices])
+                office_placeholders = ','.join([ph for _ in role_offices])
                 cursor.execute(f"""
                     SELECT COALESCE(SUM(annual_revenue_target), 0) as target,
                            COUNT(*) as office_count,
@@ -495,11 +505,13 @@ async def dashboard_summary(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
+    ph = '%s' if USE_POSTGRES else '?'
+
     with get_db() as conn:
         cursor = conn.cursor()
 
         # Get summary stats
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 COUNT(*) as total_assignments,
                 SUM(CASE WHEN type = 'ASSIGNMENT' THEN 1 ELSE 0 END) as total_projects,
@@ -507,15 +519,15 @@ async def dashboard_summary(request: Request):
                 SUM(COALESCE(total_revenue, 0)) as total_revenue,
                 SUM(COALESCE(amount_received, 0)) as total_received
             FROM assignments
-            WHERE office_id = ?
+            WHERE office_id = {ph}
         """, (user['office_id'],))
         summary = dict(cursor.fetchone())
 
         # Get officer's personal share
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT SUM(share_amount) as my_total_share
             FROM revenue_shares
-            WHERE officer_id = ?
+            WHERE officer_id = {ph}
         """, (user['officer_id'],))
         row = cursor.fetchone()
         summary['my_total_share'] = row['my_total_share'] or 0
