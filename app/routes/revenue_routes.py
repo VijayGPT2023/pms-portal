@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 import json
 
-from app.database import get_db
+from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.templates_config import templates
 
@@ -17,7 +17,8 @@ def get_assignment(assignment_id: int):
     """Get assignment by ID."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,))
+        ph = '%s' if USE_POSTGRES else '?'
+        cursor.execute(f"SELECT * FROM assignments WHERE id = {ph}", (assignment_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -39,11 +40,12 @@ def get_existing_shares(assignment_id: int):
     """Get existing revenue shares for an assignment."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        ph = '%s' if USE_POSTGRES else '?'
+        cursor.execute(f"""
             SELECT rs.*, o.name as officer_name
             FROM revenue_shares rs
             JOIN officers o ON rs.officer_id = o.officer_id
-            WHERE rs.assignment_id = ?
+            WHERE rs.assignment_id = {ph}
             ORDER BY rs.share_percent DESC
         """, (assignment_id,))
         return [dict(row) for row in cursor.fetchall()]
@@ -141,15 +143,16 @@ async def revenue_share_submit(request: Request, assignment_id: int):
     # Save shares to database
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Delete existing shares
-        cursor.execute("DELETE FROM revenue_shares WHERE assignment_id = ?", (assignment_id,))
+        cursor.execute(f"DELETE FROM revenue_shares WHERE assignment_id = {ph}", (assignment_id,))
 
         # Insert new shares
         for share in shares:
-            cursor.execute("""
+            cursor.execute(f"""
                 INSERT INTO revenue_shares (assignment_id, officer_id, share_percent, share_amount)
-                VALUES (?, ?, ?, ?)
+                VALUES ({ph}, {ph}, {ph}, {ph})
             """, (assignment_id, share['officer_id'], share['share_percent'], share['share_amount']))
 
     # Check if user wants to finish wizard

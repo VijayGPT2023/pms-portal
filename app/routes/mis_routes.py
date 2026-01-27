@@ -7,7 +7,7 @@ from datetime import datetime, date
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import RedirectResponse, HTMLResponse
 
-from app.database import get_db
+from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.templates_config import templates
 
@@ -77,6 +77,7 @@ async def mis_dashboard(
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Build base filter conditions
         base_conditions = "WHERE 1=1"
@@ -84,23 +85,23 @@ async def mis_dashboard(
 
         fy_start, fy_end = parse_financial_year(financial_year)
         if fy_start and fy_end:
-            base_conditions += " AND (a.start_date BETWEEN ? AND ? OR a.work_order_date BETWEEN ? AND ?)"
+            base_conditions += f" AND (a.start_date BETWEEN {ph} AND {ph} OR a.work_order_date BETWEEN {ph} AND {ph})"
             params.extend([fy_start.isoformat(), fy_end.isoformat(), fy_start.isoformat(), fy_end.isoformat()])
 
         if date_from:
-            base_conditions += " AND (a.start_date >= ? OR a.work_order_date >= ?)"
+            base_conditions += f" AND (a.start_date >= {ph} OR a.work_order_date >= {ph})"
             params.extend([date_from, date_from])
 
         if date_to:
-            base_conditions += " AND (a.start_date <= ? OR a.work_order_date <= ?)"
+            base_conditions += f" AND (a.start_date <= {ph} OR a.work_order_date <= {ph})"
             params.extend([date_to, date_to])
 
         if filter_office:
-            base_conditions += " AND a.office_id = ?"
+            base_conditions += f" AND a.office_id = {ph}"
             params.append(filter_office)
 
         if filter_domain:
-            base_conditions += " AND a.domain = ?"
+            base_conditions += f" AND a.domain = {ph}"
             params.append(filter_domain)
 
         # 1. Office-wise Target vs Achievement (with Assignment/Training/Notional breakdown)
@@ -126,7 +127,7 @@ async def mis_dashboard(
             FROM assignments a
             LEFT JOIN offices o ON a.office_id = o.office_id
             LEFT JOIN financial_year_targets fyt ON a.office_id = fyt.office_id
-                AND fyt.financial_year = ?
+                AND fyt.financial_year = {ph}
             {base_conditions}
             GROUP BY a.office_id, o.office_name, o.officer_count, o.annual_revenue_target,
                      fyt.annual_target, fyt.training_target, fyt.lecture_target
@@ -188,19 +189,19 @@ async def mis_dashboard(
         officer_params = []
 
         if fy_start and fy_end:
-            officer_conditions += " AND (a.start_date BETWEEN ? AND ? OR a.work_order_date BETWEEN ? AND ?)"
+            officer_conditions += f" AND (a.start_date BETWEEN {ph} AND {ph} OR a.work_order_date BETWEEN {ph} AND {ph})"
             officer_params.extend([fy_start.isoformat(), fy_end.isoformat(), fy_start.isoformat(), fy_end.isoformat()])
 
         if date_from:
-            officer_conditions += " AND (a.start_date >= ? OR a.work_order_date >= ?)"
+            officer_conditions += f" AND (a.start_date >= {ph} OR a.work_order_date >= {ph})"
             officer_params.extend([date_from, date_from])
 
         if date_to:
-            officer_conditions += " AND (a.start_date <= ? OR a.work_order_date <= ?)"
+            officer_conditions += f" AND (a.start_date <= {ph} OR a.work_order_date <= {ph})"
             officer_params.extend([date_to, date_to])
 
         if filter_office:
-            officer_conditions += " AND off.office_id = ?"
+            officer_conditions += f" AND off.office_id = {ph}"
             officer_params.append(filter_office)
 
         # Show ALL active officers, not just those with revenue shares
@@ -227,7 +228,7 @@ async def mis_dashboard(
                 GROUP BY rs.officer_id
             ) revenue_data ON off.officer_id = revenue_data.officer_id
             WHERE off.is_active = 1
-            {"AND off.office_id = ?" if filter_office else ""}
+            {f"AND off.office_id = {ph}" if filter_office else ""}
             ORDER BY total_share_amount DESC
         """
         # Add filter_office to params if specified
@@ -371,14 +372,15 @@ async def office_detail(request: Request, office_id: str):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Get office info with target
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT o.*, fyt.annual_target as fy_target, fyt.training_target, fyt.lecture_target
             FROM offices o
             LEFT JOIN financial_year_targets fyt ON o.office_id = fyt.office_id
-                AND fyt.financial_year = ?
-            WHERE o.office_id = ?
+                AND fyt.financial_year = {ph}
+            WHERE o.office_id = {ph}
         """, (f"{date.today().year}-{str(date.today().year + 1)[-2:]}" if date.today().month >= 4
               else f"{date.today().year - 1}-{str(date.today().year)[-2:]}", office_id))
         office = cursor.fetchone()
@@ -387,27 +389,27 @@ async def office_detail(request: Request, office_id: str):
         office = dict(office)
 
         # Get assignments for this office with milestones count
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 a.*,
                 (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as share_count,
                 (SELECT COUNT(*) FROM milestones m WHERE m.assignment_id = a.id) as milestone_count,
                 (SELECT COUNT(*) FROM milestones m WHERE m.assignment_id = a.id AND m.status = 'Completed') as completed_milestones
             FROM assignments a
-            WHERE a.office_id = ?
+            WHERE a.office_id = {ph}
             ORDER BY a.start_date DESC
         """, (office_id,))
         assignments = [dict(row) for row in cursor.fetchall()]
 
         # Get ALL officers in this office with their targets and achievements
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 o.*,
                 COALESCE(SUM(rs.share_amount), 0) as total_share,
                 COUNT(DISTINCT rs.assignment_id) as assignment_count
             FROM officers o
             LEFT JOIN revenue_shares rs ON o.officer_id = rs.officer_id
-            WHERE o.office_id = ? AND o.is_active = 1
+            WHERE o.office_id = {ph} AND o.is_active = 1
             GROUP BY o.officer_id
         """, (office_id,))
         officers = [dict(row) for row in cursor.fetchall()]
@@ -422,13 +424,13 @@ async def office_detail(request: Request, office_id: str):
         officers = sorted(officers, key=lambda x: x['achievement_pct'] or 0, reverse=True)
 
         # Get status breakdown for this office
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 status,
                 COUNT(*) as count,
                 AVG(COALESCE(physical_progress_percent, 0)) as avg_progress
             FROM assignments
-            WHERE office_id = ?
+            WHERE office_id = {ph}
             GROUP BY status
             ORDER BY count DESC
         """, (office_id,))
@@ -479,16 +481,17 @@ async def officer_detail(request: Request, officer_id: str):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Get officer info
-        cursor.execute("SELECT * FROM officers WHERE officer_id = ?", (officer_id,))
+        cursor.execute(f"SELECT * FROM officers WHERE officer_id = {ph}", (officer_id,))
         officer = cursor.fetchone()
         if not officer:
             return RedirectResponse(url="/mis", status_code=302)
         officer = dict(officer)
 
         # Get revenue shares for this officer with assignment details
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 rs.*,
                 a.assignment_no,
@@ -503,7 +506,7 @@ async def officer_detail(request: Request, officer_id: str):
                 a.target_date
             FROM revenue_shares rs
             JOIN assignments a ON rs.assignment_id = a.id
-            WHERE rs.officer_id = ?
+            WHERE rs.officer_id = {ph}
             ORDER BY rs.share_amount DESC
         """, (officer_id,))
         shares = [dict(row) for row in cursor.fetchall()]
@@ -544,28 +547,29 @@ async def assignment_progress(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Get assignment details
-        cursor.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,))
+        cursor.execute(f"SELECT * FROM assignments WHERE id = {ph}", (assignment_id,))
         assignment = cursor.fetchone()
         if not assignment:
             return RedirectResponse(url="/mis", status_code=302)
         assignment = dict(assignment)
 
         # Get milestones
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT * FROM milestones
-            WHERE assignment_id = ?
+            WHERE assignment_id = {ph}
             ORDER BY milestone_no
         """, (assignment_id,))
         milestones = [dict(row) for row in cursor.fetchall()]
 
         # Get expenditure items
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT ei.*, eh.category, eh.head_code, eh.head_name
             FROM expenditure_items ei
             JOIN expenditure_heads eh ON ei.head_id = eh.id
-            WHERE ei.assignment_id = ?
+            WHERE ei.assignment_id = {ph}
             ORDER BY eh.category, eh.head_code
         """, (assignment_id,))
         expenditure_items = [dict(row) for row in cursor.fetchall()]
@@ -619,21 +623,22 @@ async def assignments_list(
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Build query with filters
         conditions = "WHERE 1=1"
         params = []
 
         if filter_office:
-            conditions += " AND a.office_id = ?"
+            conditions += f" AND a.office_id = {ph}"
             params.append(filter_office)
 
         if filter_domain:
-            conditions += " AND a.domain = ?"
+            conditions += f" AND a.domain = {ph}"
             params.append(filter_domain)
 
         if filter_status:
-            conditions += " AND a.status = ?"
+            conditions += f" AND a.status = {ph}"
             params.append(filter_status)
 
         # Determine sort column
@@ -718,9 +723,10 @@ async def domain_detail(
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Get office breakdown for this domain
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 a.office_id,
                 o.office_name,
@@ -731,18 +737,18 @@ async def domain_detail(
                 AVG(COALESCE(a.physical_progress_percent, 0)) as avg_progress
             FROM assignments a
             LEFT JOIN offices o ON a.office_id = o.office_id
-            WHERE a.domain = ?
+            WHERE a.domain = {ph}
             GROUP BY a.office_id, o.office_name
             ORDER BY total_revenue DESC
         """, (domain,))
         offices_in_domain = [dict(row) for row in cursor.fetchall()]
 
         # Get all assignments in this domain
-        conditions = "WHERE a.domain = ?"
+        conditions = f"WHERE a.domain = {ph}"
         params = [domain]
 
         if filter_office:
-            conditions += " AND a.office_id = ?"
+            conditions += f" AND a.office_id = {ph}"
             params.append(filter_office)
 
         cursor.execute(f"""
@@ -758,7 +764,7 @@ async def domain_detail(
         assignments = [dict(row) for row in cursor.fetchall()]
 
         # Get officer contributions in this domain
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 rs.officer_id,
                 off.name,
@@ -769,7 +775,7 @@ async def domain_detail(
             FROM revenue_shares rs
             JOIN assignments a ON rs.assignment_id = a.id
             JOIN officers off ON rs.officer_id = off.officer_id
-            WHERE a.domain = ?
+            WHERE a.domain = {ph}
             GROUP BY rs.officer_id, off.name, off.office_id, off.designation
             ORDER BY total_share DESC
             LIMIT 20
@@ -829,28 +835,29 @@ async def domain_office_detail(request: Request, domain: str, office_id: str):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Get office info
-        cursor.execute("SELECT * FROM offices WHERE office_id = ?", (office_id,))
+        cursor.execute(f"SELECT * FROM offices WHERE office_id = {ph}", (office_id,))
         office = cursor.fetchone()
         if not office:
             return RedirectResponse(url=f"/mis/domain/{domain}", status_code=302)
         office = dict(office)
 
         # Get assignments for this domain + office combination
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 a.*,
                 (SELECT COUNT(*) FROM revenue_shares rs WHERE rs.assignment_id = a.id) as team_size,
                 (SELECT COUNT(*) FROM milestones m WHERE m.assignment_id = a.id) as milestone_count
             FROM assignments a
-            WHERE a.domain = ? AND a.office_id = ?
+            WHERE a.domain = {ph} AND a.office_id = {ph}
             ORDER BY a.total_revenue DESC
         """, (domain, office_id))
         assignments = [dict(row) for row in cursor.fetchall()]
 
         # Get officers working on these assignments
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT
                 rs.officer_id,
                 off.name,
@@ -861,7 +868,7 @@ async def domain_office_detail(request: Request, domain: str, office_id: str):
             FROM revenue_shares rs
             JOIN assignments a ON rs.assignment_id = a.id
             JOIN officers off ON rs.officer_id = off.officer_id
-            WHERE a.domain = ? AND a.office_id = ?
+            WHERE a.domain = {ph} AND a.office_id = {ph}
             GROUP BY rs.officer_id, off.name, off.designation
             ORDER BY total_share DESC
         """, (domain, office_id))
@@ -916,13 +923,14 @@ async def officers_direct(
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Get all active officers with their revenue data
         conditions = "WHERE off.is_active = 1"
         params = []
 
         if filter_office:
-            conditions += " AND off.office_id = ?"
+            conditions += f" AND off.office_id = {ph}"
             params.append(filter_office)
 
         cursor.execute(f"""
@@ -1062,27 +1070,28 @@ async def office_financial_mis(
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Build office filter
         office_filter = ""
         office_params = []
         if filter_office:
-            office_filter = "AND a.office_id = ?"
+            office_filter = f"AND a.office_id = {ph}"
             office_params = [filter_office]
 
         # Build date filter for period
         period_filter = ""
         period_params = []
         if date_from:
-            period_filter += " AND m.target_date >= ?"
+            period_filter += f" AND m.target_date >= {ph}"
             period_params.append(date_from)
         if date_to:
-            period_filter += " AND m.target_date <= ?"
+            period_filter += f" AND m.target_date <= {ph}"
             period_params.append(date_to)
 
         # If no date filter, use current FY
         if not date_from and not date_to and fy_start and fy_end:
-            period_filter = " AND m.target_date BETWEEN ? AND ?"
+            period_filter = f" AND m.target_date BETWEEN {ph} AND {ph}"
             period_params = [fy_start.isoformat(), fy_end.isoformat()]
 
         # Get all offices
@@ -1127,7 +1136,7 @@ async def office_financial_mis(
         new_assignment_filter = ""
         new_params = list(office_params)
         if fy_start and fy_end:
-            new_assignment_filter = " AND a.work_order_date BETWEEN ? AND ?"
+            new_assignment_filter = f" AND a.work_order_date BETWEEN {ph} AND {ph}"
             new_params.extend([fy_start.isoformat(), fy_end.isoformat()])
 
         cursor.execute(f"""

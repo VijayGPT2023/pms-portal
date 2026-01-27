@@ -4,7 +4,7 @@ Approval workflow routes for managing assignment approvals, team allocations, et
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.database import get_db
+from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user, is_admin, is_head, is_senior_management
 from app.roles import (
     ROLE_ADMIN, ROLE_DG, ROLE_DDG_I, ROLE_DDG_II,
@@ -40,11 +40,12 @@ async def approvals_page(request: Request):
         user_office = user.get('office_id')
 
         # Build office filter
+        ph = '%s' if USE_POSTGRES else '?'
         if user_role in [ROLE_ADMIN, ROLE_DG, ROLE_DDG_I, ROLE_DDG_II]:
             office_filter = ""
             office_params = []
         else:
-            office_filter = "AND a.office_id = ?"
+            office_filter = f"AND a.office_id = {ph}"
             office_params = [user_office]
 
         # Get pending assignments (DRAFT status, needs approval)
@@ -301,17 +302,18 @@ async def approve_assignment(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET approval_status = 'APPROVED', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (assignment_id,))
 
         # Log the action
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'assignment', ?, 'Assignment approved')
+            VALUES ({ph}, 'APPROVE', 'assignment', {ph}, 'Assignment approved')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -327,17 +329,18 @@ async def reject_assignment(request: Request, assignment_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
-            SET approval_status = 'REJECTED', remarks = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            SET approval_status = 'REJECTED', remarks = {ph}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (rejection_remarks, assignment_id))
 
         # Log the action
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'assignment', ?, ?)
+            VALUES ({ph}, 'REJECT', 'assignment', {ph}, {ph})
         """, (user['officer_id'], assignment_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -353,30 +356,38 @@ async def allocate_team_leader(request: Request, assignment_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Update assignment with team leader
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
-            SET team_leader_officer_id = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            SET team_leader_officer_id = {ph}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (team_leader_id, assignment_id))
 
         # Add to assignment_team table
-        cursor.execute("""
-            INSERT OR REPLACE INTO assignment_team (assignment_id, officer_id, role, assigned_by)
-            VALUES (?, ?, 'TEAM_LEADER', ?)
-        """, (assignment_id, team_leader_id, user['officer_id']))
+        if USE_POSTGRES:
+            cursor.execute(f"""
+                INSERT INTO assignment_team (assignment_id, officer_id, role, assigned_by)
+                VALUES ({ph}, {ph}, 'TEAM_LEADER', {ph})
+                ON CONFLICT (assignment_id, officer_id) DO UPDATE SET role = 'TEAM_LEADER', assigned_by = EXCLUDED.assigned_by
+            """, (assignment_id, team_leader_id, user['officer_id']))
+        else:
+            cursor.execute("""
+                INSERT OR REPLACE INTO assignment_team (assignment_id, officer_id, role, assigned_by)
+                VALUES (?, ?, 'TEAM_LEADER', ?)
+            """, (assignment_id, team_leader_id, user['officer_id']))
 
         # Update the team leader's role if not already set
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE officers SET admin_role_id = 'TEAM_LEADER'
-            WHERE officer_id = ? AND (admin_role_id IS NULL OR admin_role_id = '')
+            WHERE officer_id = {ph} AND (admin_role_id IS NULL OR admin_role_id = '')
         """, (team_leader_id,))
 
         # Log the action
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, new_data, remarks)
-            VALUES (?, 'UPDATE', 'assignment', ?, ?, 'Team leader allocated')
+            VALUES ({ph}, 'UPDATE', 'assignment', {ph}, {ph}, 'Team leader allocated')
         """, (user['officer_id'], assignment_id, f"team_leader={team_leader_id}"))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -391,17 +402,18 @@ async def approve_request(request: Request, request_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE approval_requests
-            SET status = 'APPROVED', approved_by = ?, approved_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            SET status = 'APPROVED', approved_by = {ph}, approved_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (user['officer_id'], request_id))
 
         # Log the action
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'request', ?, 'Request approved')
+            VALUES ({ph}, 'APPROVE', 'request', {ph}, 'Request approved')
         """, (user['officer_id'], request_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -417,18 +429,19 @@ async def reject_request(request: Request, request_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE approval_requests
-            SET status = 'REJECTED', approval_remarks = ?, approved_by = ?,
+            SET status = 'REJECTED', approval_remarks = {ph}, approved_by = {ph},
                 approved_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (rejection_remarks, user['officer_id'], request_id))
 
         # Log the action
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'request', ?, ?)
+            VALUES ({ph}, 'REJECT', 'request', {ph}, {ph})
         """, (user['officer_id'], request_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -444,17 +457,18 @@ async def escalate_request(request: Request, request_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE approval_requests
-            SET status = 'ESCALATED', escalated_to = ?, escalated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            SET status = 'ESCALATED', escalated_to = {ph}, escalated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (escalate_to, request_id))
 
         # Log the action
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, new_data, remarks)
-            VALUES (?, 'ESCALATE', 'request', ?, ?, 'Request escalated')
+            VALUES ({ph}, 'ESCALATE', 'request', {ph}, {ph}, 'Request escalated')
         """, (user['officer_id'], request_id, f"escalated_to={escalate_to}"))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -473,10 +487,11 @@ async def submit_cost_estimation(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Verify user is TL of this assignment
-        cursor.execute("""
-            SELECT team_leader_officer_id FROM assignments WHERE id = ?
+        cursor.execute(f"""
+            SELECT team_leader_officer_id FROM assignments WHERE id = {ph}
         """, (assignment_id,))
         assignment = cursor.fetchone()
         if not assignment or assignment['team_leader_officer_id'] != user['officer_id']:
@@ -485,24 +500,24 @@ async def submit_cost_estimation(request: Request, assignment_id: int):
                 return RedirectResponse(url="/dashboard?error=unauthorized", status_code=302)
 
         # Check if expenditure items exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM expenditure_items WHERE assignment_id = ?
+        cursor.execute(f"""
+            SELECT COUNT(*) as cnt FROM expenditure_items WHERE assignment_id = {ph}
         """, (assignment_id,))
         if cursor.fetchone()['cnt'] == 0:
             return RedirectResponse(url=f"/assignment/expenditure/{assignment_id}?error=no_items", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET cost_approval_status = 'SUBMITTED',
-                cost_submitted_by = ?,
+                cost_submitted_by = {ph},
                 cost_submitted_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'SUBMIT', 'cost_estimation', ?, 'Cost estimation submitted for approval')
+            VALUES ({ph}, 'SUBMIT', 'cost_estimation', {ph}, 'Cost estimation submitted for approval')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url=f"/assignment/view/{assignment_id}?success=cost_submitted", status_code=302)
@@ -517,19 +532,20 @@ async def approve_cost_estimation(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET cost_approval_status = 'APPROVED',
-                cost_approved_by = ?,
+                cost_approved_by = {ph},
                 cost_approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'cost_estimation', ?, 'Cost estimation approved')
+            VALUES ({ph}, 'APPROVE', 'cost_estimation', {ph}, 'Cost estimation approved')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -545,18 +561,19 @@ async def reject_cost_estimation(request: Request, assignment_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET cost_approval_status = 'REJECTED',
-                remarks = ?,
+                remarks = {ph},
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (rejection_remarks, assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'cost_estimation', ?, ?)
+            VALUES ({ph}, 'REJECT', 'cost_estimation', {ph}, {ph})
         """, (user['officer_id'], assignment_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -575,10 +592,11 @@ async def submit_team_constitution(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Verify user is TL of this assignment
-        cursor.execute("""
-            SELECT team_leader_officer_id FROM assignments WHERE id = ?
+        cursor.execute(f"""
+            SELECT team_leader_officer_id FROM assignments WHERE id = {ph}
         """, (assignment_id,))
         assignment = cursor.fetchone()
         if not assignment or assignment['team_leader_officer_id'] != user['officer_id']:
@@ -586,24 +604,24 @@ async def submit_team_constitution(request: Request, assignment_id: int):
                 return RedirectResponse(url="/dashboard?error=unauthorized", status_code=302)
 
         # Check if team members exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM assignment_team WHERE assignment_id = ?
+        cursor.execute(f"""
+            SELECT COUNT(*) as cnt FROM assignment_team WHERE assignment_id = {ph}
         """, (assignment_id,))
         if cursor.fetchone()['cnt'] == 0:
             return RedirectResponse(url=f"/revenue/edit/{assignment_id}?error=no_team", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET team_approval_status = 'SUBMITTED',
-                team_submitted_by = ?,
+                team_submitted_by = {ph},
                 team_submitted_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'SUBMIT', 'team_constitution', ?, 'Team constitution submitted for approval')
+            VALUES ({ph}, 'SUBMIT', 'team_constitution', {ph}, 'Team constitution submitted for approval')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url=f"/assignment/view/{assignment_id}?success=team_submitted", status_code=302)
@@ -618,19 +636,20 @@ async def approve_team_constitution(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET team_approval_status = 'APPROVED',
-                team_approved_by = ?,
+                team_approved_by = {ph},
                 team_approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'team_constitution', ?, 'Team constitution approved')
+            VALUES ({ph}, 'APPROVE', 'team_constitution', {ph}, 'Team constitution approved')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -646,18 +665,19 @@ async def reject_team_constitution(request: Request, assignment_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET team_approval_status = 'REJECTED',
-                remarks = ?,
+                remarks = {ph},
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (rejection_remarks, assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'team_constitution', ?, ?)
+            VALUES ({ph}, 'REJECT', 'team_constitution', {ph}, {ph})
         """, (user['officer_id'], assignment_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -676,10 +696,11 @@ async def submit_milestone_planning(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Verify user is TL of this assignment
-        cursor.execute("""
-            SELECT team_leader_officer_id FROM assignments WHERE id = ?
+        cursor.execute(f"""
+            SELECT team_leader_officer_id FROM assignments WHERE id = {ph}
         """, (assignment_id,))
         assignment = cursor.fetchone()
         if not assignment or assignment['team_leader_officer_id'] != user['officer_id']:
@@ -687,24 +708,24 @@ async def submit_milestone_planning(request: Request, assignment_id: int):
                 return RedirectResponse(url="/dashboard?error=unauthorized", status_code=302)
 
         # Check if milestones exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM milestones WHERE assignment_id = ?
+        cursor.execute(f"""
+            SELECT COUNT(*) as cnt FROM milestones WHERE assignment_id = {ph}
         """, (assignment_id,))
         if cursor.fetchone()['cnt'] == 0:
             return RedirectResponse(url=f"/assignment/milestones/{assignment_id}?error=no_milestones", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET milestone_approval_status = 'SUBMITTED',
-                milestone_submitted_by = ?,
+                milestone_submitted_by = {ph},
                 milestone_submitted_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'SUBMIT', 'milestone_planning', ?, 'Milestone planning submitted for approval')
+            VALUES ({ph}, 'SUBMIT', 'milestone_planning', {ph}, 'Milestone planning submitted for approval')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url=f"/assignment/view/{assignment_id}?success=milestone_submitted", status_code=302)
@@ -719,27 +740,28 @@ async def approve_milestone_planning(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET milestone_approval_status = 'APPROVED',
-                milestone_approved_by = ?,
+                milestone_approved_by = {ph},
                 milestone_approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
         # Also update all pending milestones to approved
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE milestones
             SET approval_status = 'APPROVED',
                 updated_at = CURRENT_TIMESTAMP
-            WHERE assignment_id = ? AND approval_status = 'PENDING'
+            WHERE assignment_id = {ph} AND approval_status = 'PENDING'
         """, (assignment_id,))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'milestone_planning', ?, 'Milestone planning approved')
+            VALUES ({ph}, 'APPROVE', 'milestone_planning', {ph}, 'Milestone planning approved')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -755,18 +777,19 @@ async def reject_milestone_planning(request: Request, assignment_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET milestone_approval_status = 'REJECTED',
-                remarks = ?,
+                remarks = {ph},
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (rejection_remarks, assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'milestone_planning', ?, ?)
+            VALUES ({ph}, 'REJECT', 'milestone_planning', {ph}, {ph})
         """, (user['officer_id'], assignment_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -785,10 +808,11 @@ async def submit_revenue_shares(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Verify user is TL of this assignment
-        cursor.execute("""
-            SELECT team_leader_officer_id FROM assignments WHERE id = ?
+        cursor.execute(f"""
+            SELECT team_leader_officer_id FROM assignments WHERE id = {ph}
         """, (assignment_id,))
         assignment = cursor.fetchone()
         if not assignment or assignment['team_leader_officer_id'] != user['officer_id']:
@@ -796,32 +820,32 @@ async def submit_revenue_shares(request: Request, assignment_id: int):
                 return RedirectResponse(url="/dashboard?error=unauthorized", status_code=302)
 
         # Check if revenue shares exist
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM revenue_shares WHERE assignment_id = ?
+        cursor.execute(f"""
+            SELECT COUNT(*) as cnt FROM revenue_shares WHERE assignment_id = {ph}
         """, (assignment_id,))
         if cursor.fetchone()['cnt'] == 0:
             return RedirectResponse(url=f"/revenue/edit/{assignment_id}?error=no_shares", status_code=302)
 
         # Verify total is 100%
-        cursor.execute("""
-            SELECT SUM(share_percent) as total FROM revenue_shares WHERE assignment_id = ?
+        cursor.execute(f"""
+            SELECT SUM(share_percent) as total FROM revenue_shares WHERE assignment_id = {ph}
         """, (assignment_id,))
         total = cursor.fetchone()['total'] or 0
         if abs(total - 100) > 0.01:
             return RedirectResponse(url=f"/revenue/edit/{assignment_id}?error=total_not_100", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET revenue_approval_status = 'SUBMITTED',
-                revenue_submitted_by = ?,
+                revenue_submitted_by = {ph},
                 revenue_submitted_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'SUBMIT', 'revenue_shares', ?, 'Revenue shares submitted for approval')
+            VALUES ({ph}, 'SUBMIT', 'revenue_shares', {ph}, 'Revenue shares submitted for approval')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url=f"/assignment/view/{assignment_id}?success=revenue_submitted", status_code=302)
@@ -836,19 +860,20 @@ async def approve_revenue_shares(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET revenue_approval_status = 'APPROVED',
-                revenue_approved_by = ?,
+                revenue_approved_by = {ph},
                 revenue_approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'revenue_shares', ?, 'Revenue shares approved')
+            VALUES ({ph}, 'APPROVE', 'revenue_shares', {ph}, 'Revenue shares approved')
         """, (user['officer_id'], assignment_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -864,18 +889,19 @@ async def reject_revenue_shares(request: Request, assignment_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE assignments
             SET revenue_approval_status = 'REJECTED',
-                remarks = ?,
+                remarks = {ph},
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (rejection_remarks, assignment_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'revenue_shares', ?, ?)
+            VALUES ({ph}, 'REJECT', 'revenue_shares', {ph}, {ph})
         """, (user['officer_id'], assignment_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -894,23 +920,24 @@ async def approve_tentative_date(request: Request, milestone_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE milestones
             SET tentative_date_status = 'APPROVED',
-                tentative_date_approved_by = ?,
+                tentative_date_approved_by = {ph},
                 tentative_date_approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (user['officer_id'], milestone_id))
 
         # Get assignment_id for logging
-        cursor.execute("SELECT assignment_id FROM milestones WHERE id = ?", (milestone_id,))
+        cursor.execute(f"SELECT assignment_id FROM milestones WHERE id = {ph}", (milestone_id,))
         milestone = cursor.fetchone()
         if milestone:
-            cursor.execute("""
+            cursor.execute(f"""
                 INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-                VALUES (?, 'APPROVE', 'tentative_date', ?, 'Tentative date change approved')
+                VALUES ({ph}, 'APPROVE', 'tentative_date', {ph}, 'Tentative date change approved')
             """, (user['officer_id'], milestone['assignment_id']))
 
     return RedirectResponse(url="/approvals", status_code=302)
@@ -926,25 +953,26 @@ async def reject_tentative_date(request: Request, milestone_id: int,
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
         # Get the original target_date to revert tentative_date
-        cursor.execute("SELECT assignment_id, target_date FROM milestones WHERE id = ?", (milestone_id,))
+        cursor.execute(f"SELECT assignment_id, target_date FROM milestones WHERE id = {ph}", (milestone_id,))
         milestone = cursor.fetchone()
 
         if milestone:
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE milestones
-                SET tentative_date = ?,
+                SET tentative_date = {ph},
                     tentative_date_status = 'REJECTED',
-                    tentative_date_approved_by = ?,
+                    tentative_date_approved_by = {ph},
                     tentative_date_approved_at = CURRENT_TIMESTAMP,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                WHERE id = {ph}
             """, (milestone['target_date'], user['officer_id'], milestone_id))
 
-            cursor.execute("""
+            cursor.execute(f"""
                 INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-                VALUES (?, 'REJECT', 'tentative_date', ?, ?)
+                VALUES ({ph}, 'REJECT', 'tentative_date', {ph}, {ph})
             """, (user['officer_id'], milestone['assignment_id'], rejection_remarks or 'Tentative date change rejected'))
 
     return RedirectResponse(url="/approvals", status_code=302)

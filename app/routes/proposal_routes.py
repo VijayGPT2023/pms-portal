@@ -78,15 +78,16 @@ async def list_proposals(request: Request, status: str = None, office: str = Non
     with get_db() as conn:
         cursor = conn.cursor()
 
+        ph = '%s' if USE_POSTGRES else '?'
         conditions = ["1=1"]
         params = []
 
         if status:
-            conditions.append("p.status = ?")
+            conditions.append(f"p.status = {ph}")
             params.append(status)
 
         if office:
-            conditions.append("p.office_id = ?")
+            conditions.append(f"p.office_id = {ph}")
             params.append(office)
 
         # View filters
@@ -94,14 +95,14 @@ async def list_proposals(request: Request, status: str = None, office: str = Non
         if view == 'pending_approval' and admin_role in ['ADMIN', 'DG', 'DDG', 'HEAD']:
             conditions.append("p.approval_status = 'PENDING'")
         elif view == 'my_created':
-            conditions.append("p.created_by = ?")
+            conditions.append(f"p.created_by = {ph}")
             params.append(user['officer_id'])
         elif view == 'my_allocated':
-            conditions.append("p.officer_id = ?")
+            conditions.append(f"p.officer_id = {ph}")
             params.append(user['officer_id'])
         elif admin_role not in ['ADMIN', 'DG', 'DDG']:
             # Regular users see their office's proposals
-            conditions.append("p.office_id = ?")
+            conditions.append(f"p.office_id = {ph}")
             params.append(user['office_id'])
 
         where_clause = " AND ".join(conditions)
@@ -163,7 +164,8 @@ async def new_proposal_form(request: Request, from_pr: int = None):
     if from_pr:
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM proposal_requests WHERE id = ?", (from_pr,))
+            ph = '%s' if USE_POSTGRES else '?'
+            cursor.execute(f"SELECT * FROM proposal_requests WHERE id = {ph}", (from_pr,))
             row = cursor.fetchone()
             if row:
                 source_pr = dict(row)
@@ -240,42 +242,58 @@ async def create_proposal(
 
     # Get enquiry_id from PR if available
     enquiry_id = None
+    ph = '%s' if USE_POSTGRES else '?'
     if from_pr:
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT enquiry_id FROM proposal_requests WHERE id = ?", (from_pr,))
+            cursor.execute(f"SELECT enquiry_id FROM proposal_requests WHERE id = {ph}", (from_pr,))
             row = cursor.fetchone()
             if row:
                 enquiry_id = row['enquiry_id']
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO proposals
-            (proposal_number, pr_id, enquiry_id, client_name, client_type, domain, sub_domain,
-             office_id, officer_id, description, estimated_value, proposed_value, target_date,
-             remarks, status, approval_status, approved_by, approved_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (proposal_number, from_pr, enquiry_id, client_name, client_type, domain, sub_domain,
-              office_id, officer_id if is_head else None, description, estimated_value, proposed_value,
-              target_date, remarks, initial_status, approval_status,
-              user['officer_id'] if is_head else None,
-              datetime.now() if is_head else None,
-              user['officer_id']))
-
-        proposal_id = cursor.lastrowid
+        if USE_POSTGRES:
+            cursor.execute(f"""
+                INSERT INTO proposals
+                (proposal_number, pr_id, enquiry_id, client_name, client_type, domain, sub_domain,
+                 office_id, officer_id, description, estimated_value, proposed_value, target_date,
+                 remarks, status, approval_status, approved_by, approved_at, created_by)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                RETURNING id
+            """, (proposal_number, from_pr, enquiry_id, client_name, client_type, domain, sub_domain,
+                  office_id, officer_id if is_head else None, description, estimated_value, proposed_value,
+                  target_date, remarks, initial_status, approval_status,
+                  user['officer_id'] if is_head else None,
+                  datetime.now() if is_head else None,
+                  user['officer_id']))
+            proposal_id = cursor.fetchone()['id']
+        else:
+            cursor.execute("""
+                INSERT INTO proposals
+                (proposal_number, pr_id, enquiry_id, client_name, client_type, domain, sub_domain,
+                 office_id, officer_id, description, estimated_value, proposed_value, target_date,
+                 remarks, status, approval_status, approved_by, approved_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (proposal_number, from_pr, enquiry_id, client_name, client_type, domain, sub_domain,
+                  office_id, officer_id if is_head else None, description, estimated_value, proposed_value,
+                  target_date, remarks, initial_status, approval_status,
+                  user['officer_id'] if is_head else None,
+                  datetime.now() if is_head else None,
+                  user['officer_id']))
+            proposal_id = cursor.lastrowid
 
         # If created from PR, update PR status
         if from_pr:
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE proposal_requests SET status = 'CONVERTED_TO_PROPOSAL', updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
+                WHERE id = {ph}
             """, (from_pr,))
 
         # Log activity
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'CREATE', 'proposal', ?, ?)
+            VALUES ({ph}, 'CREATE', 'proposal', {ph}, {ph})
         """, (user['officer_id'], proposal_id, f"Created proposal {proposal_number}"))
 
     return RedirectResponse(url=f"/proposal/{proposal_id}", status_code=302)
@@ -290,8 +308,9 @@ async def view_proposal(request: Request, proposal_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT p.*, o.name as officer_name, off.office_name,
                    pr.pr_number, e.enquiry_number, creator.name as created_by_name,
                    approver.name as approved_by_name
@@ -302,7 +321,7 @@ async def view_proposal(request: Request, proposal_id: int):
             LEFT JOIN enquiries e ON p.enquiry_id = e.id
             LEFT JOIN officers creator ON p.created_by = creator.officer_id
             LEFT JOIN officers approver ON p.approved_by = approver.officer_id
-            WHERE p.id = ?
+            WHERE p.id = {ph}
         """, (proposal_id,))
         proposal = cursor.fetchone()
 
@@ -312,8 +331,8 @@ async def view_proposal(request: Request, proposal_id: int):
         proposal = dict(proposal)
 
         # Check if converted to Assignment (Work Order)
-        cursor.execute("""
-            SELECT * FROM assignments WHERE proposal_id = ?
+        cursor.execute(f"""
+            SELECT * FROM assignments WHERE proposal_id = {ph}
         """, (proposal_id,))
         linked_assignment = cursor.fetchone()
         if linked_assignment:
@@ -321,23 +340,23 @@ async def view_proposal(request: Request, proposal_id: int):
 
         # Get source PR and Enquiry details
         if proposal.get('pr_id'):
-            cursor.execute("SELECT * FROM proposal_requests WHERE id = ?", (proposal['pr_id'],))
+            cursor.execute(f"SELECT * FROM proposal_requests WHERE id = {ph}", (proposal['pr_id'],))
             pr = cursor.fetchone()
             if pr:
                 proposal['pr'] = dict(pr)
 
         if proposal.get('enquiry_id'):
-            cursor.execute("SELECT * FROM enquiries WHERE id = ?", (proposal['enquiry_id'],))
+            cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (proposal['enquiry_id'],))
             enq = cursor.fetchone()
             if enq:
                 proposal['enquiry'] = dict(enq)
 
         # Get activity log
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT al.*, o.name as actor_name
             FROM activity_log al
             LEFT JOIN officers o ON al.actor_id = o.officer_id
-            WHERE al.entity_type = 'proposal' AND al.entity_id = ?
+            WHERE al.entity_type = 'proposal' AND al.entity_id = {ph}
             ORDER BY al.created_at DESC
         """, (proposal_id,))
         activities = [dict(row) for row in cursor.fetchall()]
@@ -377,8 +396,9 @@ async def edit_proposal_form(request: Request, proposal_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+        cursor.execute(f"SELECT * FROM proposals WHERE id = {ph}", (proposal_id,))
         proposal = cursor.fetchone()
 
         if not proposal:
@@ -437,24 +457,25 @@ async def update_proposal(
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+        cursor.execute(f"SELECT * FROM proposals WHERE id = {ph}", (proposal_id,))
         proposal = cursor.fetchone()
         if not proposal or not can_edit_proposal(user, dict(proposal)):
             return RedirectResponse(url=f"/proposal/{proposal_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE proposals SET
-                client_name = ?, client_type = ?, domain = ?, sub_domain = ?,
-                office_id = ?, officer_id = ?, description = ?, estimated_value = ?,
-                proposed_value = ?, target_date = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+                client_name = {ph}, client_type = {ph}, domain = {ph}, sub_domain = {ph},
+                office_id = {ph}, officer_id = {ph}, description = {ph}, estimated_value = {ph},
+                proposed_value = {ph}, target_date = {ph}, remarks = {ph}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (client_name, client_type, domain, sub_domain, office_id, officer_id,
               description, estimated_value, proposed_value, target_date, remarks, proposal_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'UPDATE', 'proposal', ?, 'Updated proposal details')
+            VALUES ({ph}, 'UPDATE', 'proposal', {ph}, 'Updated proposal details')
         """, (user['officer_id'], proposal_id))
 
     return RedirectResponse(url=f"/proposal/{proposal_id}", status_code=302)
@@ -469,8 +490,9 @@ async def approve_proposal(request: Request, proposal_id: int, officer_id: str =
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+        cursor.execute(f"SELECT * FROM proposals WHERE id = {ph}", (proposal_id,))
         proposal = cursor.fetchone()
 
         if not proposal:
@@ -479,17 +501,17 @@ async def approve_proposal(request: Request, proposal_id: int, officer_id: str =
         if not is_office_head(user, proposal['office_id']):
             return RedirectResponse(url=f"/proposal/{proposal_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE proposals SET
                 status = 'APPROVED', approval_status = 'APPROVED',
-                officer_id = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+                officer_id = {ph}, approved_by = {ph}, approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (officer_id, user['officer_id'], proposal_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'proposal', ?, 'Approved and allocated to officer')
+            VALUES ({ph}, 'APPROVE', 'proposal', {ph}, 'Approved and allocated to officer')
         """, (user['officer_id'], proposal_id))
 
     return RedirectResponse(url=f"/proposal/{proposal_id}", status_code=302)
@@ -504,8 +526,9 @@ async def reject_proposal(request: Request, proposal_id: int, rejection_reason: 
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+        cursor.execute(f"SELECT * FROM proposals WHERE id = {ph}", (proposal_id,))
         proposal = cursor.fetchone()
 
         if not proposal:
@@ -514,17 +537,17 @@ async def reject_proposal(request: Request, proposal_id: int, rejection_reason: 
         if not is_office_head(user, proposal['office_id']):
             return RedirectResponse(url=f"/proposal/{proposal_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE proposals SET
                 status = 'REJECTED', approval_status = 'REJECTED',
-                rejection_reason = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+                rejection_reason = {ph}, approved_by = {ph}, approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (rejection_reason, user['officer_id'], proposal_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'proposal', ?, ?)
+            VALUES ({ph}, 'REJECT', 'proposal', {ph}, {ph})
         """, (user['officer_id'], proposal_id, f"Rejected: {rejection_reason}"))
 
     return RedirectResponse(url=f"/proposal/{proposal_id}", status_code=302)
