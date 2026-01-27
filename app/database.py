@@ -1455,6 +1455,27 @@ def init_database():
             pass
 
         # ============================================================
+        # Training Programme Preparation Checklist
+        # ============================================================
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_checklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                programme_id INTEGER NOT NULL,
+                step_order INTEGER NOT NULL,
+                step_name TEXT NOT NULL,
+                step_description TEXT,
+                is_completed INTEGER DEFAULT 0,
+                completed_date DATE,
+                completed_by TEXT,
+                remarks TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (programme_id) REFERENCES training_programmes(id),
+                FOREIGN KEY (completed_by) REFERENCES officers(officer_id),
+                UNIQUE(programme_id, step_order)
+            )
+        """)
+
+        # ============================================================
         # PHASE-1 UPGRADE: Cost Estimate Versioning
         # ============================================================
 
@@ -2086,6 +2107,71 @@ def generate_payment_receipt_number() -> str:
         next_num = cursor.fetchone()['next_num']
 
     return f"RCPT/{year}/{next_num:06d}"
+
+
+# ============================================================
+# Training Programme Checklist Functions
+# ============================================================
+
+TRAINING_CHECKLIST_STEPS = [
+    (1, "Topics Finalized", "Confirm training topics and syllabus"),
+    (2, "Venue Confirmed", "Book and confirm training venue/hall"),
+    (3, "Hotel Booked", "Reserve accommodation for participants/faculty"),
+    (4, "Faculty Confirmed", "Confirm all trainers/faculty availability"),
+    (5, "Itinerary Prepared", "Prepare day-wise schedule and itinerary"),
+    (6, "Programme Conducted", "Training programme conducted successfully"),
+    (7, "Bills Settled", "Settle all hotel, venue, and other bills"),
+    (8, "Invoices Raised", "Raise invoices to all participants"),
+    (9, "Payments Collected", "Collect payments from all participants"),
+]
+
+
+def initialize_training_checklist(programme_id: int) -> None:
+    """Initialize the preparation checklist for a training programme."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for step_order, step_name, step_description in TRAINING_CHECKLIST_STEPS:
+            cursor.execute("""
+                INSERT OR IGNORE INTO training_checklist
+                (programme_id, step_order, step_name, step_description)
+                VALUES (?, ?, ?, ?)
+            """, (programme_id, step_order, step_name, step_description))
+        conn.commit()
+
+
+def get_training_checklist(programme_id: int) -> list:
+    """Get checklist items for a training programme."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT tc.*, o.name as completed_by_name
+            FROM training_checklist tc
+            LEFT JOIN officers o ON tc.completed_by = o.officer_id
+            WHERE tc.programme_id = ?
+            ORDER BY tc.step_order
+        """, (programme_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def update_checklist_step(programme_id: int, step_order: int, is_completed: bool,
+                          completed_by: str = None, remarks: str = None) -> None:
+    """Update a checklist step completion status."""
+    from datetime import date
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if is_completed:
+            cursor.execute("""
+                UPDATE training_checklist
+                SET is_completed = 1, completed_date = ?, completed_by = ?, remarks = ?
+                WHERE programme_id = ? AND step_order = ?
+            """, (date.today(), completed_by, remarks, programme_id, step_order))
+        else:
+            cursor.execute("""
+                UPDATE training_checklist
+                SET is_completed = 0, completed_date = NULL, completed_by = NULL, remarks = ?
+                WHERE programme_id = ? AND step_order = ?
+            """, (remarks, programme_id, step_order))
+        conn.commit()
 
 
 # ============================================================

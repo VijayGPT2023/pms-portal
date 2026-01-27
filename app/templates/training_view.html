@@ -128,6 +128,92 @@
     {% endif %}
 </div>
 
+<!-- Preparation Checklist -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Preparation Checklist</h2>
+        {% set completed_count = checklist|selectattr('is_completed')|list|length %}
+        <span class="badge {% if completed_count == checklist|length %}badge-success{% elif completed_count > 0 %}badge-warning{% else %}badge-secondary{% endif %}">
+            {{ completed_count }} / {{ checklist|length }} Completed
+        </span>
+    </div>
+
+    <div style="padding: 20px;">
+        <!-- Progress Bar -->
+        {% set progress_pct = (completed_count / checklist|length * 100) if checklist|length > 0 else 0 %}
+        <div style="background: #e2e8f0; border-radius: 10px; height: 10px; margin-bottom: 20px; overflow: hidden;">
+            <div style="background: linear-gradient(90deg, #10b981, #34d399); height: 100%; width: {{ progress_pct }}%; transition: width 0.3s;"></div>
+        </div>
+
+        <div class="checklist-items">
+            {% for item in checklist %}
+            <div class="checklist-item {% if item.is_completed %}completed{% endif %}" style="
+                display: flex;
+                align-items: flex-start;
+                padding: 15px;
+                border: 1px solid {% if item.is_completed %}#d1fae5{% else %}#e2e8f0{% endif %};
+                border-radius: 8px;
+                margin-bottom: 10px;
+                background: {% if item.is_completed %}#f0fdf4{% else %}#fff{% endif %};
+            ">
+                <div style="flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+                            background: {% if item.is_completed %}#10b981{% else %}#e2e8f0{% endif %};
+                            display: flex; align-items: center; justify-content: center; margin-right: 15px;
+                            color: {% if item.is_completed %}white{% else %}#64748b{% endif %}; font-weight: bold;">
+                    {% if item.is_completed %}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    {% else %}
+                    {{ item.step_order }}
+                    {% endif %}
+                </div>
+
+                <div style="flex: 1;">
+                    <div style="font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+                        {{ item.step_name }}
+                    </div>
+                    <div style="font-size: 0.875rem; color: #64748b; margin-bottom: 8px;">
+                        {{ item.step_description }}
+                    </div>
+
+                    {% if item.is_completed %}
+                    <div style="font-size: 0.75rem; color: #059669;">
+                        Completed {{ item.completed_date }}
+                        {% if item.completed_by_name %}by {{ item.completed_by_name }}{% endif %}
+                        {% if item.remarks %}<br><em>{{ item.remarks }}</em>{% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if can_edit %}
+                <div style="flex-shrink: 0; margin-left: 15px;">
+                    <form method="POST" action="/training/checklist/{{ programme.id }}/{{ item.step_order }}"
+                          style="display: flex; gap: 8px; align-items: center;">
+                        {% if not item.is_completed %}
+                        <input type="hidden" name="is_completed" value="1">
+                        <button type="submit" class="btn btn-sm btn-success" title="Mark as Completed">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </button>
+                        {% else %}
+                        <input type="hidden" name="is_completed" value="0">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary" title="Mark as Incomplete">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"></path>
+                            </svg>
+                        </button>
+                        {% endif %}
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
 <!-- Trainers Section -->
 <div class="card">
     <div class="card-header">

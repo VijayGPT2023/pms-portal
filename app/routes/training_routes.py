@@ -7,7 +7,10 @@ from typing import Optional
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 
-from app.database import get_db, USE_POSTGRES
+from app.database import (
+    get_db, USE_POSTGRES, initialize_training_checklist,
+    get_training_checklist, update_checklist_step
+)
 from app.dependencies import get_current_user, is_admin, is_head, is_senior_management
 from app.templates_config import templates
 
@@ -184,6 +187,9 @@ async def training_create(
             VALUES (?, 'CREATE', 'training_programme', ?, 'Training programme created')
         """, (user['officer_id'], programme_id))
 
+    # Initialize preparation checklist
+    initialize_training_checklist(programme_id)
+
     return RedirectResponse(url=f"/training/view/{programme_id}", status_code=302)
 
 
@@ -239,14 +245,67 @@ async def training_view(request: Request, programme_id: int):
             programme['created_by'] == user['officer_id']
         )
 
+    # Get preparation checklist
+    checklist = get_training_checklist(programme_id)
+    # If checklist is empty (for existing programmes), initialize it
+    if not checklist:
+        initialize_training_checklist(programme_id)
+        checklist = get_training_checklist(programme_id)
+
     return templates.TemplateResponse("training_view.html", {
         "request": request,
         "user": user,
         "programme": programme,
         "trainers": trainers,
         "participants": participants,
+        "checklist": checklist,
         "can_edit": can_edit
     })
+
+
+@router.post("/checklist/{programme_id}/{step_order}")
+async def update_training_checklist(
+    request: Request,
+    programme_id: int,
+    step_order: int,
+    is_completed: str = Form("0"),
+    remarks: str = Form("")
+):
+    """Update a checklist step completion status."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    # Verify user can edit this programme
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT coordinator_id, created_by, office_id FROM training_programmes WHERE id = ?
+        """, (programme_id,))
+        programme = cursor.fetchone()
+        if not programme:
+            return RedirectResponse(url="/training", status_code=302)
+
+        can_edit = (
+            is_admin(user) or
+            is_head(user) or
+            programme['coordinator_id'] == user['officer_id'] or
+            programme['created_by'] == user['officer_id']
+        )
+
+        if not can_edit:
+            return RedirectResponse(url=f"/training/view/{programme_id}", status_code=302)
+
+    # Update the checklist step
+    update_checklist_step(
+        programme_id=programme_id,
+        step_order=step_order,
+        is_completed=(is_completed == "1"),
+        completed_by=user['officer_id'] if is_completed == "1" else None,
+        remarks=remarks
+    )
+
+    return RedirectResponse(url=f"/training/view/{programme_id}", status_code=302)
 
 
 @router.get("/edit/{programme_id}", response_class=HTMLResponse)
