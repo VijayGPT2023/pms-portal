@@ -64,15 +64,26 @@ async def training_list(request: Request):
                 ORDER BY tp.created_at DESC
             """)
         else:
-            cursor.execute("""
-                SELECT tp.*, o.name as coordinator_name, off.office_name
-                FROM training_programmes tp
-                LEFT JOIN officers o ON tp.coordinator_id = o.officer_id
-                LEFT JOIN offices off ON tp.office_id = off.office_id
-                WHERE tp.office_id = ? OR tp.coordinator_id = ?
-                   OR tp.id IN (SELECT programme_id FROM trainer_allocations WHERE officer_id = ?)
-                ORDER BY tp.created_at DESC
-            """, (user['office_id'], user['officer_id'], user['officer_id']))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    SELECT tp.*, o.name as coordinator_name, off.office_name
+                    FROM training_programmes tp
+                    LEFT JOIN officers o ON tp.coordinator_id = o.officer_id
+                    LEFT JOIN offices off ON tp.office_id = off.office_id
+                    WHERE tp.office_id = %s OR tp.coordinator_id = %s
+                       OR tp.id IN (SELECT programme_id FROM trainer_allocations WHERE officer_id = %s)
+                    ORDER BY tp.created_at DESC
+                """, (user['office_id'], user['officer_id'], user['officer_id']))
+            else:
+                cursor.execute("""
+                    SELECT tp.*, o.name as coordinator_name, off.office_name
+                    FROM training_programmes tp
+                    LEFT JOIN officers o ON tp.coordinator_id = o.officer_id
+                    LEFT JOIN offices off ON tp.office_id = off.office_id
+                    WHERE tp.office_id = ? OR tp.coordinator_id = ?
+                       OR tp.id IN (SELECT programme_id FROM trainer_allocations WHERE officer_id = ?)
+                    ORDER BY tp.created_at DESC
+                """, (user['office_id'], user['officer_id'], user['officer_id']))
 
         programmes = [dict(row) for row in cursor.fetchall()]
 
@@ -160,32 +171,59 @@ async def training_create(
         programme_number = generate_programme_number(office_id)
         budgeted_revenue = budgeted_participants * fee_per_participant
 
-        cursor.execute("""
-            INSERT INTO training_programmes
-            (programme_number, title, topic_domain, description, office_id, mode,
-             location, venue_details, training_start_date, training_end_date,
-             duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
-             application_start_date, application_end_date, remarks, created_by,
-             stage, approval_status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ANNOUNCED', 'DRAFT')
-        """, (
-            programme_number, title, topic_domain, description, office_id, mode,
-            location, venue_details,
-            training_start_date if training_start_date else None,
-            training_end_date if training_end_date else None,
-            duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
-            application_start_date if application_start_date else None,
-            application_end_date if application_end_date else None,
-            remarks, user['officer_id']
-        ))
-
-        programme_id = cursor.lastrowid
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO training_programmes
+                (programme_number, title, topic_domain, description, office_id, mode,
+                 location, venue_details, training_start_date, training_end_date,
+                 duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
+                 application_start_date, application_end_date, remarks, created_by,
+                 stage, approval_status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'ANNOUNCED', 'DRAFT')
+                RETURNING id
+            """, (
+                programme_number, title, topic_domain, description, office_id, mode,
+                location, venue_details,
+                training_start_date if training_start_date else None,
+                training_end_date if training_end_date else None,
+                duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
+                application_start_date if application_start_date else None,
+                application_end_date if application_end_date else None,
+                remarks, user['officer_id']
+            ))
+            programme_id = cursor.fetchone()['id']
+        else:
+            cursor.execute("""
+                INSERT INTO training_programmes
+                (programme_number, title, topic_domain, description, office_id, mode,
+                 location, venue_details, training_start_date, training_end_date,
+                 duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
+                 application_start_date, application_end_date, remarks, created_by,
+                 stage, approval_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ANNOUNCED', 'DRAFT')
+            """, (
+                programme_number, title, topic_domain, description, office_id, mode,
+                location, venue_details,
+                training_start_date if training_start_date else None,
+                training_end_date if training_end_date else None,
+                duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
+                application_start_date if application_start_date else None,
+                application_end_date if application_end_date else None,
+                remarks, user['officer_id']
+            ))
+            programme_id = cursor.lastrowid
 
         # Log the action
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'CREATE', 'training_programme', ?, 'Training programme created')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'CREATE', 'training_programme', %s, 'Training programme created')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'CREATE', 'training_programme', ?, 'Training programme created')
+            """, (user['officer_id'], programme_id))
 
     # Initialize preparation checklist
     initialize_training_checklist(programme_id)
@@ -204,15 +242,26 @@ async def training_view(request: Request, programme_id: int):
         cursor = conn.cursor()
 
         # Get programme details
-        cursor.execute("""
-            SELECT tp.*, o.name as coordinator_name, off.office_name,
-                   cb.name as created_by_name
-            FROM training_programmes tp
-            LEFT JOIN officers o ON tp.coordinator_id = o.officer_id
-            LEFT JOIN offices off ON tp.office_id = off.office_id
-            LEFT JOIN officers cb ON tp.created_by = cb.officer_id
-            WHERE tp.id = ?
-        """, (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT tp.*, o.name as coordinator_name, off.office_name,
+                       cb.name as created_by_name
+                FROM training_programmes tp
+                LEFT JOIN officers o ON tp.coordinator_id = o.officer_id
+                LEFT JOIN offices off ON tp.office_id = off.office_id
+                LEFT JOIN officers cb ON tp.created_by = cb.officer_id
+                WHERE tp.id = %s
+            """, (programme_id,))
+        else:
+            cursor.execute("""
+                SELECT tp.*, o.name as coordinator_name, off.office_name,
+                       cb.name as created_by_name
+                FROM training_programmes tp
+                LEFT JOIN officers o ON tp.coordinator_id = o.officer_id
+                LEFT JOIN offices off ON tp.office_id = off.office_id
+                LEFT JOIN officers cb ON tp.created_by = cb.officer_id
+                WHERE tp.id = ?
+            """, (programme_id,))
         programme = cursor.fetchone()
         if not programme:
             return RedirectResponse(url="/training", status_code=302)
@@ -220,21 +269,37 @@ async def training_view(request: Request, programme_id: int):
         programme = dict(programme)
 
         # Get trainer allocations
-        cursor.execute("""
-            SELECT ta.*, o.name as trainer_name, o.designation
-            FROM trainer_allocations ta
-            JOIN officers o ON ta.officer_id = o.officer_id
-            WHERE ta.programme_id = ?
-            ORDER BY ta.trainer_role, o.name
-        """, (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT ta.*, o.name as trainer_name, o.designation
+                FROM trainer_allocations ta
+                JOIN officers o ON ta.officer_id = o.officer_id
+                WHERE ta.programme_id = %s
+                ORDER BY ta.trainer_role, o.name
+            """, (programme_id,))
+        else:
+            cursor.execute("""
+                SELECT ta.*, o.name as trainer_name, o.designation
+                FROM trainer_allocations ta
+                JOIN officers o ON ta.officer_id = o.officer_id
+                WHERE ta.programme_id = ?
+                ORDER BY ta.trainer_role, o.name
+            """, (programme_id,))
         trainers = [dict(row) for row in cursor.fetchall()]
 
         # Get participants
-        cursor.execute("""
-            SELECT * FROM training_participants
-            WHERE programme_id = ?
-            ORDER BY registration_date DESC
-        """, (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT * FROM training_participants
+                WHERE programme_id = %s
+                ORDER BY registration_date DESC
+            """, (programme_id,))
+        else:
+            cursor.execute("""
+                SELECT * FROM training_participants
+                WHERE programme_id = ?
+                ORDER BY registration_date DESC
+            """, (programme_id,))
         participants = [dict(row) for row in cursor.fetchall()]
 
         # Check if user can edit
@@ -279,9 +344,14 @@ async def update_training_checklist(
     # Verify user can edit this programme
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT coordinator_id, created_by, office_id FROM training_programmes WHERE id = ?
-        """, (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT coordinator_id, created_by, office_id FROM training_programmes WHERE id = %s
+            """, (programme_id,))
+        else:
+            cursor.execute("""
+                SELECT coordinator_id, created_by, office_id FROM training_programmes WHERE id = ?
+            """, (programme_id,))
         programme = cursor.fetchone()
         if not programme:
             return RedirectResponse(url="/training", status_code=302)
@@ -318,7 +388,10 @@ async def training_edit_form(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM training_programmes WHERE id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT * FROM training_programmes WHERE id = %s", (programme_id,))
+        else:
+            cursor.execute("SELECT * FROM training_programmes WHERE id = ?", (programme_id,))
         programme = cursor.fetchone()
         if not programme:
             return RedirectResponse(url="/training", status_code=302)
@@ -378,29 +451,55 @@ async def training_edit(
 
         budgeted_revenue = budgeted_participants * fee_per_participant
 
-        cursor.execute("""
-            UPDATE training_programmes SET
-                title = ?, topic_domain = ?, description = ?, office_id = ?, mode = ?,
-                location = ?, venue_details = ?, training_start_date = ?, training_end_date = ?,
-                duration_days = ?, budgeted_participants = ?, fee_per_participant = ?,
-                budgeted_revenue = ?, application_start_date = ?, application_end_date = ?,
-                stage = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (
-            title, topic_domain, description, office_id, mode,
-            location, venue_details,
-            training_start_date if training_start_date else None,
-            training_end_date if training_end_date else None,
-            duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
-            application_start_date if application_start_date else None,
-            application_end_date if application_end_date else None,
-            stage, remarks, programme_id
-        ))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes SET
+                    title = %s, topic_domain = %s, description = %s, office_id = %s, mode = %s,
+                    location = %s, venue_details = %s, training_start_date = %s, training_end_date = %s,
+                    duration_days = %s, budgeted_participants = %s, fee_per_participant = %s,
+                    budgeted_revenue = %s, application_start_date = %s, application_end_date = %s,
+                    stage = %s, remarks = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (
+                title, topic_domain, description, office_id, mode,
+                location, venue_details,
+                training_start_date if training_start_date else None,
+                training_end_date if training_end_date else None,
+                duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
+                application_start_date if application_start_date else None,
+                application_end_date if application_end_date else None,
+                stage, remarks, programme_id
+            ))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes SET
+                    title = ?, topic_domain = ?, description = ?, office_id = ?, mode = ?,
+                    location = ?, venue_details = ?, training_start_date = ?, training_end_date = ?,
+                    duration_days = ?, budgeted_participants = ?, fee_per_participant = ?,
+                    budgeted_revenue = ?, application_start_date = ?, application_end_date = ?,
+                    stage = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                title, topic_domain, description, office_id, mode,
+                location, venue_details,
+                training_start_date if training_start_date else None,
+                training_end_date if training_end_date else None,
+                duration_days, budgeted_participants, fee_per_participant, budgeted_revenue,
+                application_start_date if application_start_date else None,
+                application_end_date if application_end_date else None,
+                stage, remarks, programme_id
+            ))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'UPDATE', 'training_programme', ?, 'Training programme updated')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'UPDATE', 'training_programme', %s, 'Training programme updated')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'UPDATE', 'training_programme', ?, 'Training programme updated')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url=f"/training/view/{programme_id}", status_code=302)
 
@@ -415,7 +514,10 @@ async def trainer_allocation_form(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM training_programmes WHERE id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT * FROM training_programmes WHERE id = %s", (programme_id,))
+        else:
+            cursor.execute("SELECT * FROM training_programmes WHERE id = ?", (programme_id,))
         programme = cursor.fetchone()
         if not programme:
             return RedirectResponse(url="/training", status_code=302)
@@ -423,13 +525,22 @@ async def trainer_allocation_form(request: Request, programme_id: int):
         programme = dict(programme)
 
         # Get existing trainers
-        cursor.execute("""
-            SELECT ta.*, o.name as trainer_name, o.designation
-            FROM trainer_allocations ta
-            JOIN officers o ON ta.officer_id = o.officer_id
-            WHERE ta.programme_id = ?
-            ORDER BY ta.trainer_role, o.name
-        """, (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT ta.*, o.name as trainer_name, o.designation
+                FROM trainer_allocations ta
+                JOIN officers o ON ta.officer_id = o.officer_id
+                WHERE ta.programme_id = %s
+                ORDER BY ta.trainer_role, o.name
+            """, (programme_id,))
+        else:
+            cursor.execute("""
+                SELECT ta.*, o.name as trainer_name, o.designation
+                FROM trainer_allocations ta
+                JOIN officers o ON ta.officer_id = o.officer_id
+                WHERE ta.programme_id = ?
+                ORDER BY ta.trainer_role, o.name
+            """, (programme_id,))
         trainers = [dict(row) for row in cursor.fetchall()]
 
         # Get all officers
@@ -462,7 +573,10 @@ async def save_trainer_allocations(request: Request, programme_id: int):
         cursor = conn.cursor()
 
         # Delete existing allocations
-        cursor.execute("DELETE FROM trainer_allocations WHERE programme_id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("DELETE FROM trainer_allocations WHERE programme_id = %s", (programme_id,))
+        else:
+            cursor.execute("DELETE FROM trainer_allocations WHERE programme_id = ?", (programme_id,))
 
         # Insert new allocations
         i = 0
@@ -473,17 +587,30 @@ async def save_trainer_allocations(request: Request, programme_id: int):
                 allocation_percent = float(form.get(f"trainer_{i}_percent", 0) or 0)
                 allocation_days = int(form.get(f"trainer_{i}_days", 0) or 0)
 
-                cursor.execute("""
-                    INSERT INTO trainer_allocations
-                    (programme_id, officer_id, trainer_role, allocation_percent, allocation_days)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (programme_id, officer_id, trainer_role, allocation_percent, allocation_days))
+                if USE_POSTGRES:
+                    cursor.execute("""
+                        INSERT INTO trainer_allocations
+                        (programme_id, officer_id, trainer_role, allocation_percent, allocation_days)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (programme_id, officer_id, trainer_role, allocation_percent, allocation_days))
+                else:
+                    cursor.execute("""
+                        INSERT INTO trainer_allocations
+                        (programme_id, officer_id, trainer_role, allocation_percent, allocation_days)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (programme_id, officer_id, trainer_role, allocation_percent, allocation_days))
             i += 1
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'UPDATE', 'trainer_allocations', ?, 'Trainer allocations updated')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'UPDATE', 'trainer_allocations', %s, 'Trainer allocations updated')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'UPDATE', 'trainer_allocations', ?, 'Trainer allocations updated')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url=f"/training/view/{programme_id}?success=trainers_saved", status_code=302)
 
@@ -505,19 +632,35 @@ async def approve_training_programme(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET approval_status = 'APPROVED',
-                approved_by = ?,
-                approved_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET approval_status = 'APPROVED',
+                    approved_by = %s,
+                    approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET approval_status = 'APPROVED',
+                    approved_by = ?,
+                    approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (user['officer_id'], programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'training_programme', ?, 'Training programme approved')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'APPROVE', 'training_programme', %s, 'Training programme approved')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'APPROVE', 'training_programme', ?, 'Training programme approved')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -539,18 +682,33 @@ async def reject_training_programme(
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET approval_status = 'REJECTED',
-                remarks = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (rejection_remarks, programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET approval_status = 'REJECTED',
+                    remarks = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (rejection_remarks, programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET approval_status = 'REJECTED',
+                    remarks = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (rejection_remarks, programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'training_programme', ?, ?)
-        """, (user['officer_id'], programme_id, rejection_remarks))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'REJECT', 'training_programme', %s, %s)
+            """, (user['officer_id'], programme_id, rejection_remarks))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'REJECT', 'training_programme', ?, ?)
+            """, (user['officer_id'], programme_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -572,27 +730,51 @@ async def allocate_coordinator(
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET coordinator_id = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (coordinator_id, programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET coordinator_id = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (coordinator_id, programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET coordinator_id = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (coordinator_id, programme_id))
 
         # Also add as PRIMARY trainer if not exists
-        cursor.execute("""
-            INSERT INTO trainer_allocations (programme_id, officer_id, trainer_role, allocation_percent)
-            SELECT ?, ?, 'PRIMARY', 0
-            WHERE NOT EXISTS (
-                SELECT 1 FROM trainer_allocations
-                WHERE programme_id = ? AND officer_id = ?
-            )
-        """, (programme_id, coordinator_id, programme_id, coordinator_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO trainer_allocations (programme_id, officer_id, trainer_role, allocation_percent)
+                SELECT %s, %s, 'PRIMARY', 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM trainer_allocations
+                    WHERE programme_id = %s AND officer_id = %s
+                )
+            """, (programme_id, coordinator_id, programme_id, coordinator_id))
+        else:
+            cursor.execute("""
+                INSERT INTO trainer_allocations (programme_id, officer_id, trainer_role, allocation_percent)
+                SELECT ?, ?, 'PRIMARY', 0
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM trainer_allocations
+                    WHERE programme_id = ? AND officer_id = ?
+                )
+            """, (programme_id, coordinator_id, programme_id, coordinator_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, new_data, remarks)
-            VALUES (?, 'UPDATE', 'training_programme', ?, ?, 'Coordinator allocated')
-        """, (user['officer_id'], programme_id, f"coordinator={coordinator_id}"))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, new_data, remarks)
+                VALUES (%s, 'UPDATE', 'training_programme', %s, %s, 'Coordinator allocated')
+            """, (user['officer_id'], programme_id, f"coordinator={coordinator_id}"))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, new_data, remarks)
+                VALUES (?, 'UPDATE', 'training_programme', ?, ?, 'Coordinator allocated')
+            """, (user['officer_id'], programme_id, f"coordinator={coordinator_id}"))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -608,25 +790,44 @@ async def submit_training_budget(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = %s", (programme_id,))
+        else:
+            cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = ?", (programme_id,))
         programme = cursor.fetchone()
         if not programme or programme['coordinator_id'] != user['officer_id']:
             if not (is_admin(user) or is_head(user)):
                 return RedirectResponse(url="/training?error=unauthorized", status_code=302)
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET budget_approval_status = 'SUBMITTED',
-                budget_submitted_by = ?,
-                budget_submitted_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET budget_approval_status = 'SUBMITTED',
+                    budget_submitted_by = %s,
+                    budget_submitted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET budget_approval_status = 'SUBMITTED',
+                    budget_submitted_by = ?,
+                    budget_submitted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (user['officer_id'], programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'SUBMIT', 'training_budget', ?, 'Budget submitted for approval')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'SUBMIT', 'training_budget', %s, 'Budget submitted for approval')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'SUBMIT', 'training_budget', ?, 'Budget submitted for approval')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url=f"/training/view/{programme_id}?success=budget_submitted", status_code=302)
 
@@ -644,19 +845,35 @@ async def approve_training_budget(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET budget_approval_status = 'APPROVED',
-                budget_approved_by = ?,
-                budget_approved_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET budget_approval_status = 'APPROVED',
+                    budget_approved_by = %s,
+                    budget_approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET budget_approval_status = 'APPROVED',
+                    budget_approved_by = ?,
+                    budget_approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (user['officer_id'], programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'training_budget', ?, 'Budget approved')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'APPROVE', 'training_budget', %s, 'Budget approved')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'APPROVE', 'training_budget', ?, 'Budget approved')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -678,18 +895,33 @@ async def reject_training_budget(
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET budget_approval_status = 'REJECTED',
-                remarks = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (rejection_remarks, programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET budget_approval_status = 'REJECTED',
+                    remarks = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (rejection_remarks, programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET budget_approval_status = 'REJECTED',
+                    remarks = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (rejection_remarks, programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'training_budget', ?, ?)
-        """, (user['officer_id'], programme_id, rejection_remarks))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'REJECT', 'training_budget', %s, %s)
+            """, (user['officer_id'], programme_id, rejection_remarks))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'REJECT', 'training_budget', ?, ?)
+            """, (user['officer_id'], programme_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -705,30 +937,52 @@ async def submit_trainer_allocation(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = %s", (programme_id,))
+        else:
+            cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = ?", (programme_id,))
         programme = cursor.fetchone()
         if not programme or programme['coordinator_id'] != user['officer_id']:
             if not (is_admin(user) or is_head(user)):
                 return RedirectResponse(url="/training?error=unauthorized", status_code=302)
 
         # Check trainers exist
-        cursor.execute("SELECT COUNT(*) as cnt FROM trainer_allocations WHERE programme_id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT COUNT(*) as cnt FROM trainer_allocations WHERE programme_id = %s", (programme_id,))
+        else:
+            cursor.execute("SELECT COUNT(*) as cnt FROM trainer_allocations WHERE programme_id = ?", (programme_id,))
         if cursor.fetchone()['cnt'] == 0:
             return RedirectResponse(url=f"/training/trainers/{programme_id}?error=no_trainers", status_code=302)
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET trainer_approval_status = 'SUBMITTED',
-                trainer_submitted_by = ?,
-                trainer_submitted_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET trainer_approval_status = 'SUBMITTED',
+                    trainer_submitted_by = %s,
+                    trainer_submitted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET trainer_approval_status = 'SUBMITTED',
+                    trainer_submitted_by = ?,
+                    trainer_submitted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (user['officer_id'], programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'SUBMIT', 'trainer_allocation', ?, 'Trainer allocation submitted for approval')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'SUBMIT', 'trainer_allocation', %s, 'Trainer allocation submitted for approval')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'SUBMIT', 'trainer_allocation', ?, 'Trainer allocation submitted for approval')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url=f"/training/view/{programme_id}?success=trainer_submitted", status_code=302)
 
@@ -746,19 +1000,35 @@ async def approve_trainer_allocation(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET trainer_approval_status = 'APPROVED',
-                trainer_approved_by = ?,
-                trainer_approved_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET trainer_approval_status = 'APPROVED',
+                    trainer_approved_by = %s,
+                    trainer_approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET trainer_approval_status = 'APPROVED',
+                    trainer_approved_by = ?,
+                    trainer_approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (user['officer_id'], programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'trainer_allocation', ?, 'Trainer allocation approved')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'APPROVE', 'trainer_allocation', %s, 'Trainer allocation approved')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'APPROVE', 'trainer_allocation', ?, 'Trainer allocation approved')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -780,18 +1050,33 @@ async def reject_trainer_allocation(
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET trainer_approval_status = 'REJECTED',
-                remarks = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (rejection_remarks, programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET trainer_approval_status = 'REJECTED',
+                    remarks = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (rejection_remarks, programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET trainer_approval_status = 'REJECTED',
+                    remarks = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (rejection_remarks, programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'trainer_allocation', ?, ?)
-        """, (user['officer_id'], programme_id, rejection_remarks))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'REJECT', 'trainer_allocation', %s, %s)
+            """, (user['officer_id'], programme_id, rejection_remarks))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'REJECT', 'trainer_allocation', ?, ?)
+            """, (user['officer_id'], programme_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -807,34 +1092,59 @@ async def submit_training_revenue(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = %s", (programme_id,))
+        else:
+            cursor.execute("SELECT coordinator_id FROM training_programmes WHERE id = ?", (programme_id,))
         programme = cursor.fetchone()
         if not programme or programme['coordinator_id'] != user['officer_id']:
             if not (is_admin(user) or is_head(user)):
                 return RedirectResponse(url="/training?error=unauthorized", status_code=302)
 
         # Check total allocation is 100%
-        cursor.execute("""
-            SELECT COALESCE(SUM(allocation_percent), 0) as total
-            FROM trainer_allocations WHERE programme_id = ?
-        """, (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT COALESCE(SUM(allocation_percent), 0) as total
+                FROM trainer_allocations WHERE programme_id = %s
+            """, (programme_id,))
+        else:
+            cursor.execute("""
+                SELECT COALESCE(SUM(allocation_percent), 0) as total
+                FROM trainer_allocations WHERE programme_id = ?
+            """, (programme_id,))
         total = cursor.fetchone()['total'] or 0
         if abs(total - 100) > 0.01:
             return RedirectResponse(url=f"/training/trainers/{programme_id}?error=total_not_100", status_code=302)
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET revenue_approval_status = 'SUBMITTED',
-                revenue_submitted_by = ?,
-                revenue_submitted_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET revenue_approval_status = 'SUBMITTED',
+                    revenue_submitted_by = %s,
+                    revenue_submitted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET revenue_approval_status = 'SUBMITTED',
+                    revenue_submitted_by = ?,
+                    revenue_submitted_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (user['officer_id'], programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'SUBMIT', 'training_revenue', ?, 'Revenue shares submitted for approval')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'SUBMIT', 'training_revenue', %s, 'Revenue shares submitted for approval')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'SUBMIT', 'training_revenue', ?, 'Revenue shares submitted for approval')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url=f"/training/view/{programme_id}?success=revenue_submitted", status_code=302)
 
@@ -852,19 +1162,35 @@ async def approve_training_revenue(request: Request, programme_id: int):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET revenue_approval_status = 'APPROVED',
-                revenue_approved_by = ?,
-                revenue_approved_at = CURRENT_TIMESTAMP,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET revenue_approval_status = 'APPROVED',
+                    revenue_approved_by = %s,
+                    revenue_approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET revenue_approval_status = 'APPROVED',
+                    revenue_approved_by = ?,
+                    revenue_approved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (user['officer_id'], programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'training_revenue', ?, 'Revenue shares approved')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'APPROVE', 'training_revenue', %s, 'Revenue shares approved')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'APPROVE', 'training_revenue', ?, 'Revenue shares approved')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -886,18 +1212,33 @@ async def reject_training_revenue(
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("""
-            UPDATE training_programmes
-            SET revenue_approval_status = 'REJECTED',
-                remarks = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (rejection_remarks, programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET revenue_approval_status = 'REJECTED',
+                    remarks = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (rejection_remarks, programme_id))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET revenue_approval_status = 'REJECTED',
+                    remarks = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (rejection_remarks, programme_id))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'training_revenue', ?, ?)
-        """, (user['officer_id'], programme_id, rejection_remarks))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'REJECT', 'training_revenue', %s, %s)
+            """, (user['officer_id'], programme_id, rejection_remarks))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'REJECT', 'training_revenue', ?, ?)
+            """, (user['officer_id'], programme_id, rejection_remarks))
 
     return RedirectResponse(url="/approvals", status_code=302)
 
@@ -918,7 +1259,10 @@ async def request_training_invoice(
     with get_db() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM training_programmes WHERE id = ?", (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT * FROM training_programmes WHERE id = %s", (programme_id,))
+        else:
+            cursor.execute("SELECT * FROM training_programmes WHERE id = ?", (programme_id,))
         programme = cursor.fetchone()
         if not programme:
             return RedirectResponse(url="/training", status_code=302)
@@ -942,31 +1286,60 @@ async def request_training_invoice(
         request_number = f"{prefix}-{next_num:03d}"
 
         # Create invoice request (using NULL for assignment_id, linking via remarks)
-        cursor.execute("""
-            INSERT INTO invoice_requests
-            (request_number, assignment_id, invoice_type, invoice_amount,
-             fy_period, description, status, requested_by)
-            VALUES (?, NULL, 'TRAINING', ?, ?, ?, 'PENDING', ?)
-        """, (
-            request_number,
-            invoice_amount,
-            fy_period,
-            f"Training Programme: {programme['programme_number']} - {programme['title']}",
-            user['officer_id']
-        ))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO invoice_requests
+                (request_number, assignment_id, invoice_type, invoice_amount,
+                 fy_period, description, status, requested_by)
+                VALUES (%s, NULL, 'TRAINING', %s, %s, %s, 'PENDING', %s)
+            """, (
+                request_number,
+                invoice_amount,
+                fy_period,
+                f"Training Programme: {programme['programme_number']} - {programme['title']}",
+                user['officer_id']
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO invoice_requests
+                (request_number, assignment_id, invoice_type, invoice_amount,
+                 fy_period, description, status, requested_by)
+                VALUES (?, NULL, 'TRAINING', ?, ?, ?, 'PENDING', ?)
+            """, (
+                request_number,
+                invoice_amount,
+                fy_period,
+                f"Training Programme: {programme['programme_number']} - {programme['title']}",
+                user['officer_id']
+            ))
 
         # Update programme
-        cursor.execute("""
-            UPDATE training_programmes
-            SET invoice_raised = 1,
-                invoice_date = CURRENT_DATE,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (programme_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET invoice_raised = 1,
+                    invoice_date = CURRENT_DATE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+            """, (programme_id,))
+        else:
+            cursor.execute("""
+                UPDATE training_programmes
+                SET invoice_raised = 1,
+                    invoice_date = CURRENT_DATE,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (programme_id,))
 
-        cursor.execute("""
-            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'CREATE', 'training_invoice', ?, 'Invoice request submitted')
-        """, (user['officer_id'], programme_id))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (%s, 'CREATE', 'training_invoice', %s, 'Invoice request submitted')
+            """, (user['officer_id'], programme_id))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+                VALUES (?, 'CREATE', 'training_invoice', ?, 'Invoice request submitted')
+            """, (user['officer_id'], programme_id))
 
     return RedirectResponse(url=f"/training/view/{programme_id}?success=invoice_requested", status_code=302)
