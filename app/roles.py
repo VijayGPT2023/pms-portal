@@ -136,7 +136,7 @@ def get_user_roles(user: dict) -> list:
     if not officer_id:
         return []
 
-    from app.database import get_db
+    from app.database import get_db, USE_POSTGRES
 
     roles_list = []
     seen_roles = set()  # Track unique roles
@@ -145,13 +145,22 @@ def get_user_roles(user: dict) -> list:
         cursor = conn.cursor()
 
         # Get roles from officer_roles table
-        cursor.execute("""
-            SELECT role_type, scope_type, scope_value, is_primary
-            FROM officer_roles
-            WHERE officer_id = ?
-            AND (effective_to IS NULL OR effective_to >= DATE('now'))
-            ORDER BY is_primary DESC, role_type
-        """, (officer_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT role_type, scope_type, scope_value, is_primary
+                FROM officer_roles
+                WHERE officer_id = %s
+                AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+                ORDER BY is_primary DESC, role_type
+            """, (officer_id,))
+        else:
+            cursor.execute("""
+                SELECT role_type, scope_type, scope_value, is_primary
+                FROM officer_roles
+                WHERE officer_id = ?
+                AND (effective_to IS NULL OR effective_to >= DATE('now'))
+                ORDER BY is_primary DESC, role_type
+            """, (officer_id,))
 
         for row in cursor.fetchall():
             role_key = f"{row['role_type']}:{row['scope_value'] or ''}"
@@ -166,11 +175,18 @@ def get_user_roles(user: dict) -> list:
 
         # Check if user is team leader of any active assignment
         # Status values: 'Not Started', 'In Progress', 'Completed', 'Delayed', 'Cancelled'
-        cursor.execute("""
-            SELECT COUNT(*) as tl_count FROM assignments
-            WHERE team_leader_officer_id = ?
-            AND status IN ('Not Started', 'In Progress', 'Delayed')
-        """, (officer_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT COUNT(*) as tl_count FROM assignments
+                WHERE team_leader_officer_id = %s
+                AND status IN ('Not Started', 'In Progress', 'Delayed')
+            """, (officer_id,))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) as tl_count FROM assignments
+                WHERE team_leader_officer_id = ?
+                AND status IN ('Not Started', 'In Progress', 'Delayed')
+            """, (officer_id,))
         tl_result = cursor.fetchone()
 
         if tl_result and tl_result['tl_count'] > 0:
@@ -427,13 +443,19 @@ def can_receive_revenue(user: dict, assignment_id: int = None) -> bool:
 
     # Check if user is part of the assignment team as MEMBER
     if assignment_id:
-        from app.database import get_db
+        from app.database import get_db, USE_POSTGRES
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT role FROM assignment_team
-                WHERE assignment_id = ? AND officer_id = ? AND is_active = 1
-            """, (assignment_id, user.get('officer_id')))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    SELECT role FROM assignment_team
+                    WHERE assignment_id = %s AND officer_id = %s AND is_active = true
+                """, (assignment_id, user.get('officer_id')))
+            else:
+                cursor.execute("""
+                    SELECT role FROM assignment_team
+                    WHERE assignment_id = ? AND officer_id = ? AND is_active = 1
+                """, (assignment_id, user.get('officer_id')))
             team_role = cursor.fetchone()
 
             if team_role:
@@ -442,13 +464,19 @@ def can_receive_revenue(user: dict, assignment_id: int = None) -> bool:
 
     # Also check if officer has direct revenue share entry (for backwards compatibility)
     if assignment_id:
-        from app.database import get_db
+        from app.database import get_db, USE_POSTGRES
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
-                SELECT share_percent FROM revenue_shares
-                WHERE assignment_id = ? AND officer_id = ?
-            """, (assignment_id, user.get('officer_id')))
+            if USE_POSTGRES:
+                cursor.execute("""
+                    SELECT share_percent FROM revenue_shares
+                    WHERE assignment_id = %s AND officer_id = %s
+                """, (assignment_id, user.get('officer_id')))
+            else:
+                cursor.execute("""
+                    SELECT share_percent FROM revenue_shares
+                    WHERE assignment_id = ? AND officer_id = ?
+                """, (assignment_id, user.get('officer_id')))
             share = cursor.fetchone()
             if share and share['share_percent'] > 0:
                 return True
@@ -458,15 +486,22 @@ def can_receive_revenue(user: dict, assignment_id: int = None) -> bool:
 
 def get_reporting_ddg(entity_type: str, entity_value: str) -> str:
     """Get which DDG an entity reports to."""
-    from app.database import get_db
+    from app.database import get_db, USE_POSTGRES
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT reports_to_role FROM reporting_hierarchy
-            WHERE entity_type = ? AND entity_value = ?
-            AND (effective_to IS NULL OR effective_to >= DATE('now'))
-        """, (entity_type, entity_value))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT reports_to_role FROM reporting_hierarchy
+                WHERE entity_type = %s AND entity_value = %s
+                AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+            """, (entity_type, entity_value))
+        else:
+            cursor.execute("""
+                SELECT reports_to_role FROM reporting_hierarchy
+                WHERE entity_type = ? AND entity_value = ?
+                AND (effective_to IS NULL OR effective_to >= DATE('now'))
+            """, (entity_type, entity_value))
         row = cursor.fetchone()
         if row:
             return row['reports_to_role']

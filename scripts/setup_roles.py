@@ -45,13 +45,21 @@ def setup_roles():
                 VALUES (?, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
             """, (umashankar['officer_id'],))
 
+            # Assign Team Leader role
+            cursor.execute("""
+                INSERT INTO officer_roles
+                (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES (?, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
+            """, (umashankar['officer_id'],))
+
             # Update legacy admin_role_id
             cursor.execute("""
                 UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = ?
             """, (umashankar['officer_id'],))
 
             print("  - Assigned DDG-I (Primary)")
-            print("  - Assigned Group Head (HRM)")
+            print("  - Assigned Group Head (HRM Group)")
+            print("  - Assigned Team Leader")
 
         else:
             print("Umashankar not found in database")
