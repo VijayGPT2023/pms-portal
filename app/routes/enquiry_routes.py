@@ -81,15 +81,16 @@ async def list_enquiries(request: Request, status: str = None, office: str = Non
     with get_db() as conn:
         cursor = conn.cursor()
 
+        ph = '%s' if USE_POSTGRES else '?'
         conditions = ["1=1"]
         params = []
 
         if status:
-            conditions.append("e.status = ?")
+            conditions.append(f"e.status = {ph}")
             params.append(status)
 
         if office:
-            conditions.append("e.office_id = ?")
+            conditions.append(f"e.office_id = {ph}")
             params.append(office)
 
         # View filters
@@ -97,14 +98,14 @@ async def list_enquiries(request: Request, status: str = None, office: str = Non
         if view == 'pending_approval' and admin_role in ['ADMIN', 'DG', 'DDG', 'HEAD']:
             conditions.append("e.approval_status = 'PENDING'")
         elif view == 'my_created':
-            conditions.append("e.created_by = ?")
+            conditions.append(f"e.created_by = {ph}")
             params.append(user['officer_id'])
         elif view == 'my_allocated':
-            conditions.append("e.officer_id = ?")
+            conditions.append(f"e.officer_id = {ph}")
             params.append(user['officer_id'])
         elif admin_role not in ['ADMIN', 'DG', 'DDG']:
             # Regular users see their office's enquiries
-            conditions.append("e.office_id = ?")
+            conditions.append(f"e.office_id = {ph}")
             params.append(user['office_id'])
 
         where_clause = " AND ".join(conditions)
@@ -233,25 +234,42 @@ async def create_enquiry(
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO enquiries
-            (enquiry_number, client_name, client_type, domain, sub_domain,
-             office_id, officer_id, description, estimated_value, target_date,
-             remarks, status, approval_status, approved_by, approved_at, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (enquiry_number, client_name, client_type, domain, sub_domain,
-              office_id, officer_id if is_head else None, description, estimated_value, target_date,
-              remarks, initial_status, approval_status,
-              user['officer_id'] if is_head else None,
-              datetime.now() if is_head else None,
-              user['officer_id']))
+        ph = '%s' if USE_POSTGRES else '?'
 
-        enquiry_id = cursor.lastrowid
+        if USE_POSTGRES:
+            cursor.execute(f"""
+                INSERT INTO enquiries
+                (enquiry_number, client_name, client_type, domain, sub_domain,
+                 office_id, officer_id, description, estimated_value, target_date,
+                 remarks, status, approval_status, approved_by, approved_at, created_by)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                RETURNING id
+            """, (enquiry_number, client_name, client_type, domain, sub_domain,
+                  office_id, officer_id if is_head else None, description, estimated_value, target_date,
+                  remarks, initial_status, approval_status,
+                  user['officer_id'] if is_head else None,
+                  datetime.now() if is_head else None,
+                  user['officer_id']))
+            enquiry_id = cursor.fetchone()['id']
+        else:
+            cursor.execute("""
+                INSERT INTO enquiries
+                (enquiry_number, client_name, client_type, domain, sub_domain,
+                 office_id, officer_id, description, estimated_value, target_date,
+                 remarks, status, approval_status, approved_by, approved_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (enquiry_number, client_name, client_type, domain, sub_domain,
+                  office_id, officer_id if is_head else None, description, estimated_value, target_date,
+                  remarks, initial_status, approval_status,
+                  user['officer_id'] if is_head else None,
+                  datetime.now() if is_head else None,
+                  user['officer_id']))
+            enquiry_id = cursor.lastrowid
 
         # Log activity
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'CREATE', 'enquiry', ?, ?)
+            VALUES ({ph}, 'CREATE', 'enquiry', {ph}, {ph})
         """, (user['officer_id'], enquiry_id, f"Created enquiry {enquiry_number}"))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -266,8 +284,9 @@ async def view_enquiry(request: Request, enquiry_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT e.*, o.name as officer_name, off.office_name,
                    creator.name as created_by_name, approver.name as approved_by_name
             FROM enquiries e
@@ -275,7 +294,7 @@ async def view_enquiry(request: Request, enquiry_id: int):
             LEFT JOIN offices off ON e.office_id = off.office_id
             LEFT JOIN officers creator ON e.created_by = creator.officer_id
             LEFT JOIN officers approver ON e.approved_by = approver.officer_id
-            WHERE e.id = ?
+            WHERE e.id = {ph}
         """, (enquiry_id,))
         enquiry = cursor.fetchone()
 
@@ -285,19 +304,19 @@ async def view_enquiry(request: Request, enquiry_id: int):
         enquiry = dict(enquiry)
 
         # Check if converted to PR
-        cursor.execute("""
-            SELECT * FROM proposal_requests WHERE enquiry_id = ?
+        cursor.execute(f"""
+            SELECT * FROM proposal_requests WHERE enquiry_id = {ph}
         """, (enquiry_id,))
         linked_pr = cursor.fetchone()
         if linked_pr:
             enquiry['linked_pr'] = dict(linked_pr)
 
         # Get activity log
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT al.*, o.name as actor_name
             FROM activity_log al
             LEFT JOIN officers o ON al.actor_id = o.officer_id
-            WHERE al.entity_type = 'enquiry' AND al.entity_id = ?
+            WHERE al.entity_type = 'enquiry' AND al.entity_id = {ph}
             ORDER BY al.created_at DESC
         """, (enquiry_id,))
         activities = [dict(row) for row in cursor.fetchall()]
@@ -337,8 +356,9 @@ async def edit_enquiry_form(request: Request, enquiry_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -397,25 +417,26 @@ async def update_enquiry(
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
         if not enquiry or not can_edit_enquiry(user, dict(enquiry)):
             return RedirectResponse(url=f"/enquiry/{enquiry_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET
-                client_name = ?, client_type = ?, domain = ?, sub_domain = ?,
-                office_id = ?, officer_id = ?, description = ?, estimated_value = ?,
-                target_date = ?, remarks = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+                client_name = {ph}, client_type = {ph}, domain = {ph}, sub_domain = {ph},
+                office_id = {ph}, officer_id = {ph}, description = {ph}, estimated_value = {ph},
+                target_date = {ph}, remarks = {ph}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (client_name, client_type, domain, sub_domain, office_id, officer_id,
               description, estimated_value, target_date, remarks, enquiry_id))
 
         # Log activity
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'UPDATE', 'enquiry', ?, 'Updated enquiry details')
+            VALUES ({ph}, 'UPDATE', 'enquiry', {ph}, 'Updated enquiry details')
         """, (user['officer_id'], enquiry_id))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -430,8 +451,9 @@ async def approve_enquiry(request: Request, enquiry_id: int, officer_id: str = F
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -440,17 +462,17 @@ async def approve_enquiry(request: Request, enquiry_id: int, officer_id: str = F
         if not is_office_head(user, enquiry['office_id']):
             return RedirectResponse(url=f"/enquiry/{enquiry_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET
                 status = 'APPROVED', approval_status = 'APPROVED',
-                officer_id = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+                officer_id = {ph}, approved_by = {ph}, approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (officer_id, user['officer_id'], enquiry_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'APPROVE', 'enquiry', ?, 'Approved and allocated to officer')
+            VALUES ({ph}, 'APPROVE', 'enquiry', {ph}, 'Approved and allocated to officer')
         """, (user['officer_id'], enquiry_id))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -465,8 +487,9 @@ async def reject_enquiry(request: Request, enquiry_id: int, rejection_reason: st
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -475,17 +498,17 @@ async def reject_enquiry(request: Request, enquiry_id: int, rejection_reason: st
         if not is_office_head(user, enquiry['office_id']):
             return RedirectResponse(url=f"/enquiry/{enquiry_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET
                 status = 'REJECTED', approval_status = 'REJECTED',
-                rejection_reason = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+                rejection_reason = {ph}, approved_by = {ph}, approved_at = CURRENT_TIMESTAMP,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (rejection_reason, user['officer_id'], enquiry_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REJECT', 'enquiry', ?, ?)
+            VALUES ({ph}, 'REJECT', 'enquiry', {ph}, {ph})
         """, (user['officer_id'], enquiry_id, f"Rejected: {rejection_reason}"))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -500,8 +523,9 @@ async def reallocate_enquiry(request: Request, enquiry_id: int, officer_id: str 
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -511,14 +535,14 @@ async def reallocate_enquiry(request: Request, enquiry_id: int, officer_id: str 
             return RedirectResponse(url=f"/enquiry/{enquiry_id}?error=unauthorized", status_code=302)
 
         old_officer = enquiry['officer_id']
-        cursor.execute("""
-            UPDATE enquiries SET officer_id = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+        cursor.execute(f"""
+            UPDATE enquiries SET officer_id = {ph}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (officer_id, enquiry_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'REALLOCATE', 'enquiry', ?, ?)
+            VALUES ({ph}, 'REALLOCATE', 'enquiry', {ph}, {ph})
         """, (user['officer_id'], enquiry_id, f"Reallocated from {old_officer} to {officer_id}"))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -533,8 +557,9 @@ async def update_progress(request: Request, enquiry_id: int, current_update: str
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -548,15 +573,15 @@ async def update_progress(request: Request, enquiry_id: int, current_update: str
         if new_status == 'APPROVED':
             new_status = 'IN_PROGRESS'  # Move to in-progress once work starts
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET
-                current_update = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+                current_update = {ph}, status = {ph}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (current_update, new_status, enquiry_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'UPDATE', 'enquiry', ?, ?)
+            VALUES ({ph}, 'UPDATE', 'enquiry', {ph}, {ph})
         """, (user['officer_id'], enquiry_id, f"Progress update: {current_update[:100]}"))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -571,8 +596,9 @@ async def convert_to_pr(request: Request, enquiry_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -587,27 +613,40 @@ async def convert_to_pr(request: Request, enquiry_id: int):
 
         pr_number = generate_pr_number(enquiry['office_id'])
 
-        cursor.execute("""
-            INSERT INTO proposal_requests
-            (pr_number, enquiry_id, client_name, client_type, domain, sub_domain,
-             office_id, officer_id, description, estimated_value,
-             status, approval_status, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL', 'PENDING', ?)
-        """, (pr_number, enquiry_id, enquiry['client_name'], enquiry['client_type'],
-              enquiry['domain'], enquiry['sub_domain'], enquiry['office_id'],
-              enquiry['officer_id'], enquiry['description'], enquiry['estimated_value'],
-              user['officer_id']))
+        if USE_POSTGRES:
+            cursor.execute(f"""
+                INSERT INTO proposal_requests
+                (pr_number, enquiry_id, client_name, client_type, domain, sub_domain,
+                 office_id, officer_id, description, estimated_value,
+                 status, approval_status, created_by)
+                VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 'PENDING_APPROVAL', 'PENDING', {ph})
+                RETURNING id
+            """, (pr_number, enquiry_id, enquiry['client_name'], enquiry['client_type'],
+                  enquiry['domain'], enquiry['sub_domain'], enquiry['office_id'],
+                  enquiry['officer_id'], enquiry['description'], enquiry['estimated_value'],
+                  user['officer_id']))
+            pr_id = cursor.fetchone()['id']
+        else:
+            cursor.execute("""
+                INSERT INTO proposal_requests
+                (pr_number, enquiry_id, client_name, client_type, domain, sub_domain,
+                 office_id, officer_id, description, estimated_value,
+                 status, approval_status, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL', 'PENDING', ?)
+            """, (pr_number, enquiry_id, enquiry['client_name'], enquiry['client_type'],
+                  enquiry['domain'], enquiry['sub_domain'], enquiry['office_id'],
+                  enquiry['officer_id'], enquiry['description'], enquiry['estimated_value'],
+                  user['officer_id']))
+            pr_id = cursor.lastrowid
 
-        pr_id = cursor.lastrowid
-
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET status = 'CONVERTED_TO_PR', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (enquiry_id,))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'CONVERT', 'enquiry', ?, ?)
+            VALUES ({ph}, 'CONVERT', 'enquiry', {ph}, {ph})
         """, (user['officer_id'], enquiry_id, f"Converted to PR: {pr_number}"))
 
     return RedirectResponse(url=f"/proposal-request/{pr_id}", status_code=302)
@@ -622,8 +661,9 @@ async def drop_enquiry(request: Request, enquiry_id: int, drop_reason: str = For
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -633,15 +673,15 @@ async def drop_enquiry(request: Request, enquiry_id: int, drop_reason: str = For
         if not is_office_head(user, enquiry['office_id']):
             return RedirectResponse(url=f"/enquiry/{enquiry_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET
-                status = 'DROPPED', drop_reason = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+                status = 'DROPPED', drop_reason = {ph}, updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
         """, (drop_reason, enquiry_id))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'DROP', 'enquiry', ?, ?)
+            VALUES ({ph}, 'DROP', 'enquiry', {ph}, {ph})
         """, (user['officer_id'], enquiry_id, f"Dropped: {drop_reason}"))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -656,8 +696,9 @@ async def hold_enquiry(request: Request, enquiry_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -666,14 +707,14 @@ async def hold_enquiry(request: Request, enquiry_id: int):
         if enquiry['officer_id'] != user['officer_id'] and not is_office_head(user, enquiry['office_id']):
             return RedirectResponse(url=f"/enquiry/{enquiry_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET status = 'ON_HOLD', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (enquiry_id,))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'UPDATE', 'enquiry', ?, 'Put on hold')
+            VALUES ({ph}, 'UPDATE', 'enquiry', {ph}, 'Put on hold')
         """, (user['officer_id'], enquiry_id))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
@@ -688,8 +729,9 @@ async def resume_enquiry(request: Request, enquiry_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
 
-        cursor.execute("SELECT * FROM enquiries WHERE id = ?", (enquiry_id,))
+        cursor.execute(f"SELECT * FROM enquiries WHERE id = {ph}", (enquiry_id,))
         enquiry = cursor.fetchone()
 
         if not enquiry:
@@ -698,14 +740,14 @@ async def resume_enquiry(request: Request, enquiry_id: int):
         if enquiry['officer_id'] != user['officer_id'] and not is_office_head(user, enquiry['office_id']):
             return RedirectResponse(url=f"/enquiry/{enquiry_id}?error=unauthorized", status_code=302)
 
-        cursor.execute("""
+        cursor.execute(f"""
             UPDATE enquiries SET status = 'IN_PROGRESS', updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = {ph}
         """, (enquiry_id,))
 
-        cursor.execute("""
+        cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
-            VALUES (?, 'UPDATE', 'enquiry', ?, 'Resumed from hold')
+            VALUES ({ph}, 'UPDATE', 'enquiry', {ph}, 'Resumed from hold')
         """, (user['officer_id'], enquiry_id))
 
     return RedirectResponse(url=f"/enquiry/{enquiry_id}", status_code=302)
