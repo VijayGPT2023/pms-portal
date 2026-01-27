@@ -18,11 +18,18 @@ def get_config_options(category: str):
     """Get configuration options from database."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT option_value, option_label FROM config_options
-            WHERE category = ? AND is_active = 1
-            ORDER BY sort_order
-        """, (category,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT option_value, option_label FROM config_options
+                WHERE category = %s AND is_active = 1
+                ORDER BY sort_order
+            """, (category,))
+        else:
+            cursor.execute("""
+                SELECT option_value, option_label FROM config_options
+                WHERE category = ? AND is_active = 1
+                ORDER BY sort_order
+            """, (category,))
         options = [dict(row) for row in cursor.fetchall()]
         # Fallback to hardcoded values if no DB options
         if not options:
@@ -60,7 +67,10 @@ def get_assignment(assignment_id: int):
     """Get assignment by ID."""
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT * FROM assignments WHERE id = %s", (assignment_id,))
+        else:
+            cursor.execute("SELECT * FROM assignments WHERE id = ?", (assignment_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -91,20 +101,21 @@ async def workorders_list(request: Request):
         """
         params = []
 
-        # Apply filters
+        # Apply filters - use correct placeholder for database type
+        ph = '%s' if USE_POSTGRES else '?'
         if filter_view == 'my_created':
-            query += " AND a.team_leader_officer_id = ?"
+            query += f" AND a.team_leader_officer_id = {ph}"
             params.append(user['officer_id'])
         elif filter_view == 'my_office':
-            query += " AND a.office_id = ?"
+            query += f" AND a.office_id = {ph}"
             params.append(user['office_id'])
 
         if filter_office:
-            query += " AND a.office_id = ?"
+            query += f" AND a.office_id = {ph}"
             params.append(filter_office)
 
         if filter_status:
-            query += " AND a.status = ?"
+            query += f" AND a.status = {ph}"
             params.append(filter_status)
 
         query += " ORDER BY a.created_at DESC"
@@ -331,27 +342,46 @@ async def view_assignment(request: Request, assignment_id: int):
         cursor = conn.cursor()
         for field in ['team_leader_officer_id', 'faculty1_officer_id', 'faculty2_officer_id']:
             if assignment.get(field):
-                cursor.execute("SELECT name FROM officers WHERE officer_id = ?", (assignment[field],))
+                if USE_POSTGRES:
+                    cursor.execute("SELECT name FROM officers WHERE officer_id = %s", (assignment[field],))
+                else:
+                    cursor.execute("SELECT name FROM officers WHERE officer_id = ?", (assignment[field],))
                 row = cursor.fetchone()
                 if row:
                     officers[field] = row['name']
 
         # Get revenue shares for this assignment
-        cursor.execute("""
-            SELECT rs.*, o.name as officer_name
-            FROM revenue_shares rs
-            JOIN officers o ON rs.officer_id = o.officer_id
-            WHERE rs.assignment_id = ?
-            ORDER BY rs.share_percent DESC
-        """, (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT rs.*, o.name as officer_name
+                FROM revenue_shares rs
+                JOIN officers o ON rs.officer_id = o.officer_id
+                WHERE rs.assignment_id = %s
+                ORDER BY rs.share_percent DESC
+            """, (assignment_id,))
+        else:
+            cursor.execute("""
+                SELECT rs.*, o.name as officer_name
+                FROM revenue_shares rs
+                JOIN officers o ON rs.officer_id = o.officer_id
+                WHERE rs.assignment_id = ?
+                ORDER BY rs.share_percent DESC
+            """, (assignment_id,))
         revenue_shares = [dict(row) for row in cursor.fetchall()]
 
         # Get milestones for this assignment
-        cursor.execute("""
-            SELECT * FROM milestones
-            WHERE assignment_id = ?
-            ORDER BY milestone_no
-        """, (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT * FROM milestones
+                WHERE assignment_id = %s
+                ORDER BY milestone_no
+            """, (assignment_id,))
+        else:
+            cursor.execute("""
+                SELECT * FROM milestones
+                WHERE assignment_id = ?
+                ORDER BY milestone_no
+            """, (assignment_id,))
         milestones = [dict(row) for row in cursor.fetchall()]
 
     return templates.TemplateResponse(
@@ -380,11 +410,18 @@ async def manage_milestones(request: Request, assignment_id: int):
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT * FROM milestones
-            WHERE assignment_id = ?
-            ORDER BY milestone_no
-        """, (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT * FROM milestones
+                WHERE assignment_id = %s
+                ORDER BY milestone_no
+            """, (assignment_id,))
+        else:
+            cursor.execute("""
+                SELECT * FROM milestones
+                WHERE assignment_id = ?
+                ORDER BY milestone_no
+            """, (assignment_id,))
         milestones = [dict(row) for row in cursor.fetchall()]
 
     return templates.TemplateResponse(
@@ -415,7 +452,10 @@ async def save_milestones(request: Request, assignment_id: int):
         cursor = conn.cursor()
 
         # Get existing milestones
-        cursor.execute("SELECT id FROM milestones WHERE assignment_id = ?", (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("SELECT id FROM milestones WHERE assignment_id = %s", (assignment_id,))
+        else:
+            cursor.execute("SELECT id FROM milestones WHERE assignment_id = ?", (assignment_id,))
         existing_ids = {row['id'] for row in cursor.fetchall()}
 
         # Process form data - milestones are submitted as milestone_X_field
@@ -446,86 +486,163 @@ async def save_milestones(request: Request, assignment_id: int):
                 # Update existing milestone
                 milestone_id = int(milestone_id)
                 processed_ids.add(milestone_id)
-                cursor.execute("""
-                    UPDATE milestones SET
-                        title = ?,
-                        description = ?,
-                        target_date = ?,
-                        revenue_percent = ?,
-                        invoice_raised = ?,
-                        invoice_raised_date = ?,
-                        payment_received = ?,
-                        payment_received_date = ?,
-                        status = ?,
-                        remarks = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (
-                    title,
-                    data.get('description', ''),
-                    data.get('target_date') or None,
-                    float(data.get('revenue_percent', 0) or 0),
-                    invoice_raised,
-                    data.get('invoice_raised_date') or None,
-                    payment_received,
-                    data.get('payment_received_date') or None,
-                    data.get('status', 'Pending'),
-                    data.get('remarks', ''),
-                    milestone_id
-                ))
+                if USE_POSTGRES:
+                    cursor.execute("""
+                        UPDATE milestones SET
+                            title = %s,
+                            description = %s,
+                            target_date = %s,
+                            revenue_percent = %s,
+                            invoice_raised = %s,
+                            invoice_raised_date = %s,
+                            payment_received = %s,
+                            payment_received_date = %s,
+                            status = %s,
+                            remarks = %s,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (
+                        title,
+                        data.get('description', ''),
+                        data.get('target_date') or None,
+                        float(data.get('revenue_percent', 0) or 0),
+                        invoice_raised,
+                        data.get('invoice_raised_date') or None,
+                        payment_received,
+                        data.get('payment_received_date') or None,
+                        data.get('status', 'Pending'),
+                        data.get('remarks', ''),
+                        milestone_id
+                    ))
+                else:
+                    cursor.execute("""
+                        UPDATE milestones SET
+                            title = ?,
+                            description = ?,
+                            target_date = ?,
+                            revenue_percent = ?,
+                            invoice_raised = ?,
+                            invoice_raised_date = ?,
+                            payment_received = ?,
+                            payment_received_date = ?,
+                            status = ?,
+                            remarks = ?,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    """, (
+                        title,
+                        data.get('description', ''),
+                        data.get('target_date') or None,
+                        float(data.get('revenue_percent', 0) or 0),
+                        invoice_raised,
+                        data.get('invoice_raised_date') or None,
+                        payment_received,
+                        data.get('payment_received_date') or None,
+                        data.get('status', 'Pending'),
+                        data.get('remarks', ''),
+                        milestone_id
+                    ))
             else:
                 # Insert new milestone
-                cursor.execute("SELECT COALESCE(MAX(milestone_no), 0) + 1 FROM milestones WHERE assignment_id = ?",
-                             (assignment_id,))
+                if USE_POSTGRES:
+                    cursor.execute("SELECT COALESCE(MAX(milestone_no), 0) + 1 FROM milestones WHERE assignment_id = %s",
+                                 (assignment_id,))
+                else:
+                    cursor.execute("SELECT COALESCE(MAX(milestone_no), 0) + 1 FROM milestones WHERE assignment_id = ?",
+                                 (assignment_id,))
                 next_no = cursor.fetchone()[0]
 
                 target_date = data.get('target_date') or None
-                cursor.execute("""
-                    INSERT INTO milestones
-                    (assignment_id, milestone_no, title, description, target_date, tentative_date,
-                     tentative_date_status, revenue_percent,
-                     invoice_raised, invoice_raised_date, payment_received, payment_received_date,
-                     status, remarks)
-                    VALUES (?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    assignment_id,
-                    next_no,
-                    title,
-                    data.get('description', ''),
-                    target_date,
-                    target_date,  # tentative_date defaults to target_date
-                    float(data.get('revenue_percent', 0) or 0),
-                    invoice_raised,
-                    data.get('invoice_raised_date') or None,
-                    payment_received,
-                    data.get('payment_received_date') or None,
-                    data.get('status', 'Pending'),
-                    data.get('remarks', '')
-                ))
+                if USE_POSTGRES:
+                    cursor.execute("""
+                        INSERT INTO milestones
+                        (assignment_id, milestone_no, title, description, target_date, tentative_date,
+                         tentative_date_status, revenue_percent,
+                         invoice_raised, invoice_raised_date, payment_received, payment_received_date,
+                         status, remarks)
+                        VALUES (%s, %s, %s, %s, %s, %s, 'APPROVED', %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        assignment_id,
+                        next_no,
+                        title,
+                        data.get('description', ''),
+                        target_date,
+                        target_date,  # tentative_date defaults to target_date
+                        float(data.get('revenue_percent', 0) or 0),
+                        invoice_raised,
+                        data.get('invoice_raised_date') or None,
+                        payment_received,
+                        data.get('payment_received_date') or None,
+                        data.get('status', 'Pending'),
+                        data.get('remarks', '')
+                    ))
+                else:
+                    cursor.execute("""
+                        INSERT INTO milestones
+                        (assignment_id, milestone_no, title, description, target_date, tentative_date,
+                         tentative_date_status, revenue_percent,
+                         invoice_raised, invoice_raised_date, payment_received, payment_received_date,
+                         status, remarks)
+                        VALUES (?, ?, ?, ?, ?, ?, 'APPROVED', ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        assignment_id,
+                        next_no,
+                        title,
+                        data.get('description', ''),
+                        target_date,
+                        target_date,  # tentative_date defaults to target_date
+                        float(data.get('revenue_percent', 0) or 0),
+                        invoice_raised,
+                        data.get('invoice_raised_date') or None,
+                        payment_received,
+                        data.get('payment_received_date') or None,
+                        data.get('status', 'Pending'),
+                        data.get('remarks', '')
+                    ))
 
         # Delete milestones that were removed
         ids_to_delete = existing_ids - processed_ids
         for mid in ids_to_delete:
-            cursor.execute("DELETE FROM milestones WHERE id = ?", (mid,))
+            if USE_POSTGRES:
+                cursor.execute("DELETE FROM milestones WHERE id = %s", (mid,))
+            else:
+                cursor.execute("DELETE FROM milestones WHERE id = ?", (mid,))
 
         # Recalculate assignment progress
-        cursor.execute("""
-            SELECT
-                COALESCE(SUM(CASE WHEN payment_received = 1 THEN revenue_percent ELSE 0 END), 0) as paid_pct,
-                COALESCE(SUM(CASE WHEN invoice_raised = 1 AND payment_received = 0 THEN revenue_percent * 0.8 ELSE 0 END), 0) as pending_pct
-            FROM milestones WHERE assignment_id = ?
-        """, (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN payment_received = 1 THEN revenue_percent ELSE 0 END), 0) as paid_pct,
+                    COALESCE(SUM(CASE WHEN invoice_raised = 1 AND payment_received = 0 THEN revenue_percent * 0.8 ELSE 0 END), 0) as pending_pct
+                FROM milestones WHERE assignment_id = %s
+            """, (assignment_id,))
+        else:
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN payment_received = 1 THEN revenue_percent ELSE 0 END), 0) as paid_pct,
+                    COALESCE(SUM(CASE WHEN invoice_raised = 1 AND payment_received = 0 THEN revenue_percent * 0.8 ELSE 0 END), 0) as pending_pct
+                FROM milestones WHERE assignment_id = ?
+            """, (assignment_id,))
         progress = cursor.fetchone()
         physical_progress = (progress['paid_pct'] or 0) + (progress['pending_pct'] or 0)
 
         # Calculate timeline progress
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status = 'Delayed' THEN 1 ELSE 0 END) as delayed
-            FROM milestones WHERE assignment_id = ?
-        """, (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = 'Delayed' THEN 1 ELSE 0 END) as delayed
+                FROM milestones WHERE assignment_id = %s
+            """, (assignment_id,))
+        else:
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'Completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = 'Delayed' THEN 1 ELSE 0 END) as delayed
+                FROM milestones WHERE assignment_id = ?
+            """, (assignment_id,))
         timeline = cursor.fetchone()
         if timeline['total'] > 0:
             timeline_progress = ((timeline['completed'] or 0) / timeline['total']) * 100
@@ -537,12 +654,20 @@ async def save_milestones(request: Request, assignment_id: int):
 
         # Calculate invoice and payment amounts
         total_value = assignment.get('total_value') or assignment.get('gross_value') or 0
-        cursor.execute("""
-            SELECT
-                COALESCE(SUM(CASE WHEN invoice_raised = 1 THEN revenue_percent ELSE 0 END), 0) as invoiced_pct,
-                COALESCE(SUM(CASE WHEN payment_received = 1 THEN revenue_percent ELSE 0 END), 0) as paid_pct
-            FROM milestones WHERE assignment_id = ?
-        """, (assignment_id,))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN invoice_raised = 1 THEN revenue_percent ELSE 0 END), 0) as invoiced_pct,
+                    COALESCE(SUM(CASE WHEN payment_received = 1 THEN revenue_percent ELSE 0 END), 0) as paid_pct
+                FROM milestones WHERE assignment_id = %s
+            """, (assignment_id,))
+        else:
+            cursor.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN invoice_raised = 1 THEN revenue_percent ELSE 0 END), 0) as invoiced_pct,
+                    COALESCE(SUM(CASE WHEN payment_received = 1 THEN revenue_percent ELSE 0 END), 0) as paid_pct
+                FROM milestones WHERE assignment_id = ?
+            """, (assignment_id,))
         amounts = cursor.fetchone()
         invoice_amount = total_value * (amounts['invoiced_pct'] or 0) / 100
         amount_received = total_value * (amounts['paid_pct'] or 0) / 100
