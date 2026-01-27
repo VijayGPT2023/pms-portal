@@ -4,7 +4,7 @@ User Profile routes: view profile, change password.
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 
-from app.database import get_db
+from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.templates_config import templates
 from app.auth import hash_password, verify_password, update_session_role, deserialize_session
@@ -23,30 +23,54 @@ async def view_profile(request: Request):
         cursor = conn.cursor()
 
         # Get full officer details
-        cursor.execute("""
-            SELECT o.*, off.office_name
-            FROM officers o
-            LEFT JOIN offices off ON o.office_id = off.office_id
-            WHERE o.officer_id = ?
-        """, (user['officer_id'],))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT o.*, off.office_name
+                FROM officers o
+                LEFT JOIN offices off ON o.office_id = off.office_id
+                WHERE o.officer_id = %s
+            """, (user['officer_id'],))
+        else:
+            cursor.execute("""
+                SELECT o.*, off.office_name
+                FROM officers o
+                LEFT JOIN offices off ON o.office_id = off.office_id
+                WHERE o.officer_id = ?
+            """, (user['officer_id'],))
         officer = dict(cursor.fetchone())
 
         # Get all roles for this officer
-        cursor.execute("""
-            SELECT id, role_type, scope_type, scope_value, is_primary, effective_from
-            FROM officer_roles
-            WHERE officer_id = ? AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
-            ORDER BY is_primary DESC, effective_from DESC
-        """, (user['officer_id'],))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT id, role_type, scope_type, scope_value, is_primary, effective_from
+                FROM officer_roles
+                WHERE officer_id = %s AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
+                ORDER BY is_primary DESC, effective_from DESC
+            """, (user['officer_id'],))
+        else:
+            cursor.execute("""
+                SELECT id, role_type, scope_type, scope_value, is_primary, effective_from
+                FROM officer_roles
+                WHERE officer_id = ? AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
+                ORDER BY is_primary DESC, effective_from DESC
+            """, (user['officer_id'],))
         roles = [dict(row) for row in cursor.fetchall()]
 
         # Get assignment count
-        cursor.execute("""
-            SELECT COUNT(DISTINCT rs.assignment_id) as assignment_count,
-                   COALESCE(SUM(rs.share_amount), 0) as total_revenue
-            FROM revenue_shares rs
-            WHERE rs.officer_id = ?
-        """, (user['officer_id'],))
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT COUNT(DISTINCT rs.assignment_id) as assignment_count,
+                       COALESCE(SUM(rs.share_amount), 0) as total_revenue
+                FROM revenue_shares rs
+                WHERE rs.officer_id = %s
+            """, (user['officer_id'],))
+        else:
+            cursor.execute("""
+                SELECT COUNT(DISTINCT rs.assignment_id) as assignment_count,
+                       COALESCE(SUM(rs.share_amount), 0) as total_revenue
+                FROM revenue_shares rs
+                WHERE rs.officer_id = ?
+            """, (user['officer_id'],))
         stats = dict(cursor.fetchone())
 
     return templates.TemplateResponse(
@@ -109,10 +133,16 @@ async def change_password_submit(
         cursor = conn.cursor()
 
         # Get current password hash
-        cursor.execute(
-            "SELECT password_hash FROM officers WHERE officer_id = ?",
-            (user['officer_id'],)
-        )
+        if USE_POSTGRES:
+            cursor.execute(
+                "SELECT password_hash FROM officers WHERE officer_id = %s",
+                (user['officer_id'],)
+            )
+        else:
+            cursor.execute(
+                "SELECT password_hash FROM officers WHERE officer_id = ?",
+                (user['officer_id'],)
+            )
         row = cursor.fetchone()
 
         if not row:
@@ -130,16 +160,28 @@ async def change_password_submit(
 
         # Update password
         new_hash = hash_password(new_password)
-        cursor.execute(
-            "UPDATE officers SET password_hash = ? WHERE officer_id = ?",
-            (new_hash, user['officer_id'])
-        )
+        if USE_POSTGRES:
+            cursor.execute(
+                "UPDATE officers SET password_hash = %s WHERE officer_id = %s",
+                (new_hash, user['officer_id'])
+            )
+        else:
+            cursor.execute(
+                "UPDATE officers SET password_hash = ? WHERE officer_id = ?",
+                (new_hash, user['officer_id'])
+            )
 
         # Log the action
-        cursor.execute("""
-            INSERT INTO activity_log (action, entity_type, entity_id, actor_id, details)
-            VALUES (?, ?, ?, ?, ?)
-        """, ('PASSWORD_CHANGE', 'OFFICER', user['officer_id'], user['officer_id'], 'User changed their own password'))
+        if USE_POSTGRES:
+            cursor.execute("""
+                INSERT INTO activity_log (action, entity_type, entity_id, actor_id, details)
+                VALUES (%s, %s, %s, %s, %s)
+            """, ('PASSWORD_CHANGE', 'OFFICER', user['officer_id'], user['officer_id'], 'User changed their own password'))
+        else:
+            cursor.execute("""
+                INSERT INTO activity_log (action, entity_type, entity_id, actor_id, details)
+                VALUES (?, ?, ?, ?, ?)
+            """, ('PASSWORD_CHANGE', 'OFFICER', user['officer_id'], user['officer_id'], 'User changed their own password'))
 
     return RedirectResponse(
         url="/profile?message=Password changed successfully",
