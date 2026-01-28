@@ -2,6 +2,48 @@
 
 {% block title %}Dashboard - NPC PMS Portal{% endblock %}
 
+{% block extra_head %}
+<style>
+    .summary-card.card-selected {
+        outline: 3px solid #3b82f6;
+        outline-offset: -3px;
+        box-shadow: 0 0 0 1px #3b82f6, 0 4px 12px rgba(59, 130, 246, 0.3);
+        transform: translateY(-2px);
+        transition: all 0.15s ease;
+    }
+    .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        margin: 16px 0;
+    }
+    @media (max-width: 900px) {
+        .cards-grid { grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); }
+    }
+    .card-info-btn {
+        position: absolute; top: 6px; right: 8px;
+        width: 16px; height: 16px; border-radius: 50%;
+        background: rgba(100,116,139,0.15); color: #64748b;
+        font-size: 0.6rem; font-weight: 700; font-style: italic;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; z-index: 2; line-height: 1;
+    }
+    .card-info-btn:hover { background: rgba(100,116,139,0.3); }
+    .card-info-btn.card-info-light {
+        background: rgba(255,255,255,0.25); color: rgba(255,255,255,0.9);
+    }
+    .card-info-btn.card-info-light:hover { background: rgba(255,255,255,0.4); }
+    .card-info-popup {
+        position: fixed; z-index: 9999;
+        background: #1e293b; color: #e2e8f0; border-radius: 8px;
+        padding: 12px 16px; font-size: 0.75rem; max-width: 320px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3); line-height: 1.5;
+    }
+    .card-info-popup strong { color: #93c5fd; }
+    .card-info-popup .formula { color: #fbbf24; font-family: monospace; font-size: 0.7rem; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="tab-container">
     <!-- Header with Role-Based View -->
@@ -17,7 +59,19 @@
             </span>
             {% endif %}
         </div>
-        <div class="tab-actions">
+        <div class="tab-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <!-- FY Selector -->
+            <form method="GET" action="/dashboard" style="display: flex; gap: 6px; align-items: center;" id="fyForm">
+                <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                {% if filter_office %}<input type="hidden" name="filter_office" value="{{ filter_office }}">{% endif %}
+                {% if filter_status %}<input type="hidden" name="filter_status" value="{{ filter_status }}">{% endif %}
+                <label style="font-size: 0.75rem; color: #64748b; white-space: nowrap;">FY:</label>
+                <select name="fy" onchange="document.getElementById('fyForm').submit()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
+                    {% for year in financial_years %}
+                    <option value="{{ year }}" {% if current_fy == year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </form>
             <a href="/assignment/select-activity-type" class="btn btn-primary btn-sm">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -32,319 +86,692 @@
         </div>
     </div>
 
-    <!-- Performance Summary based on Role -->
-    <div class="stats-row" style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-        {% if view == 'individual' %}
-        <!-- Individual View -->
-        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">My Target (Pro-rata)</div>
-            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.annual_target or 60) }}L</span></div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Real Revenue</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_share or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #0891b2, #0e7490); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Notional</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.notional_revenue or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
-        </div>
-        {% elif view == 'team_leader' %}
-        <!-- Team Leader View -->
-        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Assignments as TL</div>
-            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ summary.assignment_count or 0 }}</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Total Value</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_value or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Revenue Collected</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_revenue or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Collection %</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
-        </div>
-        {% elif view == 'office' %}
-        <!-- Office / RD Head View -->
-        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Office Target (Pro-rata)</div>
-            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.target or 0) }}L</span></div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Real Revenue</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_revenue or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #0891b2, #0e7490); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Notional</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.notional_revenue or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
-        </div>
-        {% elif view == 'group' %}
-        <!-- Group Head View -->
-        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Assignments in {{ scope_value }}</div>
-            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ summary.assignment_count or 0 }}</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Total Value</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_value or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Revenue</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_revenue or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #0891b2, #0e7490); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Offices / Officers</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ summary.office_count or 0 }} / {{ summary.officer_count or 0 }}</div>
-        </div>
-        {% else %}
-        <!-- DDG / DG / NPC View -->
-        <div style="flex: 1; min-width: 200px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;">
-            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">Target (Pro-rata)</div>
-            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ "%.1f"|format(summary.prorata_target or 0) }}L <span style="font-size: 0.75rem; color: #94a3b8;">/ {{ "%.1f"|format(summary.target or 0) }}L</span></div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Total Revenue</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(summary.total_contribution or summary.total_revenue or 0) }}L</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Offices / Officers</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ summary.office_count or 0 }} / {{ summary.officer_count or 0 }}</div>
-        </div>
-        <div style="flex: 1; min-width: 200px; background: {% if (summary.achievement_pct or 0) >= 100 %}linear-gradient(135deg, #10b981, #059669){% elif (summary.achievement_pct or 0) >= 75 %}linear-gradient(135deg, #f59e0b, #d97706){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 12px; padding: 16px; color: white;">
-            <div style="font-size: 0.75rem; opacity: 0.9; margin-bottom: 4px;">Achievement</div>
-            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.0f"|format(summary.achievement_pct or 0) }}%</div>
-        </div>
-        {% endif %}
+    <!-- 5 Main Tabs -->
+    <div class="tab-nav" style="margin-bottom: 0; border-bottom: 2px solid #e2e8f0;">
+        <a href="/dashboard?active_tab=assignments&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'assignments' %}active{% endif %}" style="text-decoration: none;">
+            Assignments <span class="count">{{ tab_counts.assignments }}</span>
+        </a>
+        <a href="/dashboard?active_tab=training&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'training' %}active{% endif %}" style="text-decoration: none;">
+            Training <span class="count">{{ tab_counts.training }}</span>
+        </a>
+        <a href="/dashboard?active_tab=total_real_revenue&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'total_real_revenue' %}active{% endif %}" style="text-decoration: none;">
+            Total Real Revenue <span class="count">{{ tab_counts.total_real_revenue }}</span>
+        </a>
+        <a href="/dashboard?active_tab=development&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'development' %}active{% endif %}" style="text-decoration: none;">
+            Development Work <span class="count">{{ tab_counts.development }}</span>
+        </a>
+        <a href="/dashboard?active_tab=total_revenue&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'total_revenue' %}active{% endif %}" style="text-decoration: none;">
+            Total Revenue <span class="count">{{ tab_counts.total_revenue }}</span>
+        </a>
     </div>
 
-    <!-- 4-Stage Workflow -->
-    <div style="background: #f8fafc; border-radius: 10px; padding: 15px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-        <span style="font-weight: 600; color: #475569; font-size: 0.875rem;">Revenue Pipeline:</span>
-        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <a href="/enquiry/" class="btn btn-sm" style="background: #dbeafe; color: #1d4ed8; border: none; font-size: 0.75rem;">1. Enquiries</a>
-            <a href="/proposal-request/" class="btn btn-sm" style="background: #e0f2fe; color: #0369a1; border: none; font-size: 0.75rem;">2. PRs</a>
-            <a href="/proposal/" class="btn btn-sm" style="background: #fef3c7; color: #b45309; border: none; font-size: 0.75rem;">3. Proposals</a>
-            <a href="/assignment/workorders" class="btn btn-sm" style="background: #d1fae5; color: #047857; border: none; font-size: 0.75rem;">4. Work Orders</a>
+    <!-- 10 Summary Cards (unified for all tabs) -->
+    <div class="cards-grid">
+        <!-- Row 1 -->
+        <div class="summary-card" onclick="toggleDrilldown('active_count')" style="cursor: pointer; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; position: relative;">
+            <span class="card-info-btn" onclick="event.stopPropagation(); showCardInfo('active_count')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 4px;">Active Count</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #1e293b;">{{ tab_summary.active_count }}</div>
         </div>
-        <a href="/enquiry/new" class="btn btn-sm btn-primary" style="font-size: 0.75rem;">+ New Enquiry</a>
+        <div class="summary-card" onclick="toggleDrilldown('targeted')" style="cursor: pointer; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 10px; padding: 14px; color: white; position: relative;">
+            <span class="card-info-btn card-info-light" onclick="event.stopPropagation(); showCardInfo('targeted')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; opacity: 0.9; margin-bottom: 4px;">Targeted Value</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(tab_summary.targeted_value or 0) }}L</div>
+        </div>
+        <div class="summary-card" onclick="toggleDrilldown('tentative')" style="cursor: pointer; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; position: relative;">
+            <span class="card-info-btn" onclick="event.stopPropagation(); showCardInfo('tentative')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 4px;">Tentative Value</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #6366f1;">{{ "%.1f"|format(tab_summary.tentative_value or 0) }}L</div>
+        </div>
+        <div class="summary-card" onclick="toggleDrilldown('completed')" style="cursor: pointer; background: linear-gradient(135deg, #10b981, #059669); border-radius: 10px; padding: 14px; color: white; position: relative;">
+            <span class="card-info-btn card-info-light" onclick="event.stopPropagation(); showCardInfo('completed')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; opacity: 0.9; margin-bottom: 4px;">Completed Value</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(tab_summary.completed_value or 0) }}L</div>
+        </div>
+        <div class="summary-card" onclick="toggleDrilldown('billing')" style="cursor: pointer; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; position: relative;">
+            <span class="card-info-btn" onclick="event.stopPropagation(); showCardInfo('billing')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 4px;">Billed (FY {{ current_fy }})</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #047857;">{{ "%.1f"|format(tab_summary.billed_fy or 0) }}L</div>
+        </div>
+
+        <!-- Row 2 -->
+        <div class="summary-card" onclick="toggleDrilldown('to_be_billed')" style="cursor: pointer; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; position: relative;">
+            <span class="card-info-btn" onclick="event.stopPropagation(); showCardInfo('to_be_billed')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 4px;">To Be Billed</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #b45309;">{{ "%.1f"|format(tab_summary.to_be_billed_fy or 0) }}L</div>
+        </div>
+        <div class="summary-card" onclick="toggleDrilldown('payments')" style="cursor: pointer; background: linear-gradient(135deg, #10b981, #059669); border-radius: 10px; padding: 14px; color: white; position: relative;">
+            <span class="card-info-btn card-info-light" onclick="event.stopPropagation(); showCardInfo('payments')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; opacity: 0.9; margin-bottom: 4px;">Payment Received (FY)</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(tab_summary.payment_received or 0) }}L</div>
+        </div>
+        <div class="summary-card" onclick="toggleDrilldown('expenses')" style="cursor: pointer; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; position: relative;">
+            <span class="card-info-btn" onclick="event.stopPropagation(); showCardInfo('expenses')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; color: #64748b; margin-bottom: 4px;">Expenditure (FY {{ current_fy }})</div>
+            <div style="font-size: 1.25rem; font-weight: 700; color: #dc2626;">{{ "%.1f"|format(tab_summary.expenses_fy or 0) }}L</div>
+        </div>
+        <div class="summary-card" onclick="toggleDrilldown('net_value')" style="cursor: pointer; background: {% if (tab_summary.net_value or 0) >= 0 %}linear-gradient(135deg, #3b82f6, #1d4ed8){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 10px; padding: 14px; color: white; position: relative;">
+            <span class="card-info-btn card-info-light" onclick="event.stopPropagation(); showCardInfo('net_value')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; opacity: 0.9; margin-bottom: 4px;">Net Value</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(tab_summary.net_value or 0) }}L</div>
+        </div>
+        <div class="summary-card" onclick="toggleDrilldown('surplus_deficit')" style="cursor: pointer; background: {% if (tab_summary.surplus_deficit or 0) >= 0 %}linear-gradient(135deg, #10b981, #059669){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; border-radius: 10px; padding: 14px; color: white; position: relative;">
+            <span class="card-info-btn card-info-light" onclick="event.stopPropagation(); showCardInfo('surplus_deficit')" title="Click for formula">i</span>
+            <div style="font-size: 0.7rem; opacity: 0.9; margin-bottom: 4px;">Surplus / Deficit</div>
+            <div style="font-size: 1.25rem; font-weight: 700;">{{ "%.1f"|format(tab_summary.surplus_deficit or 0) }}L</div>
+        </div>
     </div>
 
-    <!-- Tab Navigation -->
-    <div class="tab-nav">
-        <button class="tab-btn active" data-tab-btn="dash" onclick="switchTab('tab-all', 'dash')">
-            All <span class="count">{{ assignments|length }}</span>
-        </button>
-        <button class="tab-btn" data-tab-btn="dash" onclick="switchTab('tab-progress', 'dash')">
-            In Progress <span class="count">{{ assignments|selectattr('status', 'equalto', 'In Progress')|list|length }}</span>
-        </button>
-        <button class="tab-btn" data-tab-btn="dash" onclick="switchTab('tab-completed', 'dash')">
-            Completed <span class="count">{{ assignments|selectattr('status', 'equalto', 'Completed')|list|length }}</span>
-        </button>
-        <button class="tab-btn" data-tab-btn="dash" onclick="switchTab('tab-pipeline', 'dash')">
-            Pipeline <span class="count">{{ assignments|selectattr('status', 'equalto', 'Pipeline')|list|length }}</span>
-        </button>
+    <!-- Drilldown Panel (hidden, shown on card click) -->
+    <div id="drilldown-panel" style="display: none; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+            <h3 style="margin: 0; font-size: 0.9rem; color: #475569;" id="drilldown-title">Monthly Breakdown</h3>
+            <div style="display: flex; gap: 4px; align-items: center;">
+                <button onclick="loadDrilldown('monthly')" class="btn btn-sm drilldown-view-btn" data-view="monthly" style="font-size: 0.7rem; background: #3b82f6; color: white;">Monthly</button>
+                <button onclick="loadDrilldown('quarterly')" class="btn btn-sm drilldown-view-btn" data-view="quarterly" style="font-size: 0.7rem;">Quarterly</button>
+                <button onclick="loadDrilldown('till_date')" class="btn btn-sm drilldown-view-btn" data-view="till_date" style="font-size: 0.7rem;">Till Date</button>
+                <button onclick="document.getElementById('drilldown-panel').style.display='none'" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">Close</button>
+            </div>
+        </div>
+        <div id="drilldown-content" style="overflow-x: auto;">
+            <p style="color: #94a3b8; font-size: 0.8125rem;">Loading...</p>
+        </div>
     </div>
 
-    <!-- Tab Content: All -->
-    <div id="tab-all" class="tab-content active" data-tab-group="dash">
-        {% if view in ['npc', 'ddg'] and offices %}
-        <div class="filter-bar">
-            <form method="GET" action="/dashboard" style="display: flex; gap: 8px; align-items: center;">
-                <select name="filter_office" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
-                    <option value="">All Offices</option>
-                    {% for office in offices %}
-                    <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>{{ office.office_id }} - {{ office.office_name }}</option>
-                    {% endfor %}
-                </select>
-                <select name="filter_status" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
-                    <option value="">All Statuses</option>
-                    {% for status in statuses %}
-                    <option value="{{ status }}" {% if filter_status == status %}selected{% endif %}>{{ status }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-                {% if filter_office or filter_status %}
-                <a href="/dashboard" class="btn btn-sm btn-secondary">Clear</a>
-                {% endif %}
-            </form>
-        </div>
-        {% endif %}
+    <!-- Breadcrumb Navigation -->
+    {% if breadcrumbs and breadcrumbs|length > 1 %}
+    <div style="margin-bottom: 12px; font-size: 0.8125rem; color: #64748b; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+        {% for crumb in breadcrumbs %}
+            {% if not loop.last %}
+                <a href="{{ crumb.url }}" style="color: #3b82f6; text-decoration: none;">{{ crumb.label }}</a>
+                <span style="color: #cbd5e1;">/</span>
+            {% else %}
+                <strong style="color: #1e293b;">{{ crumb.label }}</strong>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
 
-        {% if assignments %}
+    <!-- Sub-view: Entities (Office/Group rows for DDG/DG) -->
+    {% if sub_view == 'entities' and active_tab != 'development' %}
+        {% if sub_rows %}
+        <div style="overflow-x: auto;">
         <table class="compact-table">
             <thead>
                 <tr>
-                    <th>Assignment No.</th>
-                    <th>Type</th>
-                    <th>Title</th>
-                    <th>Office</th>
-                    <th>Value</th>
-                    <th>Received</th>
-                    <th>Status</th>
-                    <th>Details</th>
+                    <th>Office / Group</th>
+                    <th class="text-right" style="position:relative;">Targeted (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Targeted Work Value', 'SUM of work value for milestones with target_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Tentative (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Tentative Work Value', 'SUM of work value for milestones with tentative_date or actual_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Completed (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Completed Work Value', 'SUM of work value for milestones with actual_completion_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Billed (FY) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Billed Amount', 'SUM(Invoice Amount) for invoices raised in selected FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">To Be Billed <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'To Be Billed', 'Milestone amounts in FY where invoice not yet raised')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Received <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Payment Received', 'SUM(Amount Received) for payments in selected FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Expenditure <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Expenditure', 'SUM(Expenditure Amount) for entries in selected FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Net Value <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Net Value', 'Completed Work Value − Expenditure')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Surplus/Deficit <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Surplus / Deficit', 'Payment Received − Expenditure')" title="Info">i</span></th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                {% for a in assignments %}
+                {% for e in sub_rows %}
                 <tr>
-                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
                     <td>
-                        {% if a.type %}
-                        <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% elif a.type == 'NON_REVENUE' %}badge-purple{% else %}badge-warning{% endif %}">
-                            {{ a.type }}
-                        </span>
-                        {% else %}
-                        <span class="badge badge-secondary">-</span>
-                        {% endif %}
+                        <a href="/dashboard?active_tab={{ active_tab }}&fy={{ current_fy }}&sub_view=team_leaders&sub_id={{ e.office_id|urlencode }}"
+                           style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                            {{ e.office_name or e.office_id }}
+                        </a>
+                        <div style="font-size: 0.7rem; color: #94a3b8;">{{ e.office_id }}</div>
                     </td>
-                    <td>{{ a.title[:35] }}{% if a.title|length > 35 %}...{% endif %}</td>
-                    <td>{{ a.office_id }}</td>
-                    <td>{{ "%.1f"|format(a.gross_value or 0) }}L</td>
-                    <td style="color: #10b981;">{{ "%.1f"|format(a.amount_received or 0) }}L</td>
-                    <td>
-                        <span class="badge
-                            {% if a.status == 'Completed' %}badge-success
-                            {% elif a.status == 'In Progress' %}badge-info
-                            {% elif a.status == 'On Hold' %}badge-warning
-                            {% else %}badge-secondary{% endif %}">
-                            {{ a.status or '-' }}
-                        </span>
+                    <td class="text-right">{{ "%.1f"|format(e.targeted_value or 0) }}</td>
+                    <td class="text-right">{{ "%.1f"|format(e.tentative_value or 0) }}</td>
+                    <td class="text-right" style="color: #059669;">{{ "%.1f"|format(e.completed_value or 0) }}</td>
+                    <td class="text-right" style="color: #047857;">{{ "%.1f"|format(e.billed_fy or 0) }}</td>
+                    <td class="text-right" style="color: #b45309;">{{ "%.1f"|format(e.to_be_billed or 0) }}</td>
+                    <td class="text-right" style="color: #10b981;">{{ "%.1f"|format(e.payment_received or 0) }}</td>
+                    <td class="text-right" style="color: #dc2626;">{{ "%.1f"|format(e.expenses_fy or 0) }}</td>
+                    <td class="text-right" style="font-weight: 600; color: {% if (e.net_value or 0) >= 0 %}#3b82f6{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(e.net_value or 0) }}
+                    </td>
+                    <td class="text-right" style="font-weight: 600; color: {% if (e.surplus_deficit or 0) >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(e.surplus_deficit or 0) }}
                     </td>
                     <td>
-                        {% if a.details_filled %}
-                        <span style="color: #10b981; font-size: 0.75rem;">Filled</span>
-                        {% else %}
-                        <a href="{% if a.type %}/assignment/edit/{{ a.id }}{% else %}/assignment/select-type/{{ a.id }}{% endif %}" class="btn btn-sm btn-primary" style="font-size: 0.7rem; padding: 2px 8px;">Fill</a>
-                        {% endif %}
+                        <a href="/dashboard?active_tab={{ active_tab }}&fy={{ current_fy }}&sub_view=team_leaders&sub_id={{ e.office_id|urlencode }}"
+                           class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">Drill Down</a>
                     </td>
-                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-secondary">View</a></td>
                 </tr>
                 {% endfor %}
+                <!-- Totals row -->
+                <tr style="font-weight: 700; background: #f1f5f9; border-top: 2px solid #e2e8f0;">
+                    <td>TOTAL ({{ sub_rows|length }} offices)</td>
+                    <td class="text-right">{{ "%.1f"|format(sub_rows|sum(attribute='targeted_value')) }}</td>
+                    <td class="text-right">{{ "%.1f"|format(sub_rows|sum(attribute='tentative_value')) }}</td>
+                    <td class="text-right" style="color: #059669;">{{ "%.1f"|format(sub_rows|sum(attribute='completed_value')) }}</td>
+                    <td class="text-right" style="color: #047857;">{{ "%.1f"|format(sub_rows|sum(attribute='billed_fy')) }}</td>
+                    <td class="text-right" style="color: #b45309;">{{ "%.1f"|format(sub_rows|sum(attribute='to_be_billed')) }}</td>
+                    <td class="text-right" style="color: #10b981;">{{ "%.1f"|format(sub_rows|sum(attribute='payment_received')) }}</td>
+                    <td class="text-right" style="color: #dc2626;">{{ "%.1f"|format(sub_rows|sum(attribute='expenses_fy')) }}</td>
+                    <td class="text-right" style="color: {% if (sub_rows|sum(attribute='net_value')) >= 0 %}#3b82f6{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(sub_rows|sum(attribute='net_value')) }}
+                    </td>
+                    <td class="text-right" style="color: {% if (sub_rows|sum(attribute='surplus_deficit')) >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(sub_rows|sum(attribute='surplus_deficit')) }}
+                    </td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No office data</h3>
+            <p>No offices found with {{ active_tab }} data.</p>
+        </div>
+        {% endif %}
+
+    <!-- Sub-view: Team Leaders (within an office) -->
+    {% elif sub_view == 'team_leaders' and active_tab != 'development' %}
+        {% if sub_rows %}
+        <div style="overflow-x: auto;">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Team Leader</th>
+                    <th>Designation</th>
+                    <th class="text-right" style="position:relative;">Targeted (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Targeted Work Value', 'SUM of work value for milestones with target_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Tentative (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Tentative Work Value', 'SUM of work value for milestones with tentative_date or actual_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Completed (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Completed Work Value', 'SUM of work value for milestones with actual_completion_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Billed (FY) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Billed Amount', 'SUM(Invoice Amount) for invoices raised in selected FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">To Be Billed <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'To Be Billed', 'Milestone amounts in FY where invoice not yet raised')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Received <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Payment Received', 'SUM(Amount Received) for payments in selected FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Expenditure <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Expenditure', 'SUM(Expenditure Amount) for entries in selected FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Net Value <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Net Value', 'Completed Work Value − Expenditure')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Surplus/Deficit <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Surplus / Deficit', 'Payment Received − Expenditure')" title="Info">i</span></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in sub_rows %}
+                <tr{% if t.officer_id == '__unassigned__' %} style="background: #fffbeb;"{% endif %}>
+                    <td>
+                        {% if t.officer_id == '__unassigned__' %}
+                        <span style="color: #b45309; font-weight: 600; font-style: italic;">{{ t.tl_name }}</span>
+                        {% else %}
+                        <a href="/dashboard?active_tab={{ active_tab }}&fy={{ current_fy }}&sub_view=officers&sub_id={{ t.officer_id|urlencode }}"
+                           style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                            {{ t.tl_name }}
+                        </a>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 0.75rem; color: #64748b;">{{ t.designation or '-' }}</td>
+                    <td class="text-right">{{ "%.1f"|format(t.targeted_value or 0) }}</td>
+                    <td class="text-right">{{ "%.1f"|format(t.tentative_value or 0) }}</td>
+                    <td class="text-right" style="color: #059669;">{{ "%.1f"|format(t.completed_value or 0) }}</td>
+                    <td class="text-right" style="color: #047857;">{{ "%.1f"|format(t.billed_fy or 0) }}</td>
+                    <td class="text-right" style="color: #b45309;">{{ "%.1f"|format(t.to_be_billed or 0) }}</td>
+                    <td class="text-right" style="color: #10b981;">{{ "%.1f"|format(t.payment_received or 0) }}</td>
+                    <td class="text-right" style="color: #dc2626;">{{ "%.1f"|format(t.expenses_fy or 0) }}</td>
+                    <td class="text-right" style="font-weight: 600; color: {% if (t.net_value or 0) >= 0 %}#3b82f6{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(t.net_value or 0) }}
+                    </td>
+                    <td class="text-right" style="font-weight: 600; color: {% if (t.surplus_deficit or 0) >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(t.surplus_deficit or 0) }}
+                    </td>
+                    <td>
+                        {% if t.officer_id != '__unassigned__' %}
+                        <a href="/dashboard?active_tab={{ active_tab }}&fy={{ current_fy }}&sub_view=officers&sub_id={{ t.officer_id|urlencode }}"
+                           class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">Officers</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <!-- Totals row -->
+                <tr style="font-weight: 700; background: #f1f5f9; border-top: 2px solid #e2e8f0;">
+                    <td colspan="2">TOTAL ({{ sub_rows|length }} TLs)</td>
+                    <td class="text-right">{{ "%.1f"|format(sub_rows|sum(attribute='targeted_value')) }}</td>
+                    <td class="text-right">{{ "%.1f"|format(sub_rows|sum(attribute='tentative_value')) }}</td>
+                    <td class="text-right" style="color: #059669;">{{ "%.1f"|format(sub_rows|sum(attribute='completed_value')) }}</td>
+                    <td class="text-right" style="color: #047857;">{{ "%.1f"|format(sub_rows|sum(attribute='billed_fy')) }}</td>
+                    <td class="text-right" style="color: #b45309;">{{ "%.1f"|format(sub_rows|sum(attribute='to_be_billed')) }}</td>
+                    <td class="text-right" style="color: #10b981;">{{ "%.1f"|format(sub_rows|sum(attribute='payment_received')) }}</td>
+                    <td class="text-right" style="color: #dc2626;">{{ "%.1f"|format(sub_rows|sum(attribute='expenses_fy')) }}</td>
+                    <td class="text-right" style="color: {% if (sub_rows|sum(attribute='net_value')) >= 0 %}#3b82f6{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(sub_rows|sum(attribute='net_value')) }}
+                    </td>
+                    <td class="text-right" style="color: {% if (sub_rows|sum(attribute='surplus_deficit')) >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                        {{ "%.1f"|format(sub_rows|sum(attribute='surplus_deficit')) }}
+                    </td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No team leaders found</h3>
+            <p>No assignments with team leaders assigned in this office/group.</p>
+        </div>
+        {% endif %}
+
+    <!-- Sub-view: Officers (within a TL's assignments) -->
+    {% elif sub_view == 'officers' %}
+        {% if sub_rows %}
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Officer</th>
+                    <th>Designation</th>
+                    {% if active_tab != 'development' %}
+                    <th class="text-right" style="position:relative;">Target (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Target Revenue', 'Annual revenue target based on officer designation')" title="Info">i</span></th>
+                    {% endif %}
+                    <th class="text-right" style="position:relative;">Targeted (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Targeted Work Value', 'SUM of milestone shares with target_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Tentative (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Tentative Work Value', 'SUM of milestone shares with tentative_date or actual_completion_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Completed (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Completed Work Value', 'SUM of milestone shares with actual_completion_date in FY')" title="Info">i</span></th>
+                    <th class="text-right" style="position:relative;">Revenue Earned (L) <span class="card-info-btn" onclick="event.stopPropagation(); showColInfo(this, 'Revenue Earned (80/20)', '100% for completed+paid milestones\n+ 80% for completed but unpaid\n+ 20% for prior-period invoiced, current-period paid')" title="Info">i</span></th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in sub_rows %}
+                <tr>
+                    <td>
+                        <a href="/dashboard?active_tab={{ active_tab }}&fy={{ current_fy }}&sub_view=items&sub_id={{ o.officer_id|urlencode }}"
+                           style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                            {{ o.name }}
+                        </a>
+                    </td>
+                    <td style="font-size: 0.75rem; color: #64748b;">{{ o.designation or '-' }}</td>
+                    {% if active_tab != 'development' %}
+                    <td class="text-right" style="font-weight: 600;">{{ "%.1f"|format(o.annual_target or 0) }}</td>
+                    {% endif %}
+                    <td class="text-right">{{ "%.1f"|format(o.targeted_value or 0) }}</td>
+                    <td class="text-right">{{ "%.1f"|format(o.tentative_value or 0) }}</td>
+                    <td class="text-right" style="color: #047857;">{{ "%.1f"|format(o.completed_value or 0) }}</td>
+                    <td class="text-right" style="color: #10b981; font-weight: 600;">{{ "%.1f"|format(o.revenue_earned or 0) }}</td>
+                    <td>
+                        <a href="/dashboard?active_tab={{ active_tab }}&fy={{ current_fy }}&sub_view=items&sub_id={{ o.officer_id|urlencode }}"
+                           class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">Items</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                <!-- Totals row -->
+                <tr style="font-weight: 700; background: #f1f5f9; border-top: 2px solid #e2e8f0;">
+                    <td colspan="2">TOTAL ({{ sub_rows|length }} officers)</td>
+                    {% if active_tab != 'development' %}
+                    <td class="text-right">{{ "%.1f"|format(sub_rows|sum(attribute='annual_target')) }}</td>
+                    {% endif %}
+                    <td class="text-right">{{ "%.1f"|format(sub_rows|sum(attribute='targeted_value')) }}</td>
+                    <td class="text-right">{{ "%.1f"|format(sub_rows|sum(attribute='tentative_value')) }}</td>
+                    <td class="text-right" style="color: #047857;">{{ "%.1f"|format(sub_rows|sum(attribute='completed_value')) }}</td>
+                    <td class="text-right" style="color: #10b981;">{{ "%.1f"|format(sub_rows|sum(attribute='revenue_earned')) }}</td>
+                    <td></td>
+                </tr>
             </tbody>
         </table>
         {% else %}
         <div class="empty-state" style="padding: 40px; text-align: center;">
-            <h3>No assignments found</h3>
-            <p>
-                {% if view == 'individual' %}
-                You don't have any assignments with revenue share yet.
-                {% elif view == 'team_leader' %}
-                You are not assigned as Team Leader for any assignment.
-                {% elif view == 'group' %}
-                No assignments found in the {{ scope_value }} group.
-                {% elif view == 'office' %}
-                No assignments found in this office.
-                {% else %}
-                Create your first assignment or adjust filters.
-                {% endif %}
-            </p>
-            <a href="/assignment/new" class="btn btn-primary">New Assignment</a>
+            <h3>No officers found</h3>
+            <p>No officers with revenue shares on these assignments.</p>
         </div>
         {% endif %}
-    </div>
 
-    <!-- Tab Content: In Progress -->
-    <div id="tab-progress" class="tab-content" data-tab-group="dash">
-        <table class="compact-table">
-            <thead>
-                <tr>
-                    <th>Assignment No.</th>
-                    <th>Title</th>
-                    <th>Office</th>
-                    <th>Value</th>
-                    <th>Target Date</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in assignments if a.status == 'In Progress' %}
-                <tr>
-                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
-                    <td>{{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}</td>
-                    <td>{{ a.office_id }}</td>
-                    <td>{{ "%.1f"|format(a.gross_value or 0) }}L</td>
-                    <td>{{ a.target_date|format_date if a.target_date else '-' }}</td>
-                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-primary">View</a></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">No assignments in progress</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Tab Content: Completed -->
-    <div id="tab-completed" class="tab-content" data-tab-group="dash">
-        <table class="compact-table">
-            <thead>
-                <tr>
-                    <th>Assignment No.</th>
-                    <th>Title</th>
-                    <th>Office</th>
-                    <th>Value</th>
-                    <th>Revenue</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in assignments if a.status == 'Completed' %}
-                <tr>
-                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
-                    <td>{{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}</td>
-                    <td>{{ a.office_id }}</td>
-                    <td>{{ "%.1f"|format(a.gross_value or 0) }}L</td>
-                    <td style="color: #10b981;">{{ "%.1f"|format(a.amount_received or 0) }}L</td>
-                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-success">View</a></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="6" style="text-align: center; padding: 40px; color: #888;">No completed assignments</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Tab Content: Pipeline -->
-    <div id="tab-pipeline" class="tab-content" data-tab-group="dash">
-        <table class="compact-table">
-            <thead>
-                <tr>
-                    <th>Assignment No.</th>
-                    <th>Title</th>
-                    <th>Office</th>
-                    <th>Value</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for a in assignments if a.status == 'Pipeline' %}
-                <tr>
-                    <td><a href="/assignment/view/{{ a.id }}" class="link-primary">{{ a.assignment_no }}</a></td>
-                    <td>{{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}</td>
-                    <td>{{ a.office_id }}</td>
-                    <td>{{ "%.1f"|format(a.gross_value or 0) }}L</td>
-                    <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-info">View</a></td>
-                </tr>
-                {% else %}
-                <tr><td colspan="5" style="text-align: center; padding: 40px; color: #888;">No assignments in pipeline</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <!-- Sub-view: Items (assignment/training list - existing behavior) -->
+    {% else %}
+        {% if active_tab in ('assignments', 'training', 'total_real_revenue', 'total_revenue') %}
+            {% if items %}
+            <table class="compact-table">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Title</th>
+                        <th>Office</th>
+                        <th>Value</th>
+                        <th>Received</th>
+                        <th>Expenses</th>
+                        <th>Surplus</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in items %}
+                    <tr>
+                        <td><a href="/assignment/view/{{ a.id }}" class="link-primary" style="font-size: 0.8rem;">{{ a.assignment_no }}</a></td>
+                        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}</td>
+                        <td>{{ a.office_id }}</td>
+                        <td>{{ "%.1f"|format(a.gross_value or 0) }}L</td>
+                        <td style="color: #10b981;">{{ "%.1f"|format(a.amount_received or 0) }}L</td>
+                        <td style="color: #dc2626;">{{ "%.1f"|format(a.total_expenditure or 0) }}L</td>
+                        <td style="color: {% if (a.surplus_deficit or 0) >= 0 %}#10b981{% else %}#dc2626{% endif %};">{{ "%.1f"|format(a.surplus_deficit or 0) }}L</td>
+                        <td>
+                            <span class="badge
+                                {% if a.status == 'Completed' %}badge-success
+                                {% elif a.status == 'In Progress' or a.status == 'Ongoing' %}badge-info
+                                {% elif a.status == 'On Hold' %}badge-warning
+                                {% else %}badge-secondary{% endif %}">
+                                {{ a.status or '-' }}
+                            </span>
+                        </td>
+                        <td><a href="/assignment/view/{{ a.id }}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state" style="padding: 40px; text-align: center;">
+                <h3>No {{ active_tab }} found</h3>
+                <p>
+                    {% if view == 'individual' %}
+                    You don't have any {{ active_tab }} with revenue share yet.
+                    {% elif view == 'team_leader' %}
+                    No {{ active_tab }} assigned to you as Team Leader.
+                    {% elif view == 'group' %}
+                    No {{ active_tab }} found in the {{ scope_value }} group.
+                    {% else %}
+                    No {{ active_tab }} found. Adjust filters or create a new activity.
+                    {% endif %}
+                </p>
+                <a href="/assignment/select-activity-type" class="btn btn-primary">New Activity</a>
+            </div>
+            {% endif %}
+        {% else %}
+            <!-- Development Work Table -->
+            {% if items %}
+            <table class="compact-table">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Office</th>
+                        <th>Officer</th>
+                        <th>Notional Value</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in items %}
+                    <tr>
+                        <td><a href="/non-revenue/{{ s.id }}" class="link-primary" style="font-size: 0.8rem;">{{ s.suggestion_number }}</a></td>
+                        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ s.title[:40] }}{% if s.title|length > 40 %}...{% endif %}</td>
+                        <td><span class="badge badge-purple" style="font-size: 0.65rem;">{{ s.activity_type or '-' }}</span></td>
+                        <td>{{ s.office_id }}</td>
+                        <td>{{ s.officer_name or '-' }}</td>
+                        <td>{{ "%.1f"|format(s.notional_value or 0) }}L</td>
+                        <td>
+                            <span class="badge
+                                {% if s.status == 'COMPLETED' %}badge-success
+                                {% elif s.status == 'IN_PROGRESS' or s.status == 'APPROVED' %}badge-info
+                                {% elif s.status == 'ON_HOLD' %}badge-warning
+                                {% elif s.status == 'PENDING_APPROVAL' %}badge-warning
+                                {% else %}badge-secondary{% endif %}">
+                                {{ s.status|replace('_', ' ') if s.status else '-' }}
+                            </span>
+                        </td>
+                        <td><a href="/non-revenue/{{ s.id }}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state" style="padding: 40px; text-align: center;">
+                <h3>No development work found</h3>
+                <p>No non-revenue development activities found for this view.</p>
+                <a href="/non-revenue/new" class="btn btn-primary">New Development Activity</a>
+            </div>
+            {% endif %}
+        {% endif %}
+    {% endif %}
 </div>
 
 <!-- User Info Footer -->
 <div style="text-align: center; padding: 15px; color: #94a3b8; font-size: 0.8125rem;">
-    Logged in as <strong>{{ user.name }}</strong> | {{ active_role or 'Officer' }}{% if scope_value %} ({{ scope_value }}){% endif %} | {{ user.office_id }}
+    Logged in as <strong>{{ user.name }}</strong> | {{ active_role or 'Officer' }}{% if scope_value %} ({{ scope_value }}){% endif %} | {{ user.office_id }} | FY {{ current_fy }}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let currentDrilldown = null;
+    let currentView = 'monthly';
+
+    function toggleDrilldown(metric) {
+        const panel = document.getElementById('drilldown-panel');
+        const cards = document.querySelectorAll('.summary-card[onclick]');
+
+        if (currentDrilldown === metric && panel.style.display !== 'none') {
+            panel.style.display = 'none';
+            currentDrilldown = null;
+            cards.forEach(c => c.classList.remove('card-selected'));
+            return;
+        }
+
+        currentDrilldown = metric;
+        currentView = 'monthly';
+        panel.style.display = 'block';
+
+        // Highlight selected card
+        cards.forEach(c => c.classList.remove('card-selected'));
+        const clickedCard = Array.from(cards).find(c => c.getAttribute('onclick').includes("'" + metric + "'"));
+        if (clickedCard) clickedCard.classList.add('card-selected');
+
+        updateViewButtons('monthly');
+        fetchDrilldown(metric, 'monthly');
+    }
+
+    function loadDrilldown(view) {
+        if (!currentDrilldown) return;
+        currentView = view;
+        updateViewButtons(view);
+        fetchDrilldown(currentDrilldown, view);
+    }
+
+    function updateViewButtons(activeView) {
+        document.querySelectorAll('.drilldown-view-btn').forEach(btn => {
+            if (btn.dataset.view === activeView) {
+                btn.style.background = '#3b82f6';
+                btn.style.color = 'white';
+            } else {
+                btn.style.background = '#e2e8f0';
+                btn.style.color = '#475569';
+            }
+        });
+    }
+
+    function fetchDrilldown(metric, view) {
+        const content = document.getElementById('drilldown-content');
+        const title = document.getElementById('drilldown-title');
+        const metricNames = {
+            'active_count': 'Active Count',
+            'targeted': 'Targeted Work Value',
+            'tentative': 'Tentative Work Value',
+            'completed': 'Completed Work Value',
+            'billing': 'Billed (Invoice Raised)',
+            'to_be_billed': 'To Be Billed',
+            'payments': 'Payment Received',
+            'expenses': 'Expenses',
+            'net_value': 'Net Value (Completed - Expenses)',
+            'surplus_deficit': 'Surplus / Deficit (Payments - Expenses)'
+        };
+        const viewNames = { 'monthly': 'Monthly', 'quarterly': 'Quarterly', 'till_date': 'Till Date' };
+        title.textContent = (viewNames[view] || 'Monthly') + ' Breakdown: ' + (metricNames[metric] || metric);
+        content.innerHTML = '<p style="color: #94a3b8; font-size: 0.8125rem;">Loading...</p>';
+
+        const tab = '{{ active_tab }}';
+        const fy = '{{ current_fy }}';
+        const subId = '{{ sub_id or "" }}';
+        const subView = '{{ sub_view or "" }}';
+        let url = `/dashboard/api/monthly-breakdown?tab=${tab}&metric=${metric}&fy=${fy}&view=${view}`;
+        if (subId && subView !== 'entities') {
+            url += `&sub_view=${subView}&sub_id=${encodeURIComponent(subId)}`;
+        }
+
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    content.innerHTML = `<p style="color: #dc2626;">${data.error}</p>`;
+                    return;
+                }
+
+                let html = '<table class="compact-table" style="font-size: 0.8rem;">';
+                html += '<thead><tr>';
+                data.labels.forEach(l => html += `<th style="text-align: right; padding: 6px 8px;">${l}</th>`);
+                html += '<th style="text-align: right; padding: 6px 8px; font-weight: 700;">Total</th></tr></thead>';
+                html += '<tbody><tr>';
+                let total = 0;
+                data.data.forEach(v => {
+                    total += v;
+                    const display = (v > 0) ? v.toFixed(1) : (v < 0 ? v.toFixed(1) : '-');
+                    const color = v < 0 ? 'color: #dc2626;' : '';
+                    html += `<td style="text-align: right; padding: 6px 8px; ${color}">${display}</td>`;
+                });
+                const totalColor = total < 0 ? 'color: #dc2626;' : '';
+                html += `<td style="text-align: right; padding: 6px 8px; font-weight: 700; ${totalColor}">${total.toFixed(1)}</td>`;
+                html += '</tr></tbody></table>';
+
+                content.innerHTML = html;
+            })
+            .catch(() => {
+                content.innerHTML = '<p style="color: #dc2626;">Failed to load data</p>';
+            });
+    }
+
+    // Card info popup
+    const cardInfoData = {
+        'active_count': {
+            title: 'Active Count',
+            formula: 'COUNT of items with status In Progress / Not Started / Ongoing',
+            desc: 'Number of currently active assignments or trainings.'
+        },
+        'targeted': {
+            title: 'Targeted Work Value',
+            formula: 'Assignments: SUM(Gross Value)\nTraining: SUM(Target Participants x Fee per Participant)\nDevelopment: SUM(Notional Value)',
+            desc: 'Total value of all work targeted (full contract/project value).'
+        },
+        'tentative': {
+            title: 'Tentative Work Value',
+            formula: 'Assignments: SUM(Gross Value x Tentative Milestone %)\nTraining: SUM(Tentative Participants x Fee)\nDevelopment: Same as Targeted',
+            desc: 'Value of work expected to be delivered based on tentative milestones or participant estimates.'
+        },
+        'completed': {
+            title: 'Completed Work Value',
+            formula: 'Assignments: SUM(Gross Value x Completed Milestone %)\nTraining: SUM(Actual Participants x Fee)\nDevelopment: SUM(Notional Value) where Completed',
+            desc: 'Value of work actually completed based on milestone completion or actual participants.'
+        },
+        'billing': {
+            title: 'Billed (FY)',
+            formula: 'SUM(Invoice Amount) for invoices raised in selected FY',
+            desc: 'Total amount billed via invoices raised during the selected financial year.'
+        },
+        'to_be_billed': {
+            title: 'To Be Billed',
+            formula: 'SUM(Milestone Amount) where invoice not yet raised within FY date range',
+            desc: 'Value of milestones due in this FY where invoices have not yet been raised.'
+        },
+        'payments': {
+            title: 'Payment Received (FY)',
+            formula: 'SUM(Amount Received) for payments in selected FY',
+            desc: 'Total payments received from clients during the selected financial year.'
+        },
+        'expenses': {
+            title: 'Expenditure (FY)',
+            formula: 'SUM(Expenditure Amount) for entries in selected FY',
+            desc: 'Total expenditure incurred during the selected financial year.'
+        },
+        'net_value': {
+            title: 'Net Value',
+            formula: 'Completed Work Value - Expenditure (FY)',
+            desc: 'Net value after deducting expenditure from completed work value.'
+        },
+        'surplus_deficit': {
+            title: 'Surplus / Deficit',
+            formula: 'Payment Received (FY) - Expenditure (FY)',
+            desc: 'Cash surplus or deficit: payments received minus expenditure in the FY.'
+        }
+    };
+
+    let activeInfoPopup = null;
+    function showCardInfo(metric) {
+        // Remove existing popup if any
+        if (activeInfoPopup) {
+            activeInfoPopup.remove();
+            if (activeInfoPopup.dataset.metric === metric) {
+                activeInfoPopup = null;
+                return;
+            }
+        }
+        const info = cardInfoData[metric];
+        if (!info) return;
+
+        const popup = document.createElement('div');
+        popup.className = 'card-info-popup';
+        popup.dataset.metric = metric;
+        popup.innerHTML = `
+            <div style="margin-bottom: 6px;"><strong>${info.title}</strong></div>
+            <div class="formula" style="margin-bottom: 6px; white-space: pre-line;">${info.formula}</div>
+            <div style="color: #cbd5e1;">${info.desc}</div>
+        `;
+        document.body.appendChild(popup);
+
+        // Position near the clicked (i) button
+        const btn = event.target;
+        const rect = btn.getBoundingClientRect();
+        popup.style.top = (rect.bottom + 6) + 'px';
+        popup.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+
+        activeInfoPopup = popup;
+
+        // Close on click outside
+        setTimeout(() => {
+            document.addEventListener('click', function closePopup(e) {
+                if (!popup.contains(e.target) && !e.target.classList.contains('card-info-btn')) {
+                    popup.remove();
+                    activeInfoPopup = null;
+                    document.removeEventListener('click', closePopup);
+                }
+            });
+        }, 10);
+    }
+
+    function showColInfo(btn, title, desc) {
+        // Remove existing popup if any
+        if (activeInfoPopup) {
+            activeInfoPopup.remove();
+            if (activeInfoPopup.dataset.colTitle === title) {
+                activeInfoPopup = null;
+                return;
+            }
+        }
+        const popup = document.createElement('div');
+        popup.className = 'card-info-popup';
+        popup.dataset.colTitle = title;
+        popup.innerHTML = `
+            <div style="margin-bottom: 6px;"><strong>${title}</strong></div>
+            <div style="color: #cbd5e1; white-space: pre-line;">${desc}</div>
+        `;
+        document.body.appendChild(popup);
+
+        const rect = btn.getBoundingClientRect();
+        popup.style.top = (rect.bottom + 6) + 'px';
+        popup.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+        activeInfoPopup = popup;
+
+        setTimeout(() => {
+            document.addEventListener('click', function closePopup(e) {
+                if (!popup.contains(e.target) && !e.target.classList.contains('card-info-btn')) {
+                    popup.remove();
+                    activeInfoPopup = null;
+                    document.removeEventListener('click', closePopup);
+                }
+            });
+        }, 10);
+    }
+</script>
 {% endblock %}

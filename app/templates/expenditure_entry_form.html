@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Record Expense - {{ assignment.assignment_no }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Record Expense</h1>
+    <a href="/assignment/view/{{ assignment.id }}?tab=cost" class="btn btn-secondary btn-sm">Back to Cost Status</a>
+</div>
+
+<div class="card" style="max-width: 600px;">
+    <div class="card-header">
+        <h2 class="card-title">{{ assignment.assignment_no }} — {{ assignment.title }}</h2>
+    </div>
+
+    <form method="post" action="/assignment/expenditure-entry/{{ assignment.id }}">
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+            <!-- Expenditure Head -->
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 6px; color: #2d3748;">Expenditure Head *</label>
+                <select name="head_id" required style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+                    <option value="">-- Select Head --</option>
+                    {% set current_category = namespace(value='') %}
+                    {% for head in expenditure_heads %}
+                        {% if head.category != current_category.value %}
+                            {% if current_category.value %}
+                            </optgroup>
+                            {% endif %}
+                            <optgroup label="{{ head.category }}">
+                            {% set current_category.value = head.category %}
+                        {% endif %}
+                        <option value="{{ head.id }}">{{ head.head_code }} - {{ head.head_name }}</option>
+                    {% endfor %}
+                    {% if current_category.value %}
+                    </optgroup>
+                    {% endif %}
+                </select>
+            </div>
+
+            <!-- Entry Date -->
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 6px; color: #2d3748;">Date of Expense *</label>
+                <input type="date" name="entry_date" required
+                       style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+            </div>
+
+            <!-- Amount -->
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 6px; color: #2d3748;">Amount (₹ Lakhs) *</label>
+                <input type="number" name="amount" step="0.01" min="0.01" required placeholder="e.g. 1.50"
+                       style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+            </div>
+
+            <!-- Description -->
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 6px; color: #2d3748;">Description</label>
+                <textarea name="description" rows="3" placeholder="Brief description of the expense..."
+                          style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem; resize: vertical;"></textarea>
+            </div>
+
+            <!-- Voucher Reference -->
+            <div>
+                <label style="display: block; font-weight: 600; margin-bottom: 6px; color: #2d3748;">Voucher / Reference No.</label>
+                <input type="text" name="voucher_reference" placeholder="e.g. VCH/2025/001"
+                       style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+            </div>
+
+            <!-- Submit -->
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button type="submit" class="btn btn-success" style="flex: 1;">Save Expense Entry</button>
+                <a href="/assignment/view/{{ assignment.id }}?tab=cost" class="btn btn-secondary" style="flex: 0;">Cancel</a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

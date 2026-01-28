@@ -250,19 +250,25 @@ def generate_milestones(assignment_id, assignment_type, start_date, target_date,
                 invoice_raised = 1
                 invoice_raised_date = today - timedelta(days=random.randint(1, 10))
 
+        # Tentative date: default = target_date, with 30% chance TL adjusted it
+        tentative_date = milestone_date
+        if random.random() < 0.3:
+            tentative_date = milestone_date + timedelta(days=random.randint(-7, 14))
+
         cursor.execute("""
             INSERT INTO milestones
-            (assignment_id, milestone_no, title, description, target_date,
+            (assignment_id, milestone_no, title, description, target_date, tentative_date,
              actual_completion_date, invoice_percent, invoice_amount,
              invoice_raised, invoice_raised_date, payment_received, payment_received_date,
-             revenue_percent, revenue_amount, status)
+             revenue_percent, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (assignment_id, i + 1, title, desc, milestone_date.isoformat(),
+              tentative_date.isoformat(),
               actual_completion_date.isoformat() if actual_completion_date else None,
               normalized_pct, invoice_amount,
               invoice_raised, invoice_raised_date.isoformat() if invoice_raised_date else None,
               payment_received, payment_received_date.isoformat() if payment_received_date else None,
-              normalized_pct, invoice_amount, status))
+              normalized_pct, status))
 
 
 def generate_expenditure(assignment_id, total_value, assignment_type, cursor):
@@ -350,9 +356,10 @@ def create_single_assignment(assignment_data, assignment_type='ASSIGNMENT'):
                     INSERT INTO assignments (
                         assignment_no, type, title, office_id, status, venue,
                         duration_start, duration_end, duration_days, type_of_participants,
-                        faculty1_officer_id, faculty2_officer_id, total_value, gross_value,
-                        details_filled
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        faculty1_officer_id, faculty2_officer_id, team_leader_officer_id,
+                        target_participants, tentative_participants, actual_participants,
+                        fee_per_participant, total_value, gross_value, details_filled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, assignment_data['values'])
 
             # Get the assignment ID - PostgreSQL needs different approach
@@ -395,6 +402,10 @@ def generate_dummy_data():
     print("Clearing existing assignment data...")
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("DELETE FROM officer_revenue_ledger")
+        cursor.execute("DELETE FROM payment_receipts")
+        cursor.execute("DELETE FROM invoice_requests")
+        cursor.execute("DELETE FROM expenditure_entries")
         cursor.execute("DELETE FROM expenditure_items")
         cursor.execute("DELETE FROM revenue_shares")
         cursor.execute("DELETE FROM milestones")
@@ -508,11 +519,28 @@ def generate_dummy_data():
                 duration_days = random.randint(2, 10)
                 duration_end = duration_start + timedelta(days=duration_days)
 
-                total_value = round(random.uniform(5, 30), 2)
-                gross_value = total_value
-
                 faculty1 = random.choice(office_officers) if office_officers else None
                 faculty2 = random.choice(office_officers) if office_officers and random.random() > 0.5 else None
+                team_leader = random.choice(office_officers) if office_officers else None
+
+                # Training participant-based revenue
+                target_participants = random.randint(15, 50)
+                tentative_participants = target_participants + random.randint(-5, 10)
+                if tentative_participants < 5:
+                    tentative_participants = target_participants
+                # actual_participants depends on status
+                if status in ('COMPLETED', 'PAYMENT_RECEIVED'):
+                    actual_participants = tentative_participants + random.randint(-3, 5)
+                    if actual_participants < 5:
+                        actual_participants = tentative_participants
+                elif status in ('IN_PROGRESS',):
+                    actual_participants = random.randint(0, tentative_participants)
+                else:
+                    actual_participants = 0
+                fee_per_participant = round(random.uniform(0.1, 1.0), 2)  # in lakhs
+
+                total_value = round(target_participants * fee_per_participant, 2)
+                gross_value = total_value
 
                 try:
                     assignment_data = {
@@ -525,7 +553,9 @@ def generate_dummy_data():
                             random.choice(VENUES), duration_start.isoformat(),
                             duration_end.isoformat(), duration_days,
                             random.choice(['Senior Executives', 'Middle Management', 'Technical Staff']),
-                            faculty1, faculty2, total_value, gross_value, 1
+                            faculty1, faculty2, team_leader,
+                            target_participants, tentative_participants, actual_participants,
+                            fee_per_participant, total_value, gross_value, 1
                         )
                     }
                     assignment_id = create_single_assignment(assignment_data, 'TRAINING')
@@ -613,6 +643,150 @@ def generate_dummy_data():
                   actual_expenditure, shareable_revenue,
                   gross_shareable - actual_expenditure, assignment_id))
         conn.commit()
+
+    # Generate invoice_requests and payment_receipts from milestone data
+    print("Generating invoice requests and payment receipts...")
+    invoice_count = 0
+    payment_count = 0
+
+    def get_fy_for_date(d):
+        """Return FY string like '2025-26' for a given date."""
+        if d.month >= 4:
+            return f"{d.year}-{str(d.year + 1)[2:]}"
+        else:
+            return f"{d.year - 1}-{str(d.year)[2:]}"
+
+    # Get officers to use as requesters (pick one per office)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT officer_id, office_id FROM officers WHERE designation NOT LIKE '%Admin%'")
+        all_officers_list = [dict(row) for row in cursor.fetchall()]
+    officers_by_off = {}
+    for o in all_officers_list:
+        officers_by_off.setdefault(o['office_id'], []).append(o['officer_id'])
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Get all milestones with invoice_raised=1
+        cursor.execute("""
+            SELECT m.id, m.assignment_id, m.invoice_amount, m.invoice_raised_date,
+                   m.payment_received, m.payment_received_date,
+                   a.team_leader_officer_id, a.office_id
+            FROM milestones m
+            JOIN assignments a ON m.assignment_id = a.id
+            WHERE m.invoice_raised = 1 AND m.invoice_raised_date IS NOT NULL
+            ORDER BY m.id
+        """)
+        milestones_with_invoices = [dict(row) for row in cursor.fetchall()]
+
+        for m in milestones_with_invoices:
+            inv_date = m['invoice_raised_date']
+            if isinstance(inv_date, str):
+                inv_date = date.fromisoformat(inv_date)
+            fy_period = get_fy_for_date(inv_date)
+            office_officers = officers_by_off.get(m['office_id'], [])
+            requester = m['team_leader_officer_id'] or (random.choice(office_officers) if office_officers else random.choice(all_officers_list)['officer_id'])
+
+            req_num = f"INV/{invoice_count + 1:04d}/{fy_period}"
+            try:
+                cursor.execute("""
+                    INSERT INTO invoice_requests
+                    (request_number, assignment_id, milestone_id, invoice_type, invoice_amount,
+                     fy_period, description, status, requested_by, requested_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    req_num, m['assignment_id'], m['id'], 'SUBSEQUENT',
+                    m['invoice_amount'], fy_period,
+                    f"Invoice for milestone {m['id']}", 'INVOICED',
+                    requester, inv_date.isoformat()
+                ))
+                invoice_request_id = cursor.lastrowid
+                invoice_count += 1
+
+                # Create payment receipt if payment was received
+                if m['payment_received'] and m['payment_received_date']:
+                    pay_date = m['payment_received_date']
+                    if isinstance(pay_date, str):
+                        pay_date = date.fromisoformat(pay_date)
+                    pay_fy = get_fy_for_date(pay_date)
+                    receipt_num = f"RCP/{payment_count + 1:04d}/{pay_fy}"
+                    cursor.execute("""
+                        INSERT INTO payment_receipts
+                        (receipt_number, invoice_request_id, amount_received, receipt_date,
+                         payment_mode, reference_number, fy_period, updated_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        receipt_num, invoice_request_id, m['invoice_amount'],
+                        pay_date.isoformat(), 'NEFT',
+                        f"UTR{random.randint(100000, 999999)}", pay_fy, requester
+                    ))
+                    payment_count += 1
+            except Exception as e:
+                pass
+
+        conn.commit()
+    print(f"  Invoice requests created: {invoice_count}")
+    print(f"  Payment receipts created: {payment_count}")
+
+    # Generate expenditure_entries from expenditure_items
+    print("Generating expenditure entries...")
+    exp_entry_count = 0
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Get all assignments with expenditure items
+        cursor.execute("""
+            SELECT ei.id as item_id, ei.assignment_id, ei.actual_amount,
+                   a.start_date, a.team_leader_officer_id, a.office_id
+            FROM expenditure_items ei
+            JOIN assignments a ON ei.assignment_id = a.id
+            WHERE ei.actual_amount > 0
+        """)
+        exp_items = [dict(row) for row in cursor.fetchall()]
+
+        for ei in exp_items:
+            start = ei['start_date']
+            if start is None:
+                start = date(2025, 4, 1)
+            elif isinstance(start, str):
+                start = date.fromisoformat(start)
+            # Generate 1-3 entries per item spread over FY
+            num_entries = random.randint(1, 3)
+            remaining_amount = ei['actual_amount']
+            office_off = officers_by_off.get(ei['office_id'], [])
+            enterer = ei['team_leader_officer_id'] or (random.choice(office_off) if office_off else random.choice(all_officers_list)['officer_id'])
+
+            for j in range(num_entries):
+                if remaining_amount <= 0:
+                    break
+                if j < num_entries - 1:
+                    amount = round(remaining_amount * random.uniform(0.2, 0.6), 2)
+                else:
+                    amount = round(remaining_amount, 2)
+                remaining_amount -= amount
+
+                entry_date = start + timedelta(days=random.randint(30, 300))
+                fy_p = get_fy_for_date(entry_date)
+                head_id = random.choice([1, 2, 3, 6, 9, 10])
+
+                try:
+                    cursor.execute("SAVEPOINT exp_sp")
+                    cursor.execute("""
+                        INSERT INTO expenditure_entries
+                        (expenditure_item_id, assignment_id, head_id, entry_date, amount,
+                         fy_period, description, entered_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        ei['item_id'], ei['assignment_id'], head_id,
+                        entry_date.isoformat(), amount, fy_p,
+                        f"Expenditure entry for item {ei['item_id']}",
+                        enterer
+                    ))
+                    cursor.execute("RELEASE SAVEPOINT exp_sp")
+                    exp_entry_count += 1
+                except Exception:
+                    cursor.execute("ROLLBACK TO SAVEPOINT exp_sp")
+        conn.commit()
+    print(f"  Expenditure entries created: {exp_entry_count}")
 
     # Generate revenue shares (separate transaction)
     print("Generating revenue shares...")

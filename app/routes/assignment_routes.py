@@ -327,7 +327,7 @@ async def edit_assignment_submit(
 
 @router.get("/view/{assignment_id}", response_class=HTMLResponse)
 async def view_assignment(request: Request, assignment_id: int):
-    """View assignment details (read-only)."""
+    """View assignment details with tabbed interface."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
@@ -336,65 +336,124 @@ async def view_assignment(request: Request, assignment_id: int):
     if not assignment:
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    # Get related officer names
+    active_tab = request.query_params.get('tab', 'basic')
+    if active_tab not in ('basic', 'milestones', 'cost', 'team'):
+        active_tab = 'basic'
+
+    # Cost tab period filter: 'all' (till date) or FY string like '2025-26'
+    cost_period = request.query_params.get('cost_period', 'all')
+
+    PH = '%s' if USE_POSTGRES else '?'
+
+    # Always load officer names for header
     officers = {}
+    milestones = []
+    revenue_shares = []
+    expenditure_items = []
+    expenditure_entries = []
+    expenditure_heads = []
+
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # Officer names (needed for basic tab header)
         for field in ['team_leader_officer_id', 'faculty1_officer_id', 'faculty2_officer_id']:
             if assignment.get(field):
-                if USE_POSTGRES:
-                    cursor.execute("SELECT name FROM officers WHERE officer_id = %s", (assignment[field],))
-                else:
-                    cursor.execute("SELECT name FROM officers WHERE officer_id = ?", (assignment[field],))
+                cursor.execute(f"SELECT name FROM officers WHERE officer_id = {PH}", (assignment[field],))
                 row = cursor.fetchone()
                 if row:
                     officers[field] = row['name']
 
-        # Get revenue shares for this assignment
-        if USE_POSTGRES:
-            cursor.execute("""
-                SELECT rs.*, o.name as officer_name
-                FROM revenue_shares rs
-                JOIN officers o ON rs.officer_id = o.officer_id
-                WHERE rs.assignment_id = %s
-                ORDER BY rs.share_percent DESC
-            """, (assignment_id,))
-        else:
-            cursor.execute("""
-                SELECT rs.*, o.name as officer_name
-                FROM revenue_shares rs
-                JOIN officers o ON rs.officer_id = o.officer_id
-                WHERE rs.assignment_id = ?
-                ORDER BY rs.share_percent DESC
-            """, (assignment_id,))
-        revenue_shares = [dict(row) for row in cursor.fetchall()]
+        # Tab-specific data loading
+        if active_tab == 'basic':
+            # Load milestones summary count and revenue shares count for progress bar
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM milestones WHERE assignment_id = {PH}", (assignment_id,))
+            milestone_count = cursor.fetchone()['cnt']
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM revenue_shares WHERE assignment_id = {PH}", (assignment_id,))
+            revenue_count = cursor.fetchone()['cnt']
 
-        # Get milestones for this assignment
-        if USE_POSTGRES:
-            cursor.execute("""
+        elif active_tab == 'milestones':
+            cursor.execute(f"""
                 SELECT * FROM milestones
-                WHERE assignment_id = %s
+                WHERE assignment_id = {PH}
                 ORDER BY milestone_no
             """, (assignment_id,))
-        else:
-            cursor.execute("""
-                SELECT * FROM milestones
-                WHERE assignment_id = ?
-                ORDER BY milestone_no
-            """, (assignment_id,))
-        milestones = [dict(row) for row in cursor.fetchall()]
+            milestones = [dict(row) for row in cursor.fetchall()]
 
-    return templates.TemplateResponse(
-        "assignment_view.html",
-        {
-            "request": request,
-            "user": user,
-            "assignment": assignment,
-            "officers": officers,
-            "revenue_shares": revenue_shares,
-            "milestones": milestones
-        }
-    )
+        elif active_tab == 'cost':
+            # Load expenditure heads and items (always till-date for estimates)
+            cursor.execute("SELECT * FROM expenditure_heads ORDER BY category, head_code")
+            expenditure_heads = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute(f"""
+                SELECT ei.*, eh.head_code, eh.head_name, eh.category
+                FROM expenditure_items ei
+                JOIN expenditure_heads eh ON ei.head_id = eh.id
+                WHERE ei.assignment_id = {PH}
+                ORDER BY eh.category, eh.head_code
+            """, (assignment_id,))
+            expenditure_items = [dict(row) for row in cursor.fetchall()]
+
+            # Load date-wise expenditure entries (filtered by period)
+            if cost_period and cost_period != 'all':
+                cursor.execute(f"""
+                    SELECT ee.*, eh.head_code, eh.head_name, o.name as entered_by_name
+                    FROM expenditure_entries ee
+                    JOIN expenditure_heads eh ON ee.head_id = eh.id
+                    LEFT JOIN officers o ON ee.entered_by = o.officer_id
+                    WHERE ee.assignment_id = {PH} AND ee.fy_period = {PH}
+                    ORDER BY ee.entry_date DESC
+                """, (assignment_id, cost_period))
+            else:
+                cursor.execute(f"""
+                    SELECT ee.*, eh.head_code, eh.head_name, o.name as entered_by_name
+                    FROM expenditure_entries ee
+                    JOIN expenditure_heads eh ON ee.head_id = eh.id
+                    LEFT JOIN officers o ON ee.entered_by = o.officer_id
+                    WHERE ee.assignment_id = {PH}
+                    ORDER BY ee.entry_date DESC
+                """, (assignment_id,))
+            expenditure_entries = [dict(row) for row in cursor.fetchall()]
+
+            # Get available FY periods for this assignment's entries
+            cursor.execute(f"""
+                SELECT DISTINCT fy_period FROM expenditure_entries
+                WHERE assignment_id = {PH}
+                ORDER BY fy_period
+            """, (assignment_id,))
+            available_fys = [row['fy_period'] for row in cursor.fetchall()]
+
+        elif active_tab == 'team':
+            cursor.execute(f"""
+                SELECT rs.*, o.name as officer_name, o.designation, o.office_id as officer_office
+                FROM revenue_shares rs
+                JOIN officers o ON rs.officer_id = o.officer_id
+                WHERE rs.assignment_id = {PH}
+                ORDER BY rs.share_percent DESC
+            """, (assignment_id,))
+            revenue_shares = [dict(row) for row in cursor.fetchall()]
+
+    context = {
+        "request": request,
+        "user": user,
+        "assignment": assignment,
+        "officers": officers,
+        "active_tab": active_tab,
+        "milestones": milestones,
+        "revenue_shares": revenue_shares,
+        "expenditure_items": expenditure_items,
+        "expenditure_entries": expenditure_entries,
+        "expenditure_heads": expenditure_heads,
+    }
+
+    if active_tab == 'basic':
+        context["milestone_count"] = milestone_count
+        context["revenue_count"] = revenue_count
+    elif active_tab == 'cost':
+        context["cost_period"] = cost_period
+        context["available_fys"] = available_fys
+
+    return templates.TemplateResponse("assignment_view.html", context)
 
 
 @router.get("/milestones/{assignment_id}", response_class=HTMLResponse)
@@ -1020,4 +1079,130 @@ async def save_expenditure(request: Request, assignment_id: int):
     if next_step == 'team_revenue':
         return RedirectResponse(url=f"/revenue/edit/{assignment_id}?wizard=1", status_code=302)
 
-    return RedirectResponse(url=f"/assignment/view/{assignment_id}", status_code=302)
+    return RedirectResponse(url=f"/assignment/view/{assignment_id}?tab=cost", status_code=302)
+
+
+def _get_fy_for_date(d):
+    """Return FY string like '2024-25' for a given date."""
+    if isinstance(d, str):
+        from datetime import datetime
+        d = datetime.strptime(d, '%Y-%m-%d').date()
+    if d.month >= 4:
+        return f"{d.year}-{str(d.year + 1)[2:]}"
+    else:
+        return f"{d.year - 1}-{str(d.year)[2:]}"
+
+
+@router.get("/expenditure-entry/{assignment_id}", response_class=HTMLResponse)
+async def expenditure_entry_form(request: Request, assignment_id: int):
+    """Display form to add a date-wise expenditure entry."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    assignment = get_assignment(assignment_id)
+    if not assignment:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM expenditure_heads ORDER BY category, head_code")
+        expenditure_heads = [dict(row) for row in cursor.fetchall()]
+
+    return templates.TemplateResponse(
+        "expenditure_entry_form.html",
+        {
+            "request": request,
+            "user": user,
+            "assignment": assignment,
+            "expenditure_heads": expenditure_heads
+        }
+    )
+
+
+@router.post("/expenditure-entry/{assignment_id}")
+async def save_expenditure_entry(request: Request, assignment_id: int):
+    """Save a date-wise expenditure entry and update parent totals."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    assignment = get_assignment(assignment_id)
+    if not assignment:
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    form_data = await request.form()
+    head_id = int(form_data.get('head_id', 0))
+    entry_date = form_data.get('entry_date', '')
+    amount = float(form_data.get('amount', 0) or 0)
+    description = form_data.get('description', '').strip()
+    voucher_reference = form_data.get('voucher_reference', '').strip()
+
+    if not head_id or not entry_date or amount <= 0:
+        return RedirectResponse(url=f"/assignment/expenditure-entry/{assignment_id}", status_code=302)
+
+    # Calculate FY period from entry_date
+    fy_period = _get_fy_for_date(entry_date)
+
+    PH = '%s' if USE_POSTGRES else '?'
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Find or create the parent expenditure_item
+        cursor.execute(f"""
+            SELECT id FROM expenditure_items
+            WHERE assignment_id = {PH} AND head_id = {PH}
+        """, (assignment_id, head_id))
+        parent = cursor.fetchone()
+
+        if parent:
+            expenditure_item_id = parent['id']
+        else:
+            cursor.execute(f"""
+                INSERT INTO expenditure_items (assignment_id, head_id, estimated_amount, actual_amount)
+                VALUES ({PH}, {PH}, 0, 0)
+            """, (assignment_id, head_id))
+            if USE_POSTGRES:
+                cursor.execute("SELECT lastval()")
+                expenditure_item_id = cursor.fetchone()[0]
+            else:
+                expenditure_item_id = cursor.lastrowid
+
+        # Insert the entry
+        cursor.execute(f"""
+            INSERT INTO expenditure_entries
+            (expenditure_item_id, assignment_id, head_id, entry_date, amount, fy_period, description, voucher_reference, entered_by)
+            VALUES ({PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH})
+        """, (expenditure_item_id, assignment_id, head_id, entry_date, amount, fy_period, description, voucher_reference, user['officer_id']))
+
+        # Update parent expenditure_item actual_amount = SUM of child entries
+        cursor.execute(f"""
+            UPDATE expenditure_items SET
+                actual_amount = (
+                    SELECT COALESCE(SUM(amount), 0) FROM expenditure_entries
+                    WHERE expenditure_item_id = {PH}
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = {PH}
+        """, (expenditure_item_id, expenditure_item_id))
+
+        # Update assignment total_expenditure = SUM of all expenditure_items actual_amount
+        cursor.execute(f"""
+            UPDATE assignments SET
+                total_expenditure = (
+                    SELECT COALESCE(SUM(actual_amount), 0) FROM expenditure_items
+                    WHERE assignment_id = {PH}
+                ),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = {PH}
+        """, (assignment_id, assignment_id))
+
+        # Recalculate surplus_deficit
+        cursor.execute(f"""
+            UPDATE assignments SET
+                surplus_deficit = COALESCE(total_revenue, 0) - COALESCE(total_expenditure, 0)
+            WHERE id = {PH}
+        """, (assignment_id,))
+
+    return RedirectResponse(url=f"/assignment/view/{assignment_id}?tab=cost", status_code=302)

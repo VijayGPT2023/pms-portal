@@ -8,50 +8,6 @@
     <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
 </div>
 
-<!-- Workflow Pipeline Export -->
-<div class="card mb-4">
-    <div class="card-header">
-        <h2 class="card-title">Workflow Pipeline Export</h2>
-    </div>
-    <div class="card-body">
-        <p style="margin-bottom: 20px; color: #718096;">
-            Export pre-revenue workflow data (Enquiry → Proposal Request → Proposal pipeline):
-        </p>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
-            <div style="padding: 15px; background: #ebf4ff; border-radius: 8px; border-left: 4px solid #4472C4;">
-                <h4 style="margin: 0 0 10px; color: #2d3748;">Enquiries</h4>
-                <p style="margin: 0; color: #718096; font-size: 0.9em;">
-                    All enquiries with client details, officer allocation, and status
-                </p>
-                <a href="/data/export/enquiries" class="btn btn-sm btn-outline-primary mt-2">Download</a>
-            </div>
-
-            <div style="padding: 15px; background: #fff5eb; border-radius: 8px; border-left: 4px solid #ED7D31;">
-                <h4 style="margin: 0 0 10px; color: #2d3748;">Proposal Requests</h4>
-                <p style="margin: 0; color: #718096; font-size: 0.9em;">
-                    All PRs with linked enquiries, approval status, and progress
-                </p>
-                <a href="/data/export/proposal-requests" class="btn btn-sm btn-outline-warning mt-2">Download</a>
-            </div>
-
-            <div style="padding: 15px; background: #f0fff4; border-radius: 8px; border-left: 4px solid #70AD47;">
-                <h4 style="margin: 0 0 10px; color: #2d3748;">Proposals</h4>
-                <p style="margin: 0; color: #718096; font-size: 0.9em;">
-                    All proposals with values, submission status, and outcomes
-                </p>
-                <a href="/data/export/proposals" class="btn btn-sm btn-outline-success mt-2">Download</a>
-            </div>
-        </div>
-
-        <div style="display: flex; gap: 15px;">
-            <a href="/data/export/workflow-pipeline" class="btn btn-primary btn-lg">
-                Download Complete Pipeline (All 3 Sheets + Summary)
-            </a>
-        </div>
-    </div>
-</div>
-
 <!-- Assignment Data Export -->
 <div class="card mb-4">
     <div class="card-header">

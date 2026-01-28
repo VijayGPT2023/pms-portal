@@ -287,8 +287,7 @@ async def approve_invoice_request(request: Request, request_id: int):
         # Update assignment invoice tracking
         cursor.execute("""
             UPDATE assignments
-            SET invoice_raised_amount = COALESCE(invoice_raised_amount, 0) + ?,
-                invoice_raised_date = CURRENT_DATE,
+            SET invoice_amount = COALESCE(invoice_amount, 0) + ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (invoice_req['invoice_amount'], invoice_req['assignment_id']))
@@ -501,12 +500,10 @@ async def record_payment(
         # Update assignment payment tracking
         cursor.execute("""
             UPDATE assignments
-            SET payment_received_amount = COALESCE(payment_received_amount, 0) + ?,
-                payment_received_date = ?,
-                amount_received = COALESCE(amount_received, 0) + ?,
+            SET amount_received = COALESCE(amount_received, 0) + ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (amount_received, receipt_date, amount_received, invoice['assignment_id']))
+        """, (amount_received, invoice['assignment_id']))
 
         # Create revenue ledger entries for 20% recognition
         cursor.execute("""

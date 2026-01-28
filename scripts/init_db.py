@@ -52,9 +52,97 @@ def init_database():
     except Exception as e:
         print(f"Warning: Could not generate dummy data: {e}")
 
+    print("\nStep 4: Setting up officer roles and reporting hierarchy...")
+    print("-" * 40)
+    try:
+        setup_officer_roles()
+    except Exception as e:
+        print(f"Warning: Could not setup roles: {e}")
+
     print("\n" + "=" * 60)
     print("DATABASE INITIALIZATION COMPLETE!")
     print("=" * 60)
+
+
+def setup_officer_roles():
+    """Setup officer roles and reporting hierarchy (extracted from setup_roles.py)."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Find Umashankar and Shirish Paliwal
+        if USE_POSTGRES:
+            cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE %s OR name LIKE %s", ('%Uma%Shankar%', '%Umashankar%'))
+        else:
+            cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE '%Uma%Shankar%' OR name LIKE '%Umashankar%'")
+        umashankar = cursor.fetchone()
+
+        if USE_POSTGRES:
+            cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE %s OR name LIKE %s", ('%Shirish%', '%Paliwal%'))
+        else:
+            cursor.execute("SELECT officer_id, name FROM officers WHERE name LIKE '%Shirish%' OR name LIKE '%Paliwal%'")
+        shirish = cursor.fetchone()
+
+        ph = '%s' if USE_POSTGRES else '?'
+
+        if umashankar:
+            oid = umashankar['officer_id']
+            print(f"  Setting up roles for {umashankar['name']} ({oid})")
+            cursor.execute(f"DELETE FROM officer_roles WHERE officer_id = {ph}", (oid,))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'DDG-I', 'GLOBAL', NULL, 1, 'ADMIN')
+            """, (oid,))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'GROUP_HEAD', 'GROUP', 'HRM Group', 0, 'ADMIN')
+            """, (oid,))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'TEAM_LEADER', 'ASSIGNMENT', NULL, 0, 'ADMIN')
+            """, (oid,))
+            cursor.execute(f"UPDATE officers SET admin_role_id = 'DDG-I' WHERE officer_id = {ph}", (oid,))
+            print("    DDG-I (Primary), GROUP_HEAD (HRM Group), TEAM_LEADER")
+        else:
+            print("  Umashankar not found")
+
+        if shirish:
+            oid = shirish['officer_id']
+            print(f"  Setting up roles for {shirish['name']} ({oid})")
+            cursor.execute(f"DELETE FROM officer_roles WHERE officer_id = {ph}", (oid,))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'DDG-II', 'GLOBAL', NULL, 1, 'ADMIN')
+            """, (oid,))
+            cursor.execute(f"""
+                INSERT INTO officer_roles (officer_id, role_type, scope_type, scope_value, is_primary, assigned_by)
+                VALUES ({ph}, 'GROUP_HEAD', 'GROUP', 'Finance Group', 0, 'ADMIN')
+            """, (oid,))
+            cursor.execute(f"UPDATE officers SET admin_role_id = 'DDG-II' WHERE officer_id = {ph}", (oid,))
+            print("    DDG-II (Primary), GROUP_HEAD (Finance Group)")
+        else:
+            print("  Shirish Paliwal not found")
+
+        # Rebuild reporting hierarchy
+        cursor.execute("DELETE FROM reporting_hierarchy")
+
+        ddg1_groups = ['IE Group', 'AB Group', 'ES Group', 'IT Group', 'Admin Group']
+        ddg1_offices = ['RD Chennai', 'RD Hyderabad', 'RD Bengaluru', 'RD Gandhinagar', 'RD Mumbai', 'RD Jaipur']
+        ddg2_groups = ['ECA Group', 'EM Group', 'IS Group', 'Finance Group', 'HRM Group']
+        ddg2_offices = ['RD Chandigarh', 'RD Kanpur', 'RD Guwahati', 'RD Patna', 'RD Kolkata', 'RD Bhubneswar']
+
+        conflict = "ON CONFLICT DO NOTHING" if USE_POSTGRES else ""
+        insert_prefix = "INSERT INTO" if USE_POSTGRES else "INSERT OR IGNORE INTO"
+
+        for group in ddg1_groups:
+            cursor.execute(f"{insert_prefix} reporting_hierarchy (entity_type, entity_value, reports_to_role) VALUES ('GROUP', {ph}, 'DDG-I') {conflict}", (group,))
+        for office in ddg1_offices:
+            cursor.execute(f"{insert_prefix} reporting_hierarchy (entity_type, entity_value, reports_to_role) VALUES ('OFFICE', {ph}, 'DDG-I') {conflict}", (office,))
+        for group in ddg2_groups:
+            cursor.execute(f"{insert_prefix} reporting_hierarchy (entity_type, entity_value, reports_to_role) VALUES ('GROUP', {ph}, 'DDG-II') {conflict}", (group,))
+        for office in ddg2_offices:
+            cursor.execute(f"{insert_prefix} reporting_hierarchy (entity_type, entity_value, reports_to_role) VALUES ('OFFICE', {ph}, 'DDG-II') {conflict}", (office,))
+
+        print("  Reporting hierarchy configured.")
 
 
 def create_default_admin():

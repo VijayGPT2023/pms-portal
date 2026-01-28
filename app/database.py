@@ -249,6 +249,10 @@ def init_database():
                 type_of_participants TEXT,
                 faculty1_officer_id TEXT,
                 faculty2_officer_id TEXT,
+                target_participants INTEGER DEFAULT 0,
+                tentative_participants INTEGER DEFAULT 0,
+                actual_participants INTEGER DEFAULT 0,
+                fee_per_participant REAL DEFAULT 0,
 
                 -- Development Work fields (notional value based on effort)
                 man_days REAL DEFAULT 0,
@@ -259,23 +263,10 @@ def init_database():
                 total_value REAL DEFAULT 0,
                 gross_value REAL DEFAULT 0,
 
-                -- Invoice tracking
-                invoice_raised_amount REAL DEFAULT 0,
-                invoice_raised_date DATE,
-
-                -- Payment tracking
-                payment_received_amount REAL DEFAULT 0,
-                payment_received_date DATE,
-
-                -- Revenue shared
-                revenue_shared_amount REAL DEFAULT 0,
-
-                -- Legacy fields for compatibility
+                -- Computed financial summaries (updated on milestone/invoice changes)
                 invoice_amount REAL DEFAULT 0,
                 amount_received REAL DEFAULT 0,
-                expected_revenue REAL DEFAULT 0,
                 total_revenue REAL DEFAULT 0,
-                net_revenue REAL DEFAULT 0,
 
                 -- Total Expenditure (computed from expenditure_items)
                 total_expenditure REAL DEFAULT 0,
@@ -283,11 +274,7 @@ def init_database():
 
                 -- Progress tracking
                 physical_progress_percent REAL DEFAULT 0,
-                financial_progress_percent REAL DEFAULT 0,
                 timeline_progress_percent REAL DEFAULT 0,
-
-                -- Remarks
-                remarks TEXT,
 
                 -- Tracking
                 details_filled INTEGER DEFAULT 0,
@@ -311,6 +298,7 @@ def init_database():
                 title TEXT NOT NULL,
                 description TEXT,
                 target_date DATE,
+                tentative_date DATE,
                 actual_completion_date DATE,
 
                 -- Invoice percentage for this milestone
@@ -325,9 +313,8 @@ def init_database():
                 payment_received INTEGER DEFAULT 0,
                 payment_received_date DATE,
 
-                -- Legacy fields
+                -- Revenue percent for this milestone (used in to-be-billed calculations)
                 revenue_percent REAL DEFAULT 0,
-                revenue_amount REAL DEFAULT 0,
 
                 status TEXT DEFAULT 'Pending' CHECK(status IN ('Pending', 'In Progress', 'Completed', 'Delayed', 'Cancelled')),
                 remarks TEXT,
@@ -365,6 +352,27 @@ def init_database():
                 FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
                 FOREIGN KEY (head_id) REFERENCES expenditure_heads(id),
                 UNIQUE(assignment_id, head_id)
+            )
+        """)
+
+        # Create expenditure_entries table (date-wise actual expense tracking)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS expenditure_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                expenditure_item_id INTEGER,
+                assignment_id INTEGER NOT NULL,
+                head_id INTEGER NOT NULL,
+                entry_date DATE NOT NULL,
+                amount REAL NOT NULL,
+                fy_period TEXT NOT NULL,
+                description TEXT,
+                voucher_reference TEXT,
+                entered_by TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (expenditure_item_id) REFERENCES expenditure_items(id) ON DELETE CASCADE,
+                FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
+                FOREIGN KEY (head_id) REFERENCES expenditure_heads(id),
+                FOREIGN KEY (entered_by) REFERENCES officers(officer_id)
             )
         """)
 
@@ -523,139 +531,9 @@ def init_database():
             )
         """)
 
-        # Add approval_status to assignments if not exists
+        # Add fy_period to assignments
         try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN approval_status TEXT DEFAULT 'DRAFT'")
-        except:
-            pass  # Column already exists
-
-        # Add approval_status to milestones if not exists
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass  # Column already exists
-
-        # ============================================================
-        # Milestone Tentative Date Columns (for TL adjustment with Head approval)
-        # ============================================================
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date DATE")
-        except:
-            pass  # Column already exists
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_status TEXT DEFAULT 'APPROVED'")
-        except:
-            pass  # PENDING, APPROVED, REJECTED - default APPROVED means same as target
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_reason TEXT")
-        except:
-            pass  # Reason for changing tentative date
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_requested_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_requested_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE milestones ADD COLUMN tentative_date_approved_at TIMESTAMP")
-        except:
-            pass
-
-        # ============================================================
-        # Assignment Workflow Approval Columns
-        # ============================================================
-
-        # Cost Estimation Approval
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_approved_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_submitted_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN cost_submitted_at TIMESTAMP")
-        except:
-            pass
-
-        # Team Constitution Approval
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN team_approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN team_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN team_approved_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN team_submitted_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN team_submitted_at TIMESTAMP")
-        except:
-            pass
-
-        # Milestone Planning Approval
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_approved_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_submitted_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN milestone_submitted_at TIMESTAMP")
-        except:
-            pass
-
-        # Revenue Share Approval
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_approved_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_submitted_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN revenue_submitted_at TIMESTAMP")
+            cursor.execute("ALTER TABLE assignments ADD COLUMN fy_period TEXT")
         except:
             pass
 
@@ -800,49 +678,8 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_designation_history_officer ON designation_history(officer_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_office_transfer_officer ON office_transfer_history(officer_id)")
 
-        # ============================================================
-        # PHASE-1 UPGRADE: 4-Stage Assignment Workflow Tables
-        # ============================================================
-
-        # Enquiry Stage (Stage 1 of 4-stage workflow)
-        # Workflow: Created by any officer → Pending Head approval → Allocated to officer → Progress updates → Convert to PR
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS enquiries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                enquiry_number TEXT UNIQUE NOT NULL,
-                client_name TEXT NOT NULL,
-                client_type TEXT,
-                domain TEXT,
-                sub_domain TEXT,
-                office_id TEXT NOT NULL,
-                officer_id TEXT,
-                -- Allocated officer (assigned by Head)
-                description TEXT,
-                estimated_value REAL,
-                target_date DATE,
-                status TEXT DEFAULT 'PENDING_APPROVAL',
-                -- Status: PENDING_APPROVAL, APPROVED, IN_PROGRESS, ON_HOLD, CONVERTED_TO_PR, DROPPED, REJECTED
-                approval_status TEXT DEFAULT 'PENDING',
-                -- PENDING, APPROVED, REJECTED
-                approved_by TEXT,
-                approved_at TIMESTAMP,
-                rejection_reason TEXT,
-                current_update TEXT,
-                -- Latest progress update by officer
-                drop_reason TEXT,
-                remarks TEXT,
-                created_by TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (office_id) REFERENCES offices(office_id),
-                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
-                FOREIGN KEY (created_by) REFERENCES officers(officer_id),
-                FOREIGN KEY (approved_by) REFERENCES officers(officer_id)
-            )
-        """)
-
-        # Non-Revenue Suggestions Table (Stage 1 of Non-Revenue workflow)
-        # Workflow: Suggestion → PR → Proposal → Execution
+        # Non-Revenue Suggestions Table
+        # Workflow: Suggestion → Approval → Execution
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS non_revenue_suggestions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -883,201 +720,6 @@ def init_database():
                 FOREIGN KEY (approved_by) REFERENCES officers(officer_id)
             )
         """)
-
-        # Proposal Request Stage (Stage 2 of 4-stage workflow)
-        # Same approval workflow as enquiries
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS proposal_requests (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pr_number TEXT UNIQUE NOT NULL,
-                enquiry_id INTEGER,
-                -- Can be NULL for direct PR without enquiry
-                client_name TEXT NOT NULL,
-                client_type TEXT,
-                domain TEXT,
-                sub_domain TEXT,
-                office_id TEXT NOT NULL,
-                officer_id TEXT,
-                -- Allocated officer
-                description TEXT,
-                estimated_value REAL,
-                target_date DATE,
-                -- Target: Date by which proposal should be submitted
-                status TEXT DEFAULT 'PENDING_APPROVAL',
-                -- Status: PENDING_APPROVAL, APPROVED, IN_PROGRESS, CONVERTED_TO_PROPOSAL, ON_HOLD, DROPPED, REJECTED
-                approval_status TEXT DEFAULT 'PENDING',
-                approved_by TEXT,
-                approved_at TIMESTAMP,
-                rejection_reason TEXT,
-                current_update TEXT,
-                drop_reason TEXT,
-                remarks TEXT,
-                created_by TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (enquiry_id) REFERENCES enquiries(id),
-                FOREIGN KEY (office_id) REFERENCES offices(office_id),
-                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
-                FOREIGN KEY (created_by) REFERENCES officers(officer_id),
-                FOREIGN KEY (approved_by) REFERENCES officers(officer_id)
-            )
-        """)
-
-        # Proposal Stage (Stage 3 of 4-stage workflow)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS proposals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                proposal_number TEXT UNIQUE NOT NULL,
-                pr_id INTEGER,
-                enquiry_id INTEGER,
-                -- Can be NULL for direct proposal
-                client_name TEXT NOT NULL,
-                client_type TEXT,
-                domain TEXT,
-                sub_domain TEXT,
-                office_id TEXT NOT NULL,
-                officer_id TEXT,
-                -- Allocated officer
-                description TEXT,
-                estimated_value REAL,
-                -- Initial estimated value
-                proposed_value REAL,
-                -- Value proposed to client
-                work_order_value REAL,
-                -- Final WO value if won
-                submission_date DATE,
-                target_date DATE,
-                -- Target: Expected date of work order
-                validity_date DATE,
-                -- Proposal validity
-                status TEXT DEFAULT 'PENDING_APPROVAL',
-                -- Status: PENDING_APPROVAL, APPROVED, IN_PROGRESS, SUBMITTED, UNDER_REVIEW, SHORTLISTED, WON, LOST, WITHDRAWN, ON_HOLD, DROPPED, REJECTED
-                approval_status TEXT DEFAULT 'PENDING',
-                approved_by TEXT,
-                approved_at TIMESTAMP,
-                rejection_reason TEXT,
-                current_update TEXT,
-                drop_reason TEXT,
-                loss_reason TEXT,
-                withdraw_reason TEXT,
-                remarks TEXT,
-                created_by TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (pr_id) REFERENCES proposal_requests(id),
-                FOREIGN KEY (enquiry_id) REFERENCES enquiries(id),
-                FOREIGN KEY (office_id) REFERENCES offices(office_id),
-                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
-                FOREIGN KEY (created_by) REFERENCES officers(officer_id)
-            )
-        """)
-
-        # Add approval workflow columns to enquiries table (for existing databases)
-        try:
-            cursor.execute("ALTER TABLE enquiries ADD COLUMN approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE enquiries ADD COLUMN approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE enquiries ADD COLUMN approved_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE enquiries ADD COLUMN rejection_reason TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE enquiries ADD COLUMN current_update TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE enquiries ADD COLUMN drop_reason TEXT")
-        except:
-            pass
-
-        # Add approval workflow columns to proposal_requests table (for existing databases)
-        try:
-            cursor.execute("ALTER TABLE proposal_requests ADD COLUMN approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposal_requests ADD COLUMN approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposal_requests ADD COLUMN approved_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposal_requests ADD COLUMN rejection_reason TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposal_requests ADD COLUMN current_update TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposal_requests ADD COLUMN drop_reason TEXT")
-        except:
-            pass
-
-        # Add approval workflow columns to proposals table (for existing databases)
-        try:
-            cursor.execute("ALTER TABLE proposals ADD COLUMN approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposals ADD COLUMN approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposals ADD COLUMN approved_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposals ADD COLUMN rejection_reason TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposals ADD COLUMN current_update TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE proposals ADD COLUMN drop_reason TEXT")
-        except:
-            pass
-
-        # Link assignments to proposal chain (Stage 4 = Work Order/Assignment)
-        # Add columns to existing assignments table
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN proposal_id INTEGER REFERENCES proposals(id)")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN enquiry_id INTEGER REFERENCES enquiries(id)")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN workflow_stage TEXT DEFAULT 'WORK_ORDER'")
-        except:
-            pass
-
-        # Development Work fields (notional value based on effort)
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN man_days REAL DEFAULT 0")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN daily_rate REAL DEFAULT 0.20")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE assignments ADD COLUMN is_notional INTEGER DEFAULT 0")
-        except:
-            pass
 
         # ============================================================
         # PHASE-1 UPGRADE: 80-20 Revenue Recognition Model
@@ -1241,301 +883,15 @@ def init_database():
             )
         """)
 
-        # ============================================================
-        # PHASE-1 UPGRADE: Training Module (5-Stage Lifecycle)
-        # ============================================================
-
-        # Training Programmes
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS training_programmes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                programme_number TEXT UNIQUE NOT NULL,
-                title TEXT NOT NULL,
-                topic_domain TEXT,
-                description TEXT,
-                training_start_date DATE,
-                training_end_date DATE,
-                duration_days INTEGER,
-                location TEXT,
-                venue_details TEXT,
-                mode TEXT DEFAULT 'IN_PERSON',
-                -- Modes: IN_PERSON, ONLINE, HYBRID
-                office_id TEXT NOT NULL,
-
-                -- Budgeted values
-                budgeted_participants INTEGER DEFAULT 0,
-                fee_per_participant REAL DEFAULT 0,
-                budgeted_revenue REAL DEFAULT 0,
-
-                -- Actual values (updated as programme progresses)
-                actual_registered INTEGER DEFAULT 0,
-                actual_attended INTEGER DEFAULT 0,
-                actual_revenue REAL DEFAULT 0,
-
-                -- Application window
-                application_start_date DATE,
-                application_end_date DATE,
-
-                -- Stage tracking
-                stage TEXT DEFAULT 'ANNOUNCED',
-                -- Stages: ANNOUNCED, REGISTRATION_OPEN, REGISTRATION_CLOSED,
-                --         CONDUCTED, INVOICED, CLOSED
-
-                -- Financial tracking
-                invoice_raised INTEGER DEFAULT 0,
-                invoice_date DATE,
-                payment_received INTEGER DEFAULT 0,
-                payment_date DATE,
-
-                -- Certificate tracking
-                certificates_issued INTEGER DEFAULT 0,
-
-                remarks TEXT,
-                created_by TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (office_id) REFERENCES offices(office_id),
-                FOREIGN KEY (created_by) REFERENCES officers(officer_id)
-            )
-        """)
-
-        # Trainer Allocations (multiple trainers per programme)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS trainer_allocations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                programme_id INTEGER NOT NULL,
-                officer_id TEXT NOT NULL,
-                trainer_role TEXT DEFAULT 'CO_TRAINER',
-                -- Roles: PRIMARY, CO_TRAINER, COORDINATOR, GUEST_FACULTY
-                allocation_percent REAL NOT NULL DEFAULT 0,
-                training_days REAL DEFAULT 0,
-                -- Days this trainer will deliver
-                accepted INTEGER DEFAULT 0,
-                -- 1 if trainer accepted
-                accepted_at TIMESTAMP,
-                remarks TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (programme_id) REFERENCES training_programmes(id),
-                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
-                UNIQUE(programme_id, officer_id)
-            )
-        """)
-
-        # Training Participants
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS training_participants (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                programme_id INTEGER NOT NULL,
-                participant_name TEXT NOT NULL,
-                organization TEXT,
-                designation TEXT,
-                email TEXT,
-                phone TEXT,
-                application_date DATE,
-                status TEXT DEFAULT 'APPLIED',
-                -- Status: APPLIED, APPROVED, WAITLIST, REJECTED, CONFIRMED, ATTENDED, NO_SHOW
-                attendance_status TEXT,
-                -- PRESENT, ABSENT, PARTIAL
-                certificate_issued INTEGER DEFAULT 0,
-                certificate_date DATE,
-                fee_paid REAL DEFAULT 0,
-                payment_status TEXT DEFAULT 'PENDING',
-                -- PENDING, PARTIAL, PAID
-                remarks TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (programme_id) REFERENCES training_programmes(id)
-            )
-        """)
-
-        # Training Revenue Ledger (similar to officer_revenue_ledger but for training)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS training_revenue_ledger (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                officer_id TEXT NOT NULL,
-                programme_id INTEGER NOT NULL,
-                revenue_type TEXT NOT NULL,
-                -- Types: INVOICE_80, PAYMENT_20
-                share_percent REAL NOT NULL,
-                amount REAL NOT NULL,
-                fy_period TEXT NOT NULL,
-                transaction_date DATE NOT NULL,
-                remarks TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
-                FOREIGN KEY (programme_id) REFERENCES training_programmes(id)
-            )
-        """)
-
-        # ============================================================
-        # Training Programme Approval Workflow Columns
-        # ============================================================
-
-        # Coordinator assignment (similar to TL for assignments)
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN coordinator_id TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN approval_status TEXT DEFAULT 'DRAFT'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN approved_at TIMESTAMP")
-        except:
-            pass
-
-        # Budget/Cost Approval
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_submitted_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_submitted_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN budget_approved_at TIMESTAMP")
-        except:
-            pass
-
-        # Trainer Allocation Approval
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_submitted_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_submitted_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN trainer_approved_at TIMESTAMP")
-        except:
-            pass
-
-        # Revenue Share Approval
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_approval_status TEXT DEFAULT 'PENDING'")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_submitted_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_submitted_at TIMESTAMP")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_approved_by TEXT")
-        except:
-            pass
-        try:
-            cursor.execute("ALTER TABLE training_programmes ADD COLUMN revenue_approved_at TIMESTAMP")
-        except:
-            pass
-
-        # ============================================================
-        # Training Programme Preparation Checklist
-        # ============================================================
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS training_checklist (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                programme_id INTEGER NOT NULL,
-                step_order INTEGER NOT NULL,
-                step_name TEXT NOT NULL,
-                step_description TEXT,
-                is_completed INTEGER DEFAULT 0,
-                completed_date DATE,
-                completed_by TEXT,
-                remarks TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (programme_id) REFERENCES training_programmes(id),
-                FOREIGN KEY (completed_by) REFERENCES officers(officer_id),
-                UNIQUE(programme_id, step_order)
-            )
-        """)
-
-        # ============================================================
-        # PHASE-1 UPGRADE: Cost Estimate Versioning
-        # ============================================================
-
-        # Cost Estimate Versions (for audit trail)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cost_estimate_versions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                assignment_id INTEGER NOT NULL,
-                version_number INTEGER NOT NULL,
-                total_estimated REAL DEFAULT 0,
-                change_reason TEXT,
-                -- Mandatory reason for changes
-                created_by TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (assignment_id) REFERENCES assignments(id),
-                FOREIGN KEY (created_by) REFERENCES officers(officer_id),
-                UNIQUE(assignment_id, version_number)
-            )
-        """)
-
-        # Cost Estimate Version Details (per expenditure head)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cost_estimate_version_details (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                version_id INTEGER NOT NULL,
-                head_id INTEGER NOT NULL,
-                estimated_amount REAL DEFAULT 0,
-                FOREIGN KEY (version_id) REFERENCES cost_estimate_versions(id),
-                FOREIGN KEY (head_id) REFERENCES expenditure_heads(id)
-            )
-        """)
-
-        # ============================================================
-        # PHASE-1 UPGRADE: Milestone Versioning
-        # ============================================================
-
-        # Milestone Plan Versions
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS milestone_plan_versions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                assignment_id INTEGER NOT NULL,
-                version_number INTEGER NOT NULL,
-                total_milestones INTEGER DEFAULT 0,
-                change_reason TEXT,
-                created_by TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (assignment_id) REFERENCES assignments(id),
-                FOREIGN KEY (created_by) REFERENCES officers(officer_id),
-                UNIQUE(assignment_id, version_number)
-            )
-        """)
+        # NOTE: Removed orphan tables (training_programmes, trainer_allocations,
+        # training_participants, training_revenue_ledger, training_checklist,
+        # cost_estimate_versions, cost_estimate_version_details, milestone_plan_versions)
+        # Trainings are now tracked in the assignments table with type='TRAINING'
 
         # ============================================================
         # Indexes for new tables
         # ============================================================
 
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_enquiries_office ON enquiries(office_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_enquiries_status ON enquiries(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_proposal_requests_enquiry ON proposal_requests(enquiry_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_proposals_pr ON proposals(pr_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoice_requests_assignment ON invoice_requests(assignment_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoice_requests_status ON invoice_requests(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_receipts_invoice ON payment_receipts(invoice_request_id)")
@@ -1543,11 +899,6 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_officer_revenue_ledger_assignment ON officer_revenue_ledger(assignment_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_grievance_tickets_officer ON grievance_tickets(officer_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_grievance_tickets_status ON grievance_tickets(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_training_programmes_office ON training_programmes(office_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_training_programmes_stage ON training_programmes(stage)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trainer_allocations_programme ON trainer_allocations(programme_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trainer_allocations_officer ON trainer_allocations(officer_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_training_participants_programme ON training_participants(programme_id)")
 
         # Create indexes for better performance
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_assignments_office ON assignments(office_id)")
@@ -1955,7 +1306,6 @@ def update_assignment_progress(assignment_id: int):
     """Update all progress fields for an assignment."""
     physical_progress = calculate_physical_progress(assignment_id)
     timeline_progress = calculate_timeline_progress(assignment_id)
-    shareable_revenue = calculate_shareable_revenue(assignment_id)
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -1963,10 +1313,9 @@ def update_assignment_progress(assignment_id: int):
             UPDATE assignments SET
                 physical_progress_percent = ?,
                 timeline_progress_percent = ?,
-                revenue_shared_amount = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        """, (physical_progress, timeline_progress, shareable_revenue, assignment_id))
+        """, (physical_progress, timeline_progress, assignment_id))
 
 
 def reset_database():
@@ -1980,38 +1329,6 @@ def reset_database():
 # ============================================================
 # PHASE-1 UPGRADE: Helper Functions for 4-Stage Workflow
 # ============================================================
-
-def generate_enquiry_number(office_id: str) -> str:
-    """Generate unique enquiry number: ENQ/OFFICE/YYYY/NNNN"""
-    from datetime import date
-    year = date.today().year
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT COUNT(*) + 1 as next_num FROM enquiries
-            WHERE enquiry_number LIKE ?
-        """, (f"ENQ/{office_id}/{year}/%",))
-        next_num = cursor.fetchone()['next_num']
-
-    return f"ENQ/{office_id}/{year}/{next_num:04d}"
-
-
-def generate_pr_number(office_id: str) -> str:
-    """Generate unique proposal request number: PR/OFFICE/YYYY/NNNN"""
-    from datetime import date
-    year = date.today().year
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT COUNT(*) + 1 as next_num FROM proposal_requests
-            WHERE pr_number LIKE ?
-        """, (f"PR/{office_id}/{year}/%",))
-        next_num = cursor.fetchone()['next_num']
-
-    return f"PR/{office_id}/{year}/{next_num:04d}"
-
 
 def generate_suggestion_number(office_id: str) -> str:
     """Generate unique non-revenue suggestion number: NRS/OFFICE/YYYY/NNNN"""
@@ -2027,22 +1344,6 @@ def generate_suggestion_number(office_id: str) -> str:
         next_num = cursor.fetchone()['next_num']
 
     return f"NRS/{office_id}/{year}/{next_num:04d}"
-
-
-def generate_proposal_number(office_id: str) -> str:
-    """Generate unique proposal number: PROP/OFFICE/YYYY/NNNN"""
-    from datetime import date
-    year = date.today().year
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT COUNT(*) + 1 as next_num FROM proposals
-            WHERE proposal_number LIKE ?
-        """, (f"PROP/{office_id}/{year}/%",))
-        next_num = cursor.fetchone()['next_num']
-
-    return f"PROP/{office_id}/{year}/{next_num:04d}"
 
 
 def generate_invoice_request_number() -> str:
@@ -2077,22 +1378,6 @@ def generate_grievance_ticket_number() -> str:
     return f"GRV/{year}/{next_num:06d}"
 
 
-def generate_training_programme_number(office_id: str) -> str:
-    """Generate unique training programme number: TRN/OFFICE/YYYY/NNNN"""
-    from datetime import date
-    year = date.today().year
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT COUNT(*) + 1 as next_num FROM training_programmes
-            WHERE programme_number LIKE ?
-        """, (f"TRN/{office_id}/{year}/%",))
-        next_num = cursor.fetchone()['next_num']
-
-    return f"TRN/{office_id}/{year}/{next_num:04d}"
-
-
 def generate_payment_receipt_number() -> str:
     """Generate unique payment receipt number: RCPT/YYYY/NNNNNN"""
     from datetime import date
@@ -2110,72 +1395,7 @@ def generate_payment_receipt_number() -> str:
 
 
 # ============================================================
-# Training Programme Checklist Functions
-# ============================================================
-
-TRAINING_CHECKLIST_STEPS = [
-    (1, "Topics Finalized", "Confirm training topics and syllabus"),
-    (2, "Venue Confirmed", "Book and confirm training venue/hall"),
-    (3, "Hotel Booked", "Reserve accommodation for participants/faculty"),
-    (4, "Faculty Confirmed", "Confirm all trainers/faculty availability"),
-    (5, "Itinerary Prepared", "Prepare day-wise schedule and itinerary"),
-    (6, "Programme Conducted", "Training programme conducted successfully"),
-    (7, "Bills Settled", "Settle all hotel, venue, and other bills"),
-    (8, "Invoices Raised", "Raise invoices to all participants"),
-    (9, "Payments Collected", "Collect payments from all participants"),
-]
-
-
-def initialize_training_checklist(programme_id: int) -> None:
-    """Initialize the preparation checklist for a training programme."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        for step_order, step_name, step_description in TRAINING_CHECKLIST_STEPS:
-            cursor.execute("""
-                INSERT OR IGNORE INTO training_checklist
-                (programme_id, step_order, step_name, step_description)
-                VALUES (?, ?, ?, ?)
-            """, (programme_id, step_order, step_name, step_description))
-        conn.commit()
-
-
-def get_training_checklist(programme_id: int) -> list:
-    """Get checklist items for a training programme."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT tc.*, o.name as completed_by_name
-            FROM training_checklist tc
-            LEFT JOIN officers o ON tc.completed_by = o.officer_id
-            WHERE tc.programme_id = ?
-            ORDER BY tc.step_order
-        """, (programme_id,))
-        return [dict(row) for row in cursor.fetchall()]
-
-
-def update_checklist_step(programme_id: int, step_order: int, is_completed: bool,
-                          completed_by: str = None, remarks: str = None) -> None:
-    """Update a checklist step completion status."""
-    from datetime import date
-    with get_db() as conn:
-        cursor = conn.cursor()
-        if is_completed:
-            cursor.execute("""
-                UPDATE training_checklist
-                SET is_completed = 1, completed_date = ?, completed_by = ?, remarks = ?
-                WHERE programme_id = ? AND step_order = ?
-            """, (date.today(), completed_by, remarks, programme_id, step_order))
-        else:
-            cursor.execute("""
-                UPDATE training_checklist
-                SET is_completed = 0, completed_date = NULL, completed_by = NULL, remarks = ?
-                WHERE programme_id = ? AND step_order = ?
-            """, (remarks, programme_id, step_order))
-        conn.commit()
-
-
-# ============================================================
-# PHASE-1 UPGRADE: 80-20 Revenue Recognition Functions
+# 80-20 Revenue Recognition Functions
 # ============================================================
 
 def get_current_fy() -> str:
@@ -2438,91 +1658,6 @@ def check_and_escalate_grievances():
                         escalation_due_date = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                 """, (new_level, new_due_date.isoformat() if new_due_date else None, ticket['id']))
-
-
-# ============================================================
-# PHASE-1 UPGRADE: Pre-Revenue Workflow Metrics
-# ============================================================
-
-def get_pre_revenue_metrics(officer_id: str = None, office_id: str = None, fy_period: str = None) -> dict:
-    """
-    Get pre-revenue activity metrics (Enquiry → Proposal stages).
-    Per PPT requirements for tracking officer activity before work orders.
-    """
-    if not fy_period:
-        fy_period = get_current_fy()
-
-    # Calculate FY date range
-    fy_parts = fy_period.split('-')
-    fy_start = f"{fy_parts[0]}-04-01"
-    fy_end = f"20{fy_parts[1]}-03-31"
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-
-        conditions = ["created_at >= ? AND created_at <= ?"]
-        params = [fy_start, fy_end]
-
-        if officer_id:
-            conditions.append("officer_id = ?")
-            params.append(officer_id)
-        if office_id:
-            conditions.append("office_id = ?")
-            params.append(office_id)
-
-        where_clause = " AND ".join(conditions)
-
-        # Enquiries allocated
-        cursor.execute(f"""
-            SELECT COUNT(*) as count FROM enquiries WHERE {where_clause}
-        """, params)
-        enquiries_allocated = cursor.fetchone()['count']
-
-        # Enquiries converted to PR
-        cursor.execute(f"""
-            SELECT COUNT(*) as count FROM enquiries
-            WHERE {where_clause} AND status = 'CONVERTED_TO_PR'
-        """, params)
-        enquiries_converted = cursor.fetchone()['count']
-
-        # Proposal Requests
-        cursor.execute(f"""
-            SELECT COUNT(*) as count FROM proposal_requests WHERE {where_clause}
-        """, params)
-        prs_created = cursor.fetchone()['count']
-
-        # Proposals submitted
-        cursor.execute(f"""
-            SELECT COUNT(*) as count, COALESCE(SUM(proposed_value), 0) as total_value
-            FROM proposals WHERE {where_clause}
-        """, params)
-        proposals = cursor.fetchone()
-        proposals_submitted = proposals['count']
-        total_proposed_value = proposals['total_value']
-
-        # Proposals won (converted to work order)
-        cursor.execute(f"""
-            SELECT COUNT(*) as count, COALESCE(SUM(proposed_value), 0) as total_value
-            FROM proposals WHERE {where_clause} AND status = 'WON'
-        """, params)
-        won = cursor.fetchone()
-        proposals_won = won['count']
-        total_won_value = won['total_value']
-
-        conversion_rate = (proposals_won / proposals_submitted * 100) if proposals_submitted > 0 else 0
-
-        return {
-            'fy_period': fy_period,
-            'enquiries_allocated': enquiries_allocated,
-            'enquiries_converted': enquiries_converted,
-            'enquiry_conversion_rate': round(enquiries_converted / enquiries_allocated * 100, 2) if enquiries_allocated > 0 else 0,
-            'proposal_requests': prs_created,
-            'proposals_submitted': proposals_submitted,
-            'total_proposed_value': round(total_proposed_value, 2),
-            'proposals_won': proposals_won,
-            'total_won_value': round(total_won_value, 2),
-            'proposal_conversion_rate': round(conversion_rate, 2)
-        }
 
 
 if __name__ == "__main__":
