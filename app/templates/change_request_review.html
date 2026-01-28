@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Review Change Request #{{ change_request.id }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Review Change Request #{{ change_request.id }}</h1>
+    <div>
+        <a href="/approvals" class="btn btn-secondary">Back to Approvals</a>
+    </div>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" style="margin-bottom: 20px; padding: 15px; background: #fff5f5; border: 1px solid #fc8181; border-radius: 8px;">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="card">
+    <h3 style="margin-bottom: 20px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+        Change Request Details
+    </h3>
+
+    <table style="width: 100%;">
+        <tr>
+            <td style="padding: 8px 0; color: #718096; width: 30%;">Assignment:</td>
+            <td style="padding: 8px 0;">
+                <a href="/assignment/view/{{ change_request.reference_id }}">
+                    {{ change_request.assignment_no }} - {{ change_request.assignment_title }}
+                </a>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #718096;">Requested By:</td>
+            <td style="padding: 8px 0;"><strong>{{ change_request.requested_by_name }}</strong> ({{ change_request.requester_designation or '-' }})</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #718096;">Office:</td>
+            <td style="padding: 8px 0;">{{ change_request.office_id }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #718096;">Status:</td>
+            <td style="padding: 8px 0;">
+                <span class="badge {% if change_request.review_status == 'FORWARDED' %}badge-info{% elif change_request.review_status == 'REJECTED' %}badge-danger{% else %}badge-warning{% endif %}">
+                    {{ change_request.review_status or 'PENDING' }}
+                </span>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0; color: #718096;">Request Details:</td>
+            <td style="padding: 8px 0;">
+                <div style="padding: 12px; background: #f7fafc; border-radius: 6px;">
+                    {{ change_request.remarks or change_request.request_data or 'No details provided' }}
+                </div>
+            </td>
+        </tr>
+    </table>
+</div>
+
+{% if change_request.review_status == 'PENDING' %}
+<!-- TL Review Actions -->
+<div class="card" style="margin-top: 20px;">
+    <h3 style="margin-bottom: 15px; color: #2d3748;">Your Review</h3>
+
+    <div class="form-group">
+        <label for="review_notes">Review Notes</label>
+        <textarea id="review_notes" name="review_notes" class="form-control" rows="3"
+                  placeholder="Add your review notes (optional)" form="forwardForm"></textarea>
+    </div>
+
+    <div style="display: flex; gap: 12px; margin-top: 15px;">
+        <form method="POST" action="/change-request/review/{{ change_request.id }}/forward" id="forwardForm">
+            <input type="hidden" name="review_notes" id="forward_notes">
+            <button type="submit" class="btn btn-success" onclick="document.getElementById('forward_notes').value = document.getElementById('review_notes').value;">
+                Forward to Head
+            </button>
+        </form>
+        <form method="POST" action="/change-request/review/{{ change_request.id }}/reject" id="rejectForm">
+            <input type="hidden" name="review_notes" id="reject_notes">
+            <button type="submit" class="btn btn-danger" onclick="document.getElementById('reject_notes').value = document.getElementById('review_notes').value;">
+                Reject
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

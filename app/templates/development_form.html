@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Development Work - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{% if is_edit %}Edit{% else %}New{% endif %} Development Work Details</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge" style="background: #c6f6d5; color: #276749;">DEVELOPMENT</span>
+            {{ assignment.assignment_no }}
+        </h2>
+    </div>
+
+    <form method="POST" action="/assignment/edit/{{ assignment.id }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="title">Title *</label>
+                <input type="text" id="title" name="title" class="form-control"
+                       value="{{ assignment.title or '' }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="status">Current Status *</label>
+                <select id="status" name="status" class="form-control" required>
+                    {% for status in status_options %}
+                    <option value="{{ status }}" {% if assignment.status == status %}selected{% endif %}>
+                        {{ status }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="tor_scope">Scope / Description</label>
+            <textarea id="tor_scope" name="tor_scope" class="form-control"
+                      rows="4" placeholder="Description of the development work">{{ assignment.tor_scope or '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="client">Client / Organization</label>
+            <input type="text" id="client" name="client" class="form-control"
+                   value="{{ assignment.client or '' }}" placeholder="e.g., Internal / Ministry name">
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Effort &amp; Notional Value
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="man_days">Man-Days</label>
+                <input type="number" id="man_days" name="man_days" class="form-control"
+                       value="{{ assignment.man_days or '' }}" step="0.5" min="0"
+                       placeholder="e.g., 30" onchange="calculateNotionalValue()" oninput="calculateNotionalValue()">
+            </div>
+
+            <div class="form-group">
+                <label>Daily Rate</label>
+                <input type="text" class="form-control" value="Rs. 20,000 / day (0.20 Lakhs)" readonly
+                       style="background: #f7fafc; color: #718096;">
+            </div>
+
+            <div class="form-group">
+                <label>Notional Value (Lakhs)</label>
+                <input type="text" id="notional_value_display" class="form-control" readonly
+                       style="background: #f0fff4; color: #276749; font-weight: 600;"
+                       value="{{ '%.2f'|format((assignment.man_days or 0) * 0.20) }}">
+            </div>
+        </div>
+
+        <p style="font-size: 0.85rem; color: #718096; margin-top: -8px;">
+            Notional value = Man-Days &times; Rs. 20,000/day. This is auto-calculated.
+        </p>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Timeline
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="start_date">Start Date</label>
+                <input type="date" id="start_date" name="start_date" class="form-control"
+                       value="{{ assignment.start_date or '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="target_date">Target Date / End Date</label>
+                <input type="date" id="target_date" name="target_date" class="form-control"
+                       value="{{ assignment.target_date or '' }}">
+            </div>
+        </div>
+
+        <h3 style="margin: 25px 0 15px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Team
+        </h3>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="team_leader_officer_id">Team Leader</label>
+                <select id="team_leader_officer_id" name="team_leader_officer_id" class="form-control">
+                    <option value="">Select Team Leader</option>
+                    {% for officer in officers %}
+                    <option value="{{ officer.officer_id }}"
+                            {% if assignment.team_leader_officer_id == officer.officer_id %}selected{% endif %}>
+                        {{ officer.name }} ({{ officer.office_id }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg">Save Details</button>
+            <a href="/dashboard" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<script>
+function calculateNotionalValue() {
+    var manDays = parseFloat(document.getElementById('man_days').value) || 0;
+    var dailyRate = 0.20; // Lakhs
+    var notionalValue = (manDays * dailyRate).toFixed(2);
+    document.getElementById('notional_value_display').value = notionalValue;
+}
+</script>
+{% endblock %}

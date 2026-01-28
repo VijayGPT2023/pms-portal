@@ -77,6 +77,17 @@
             </div>
 
             <div class="nav-section">
+                <span class="nav-section-title">Activities</span>
+                <a href="/assignment/register" class="nav-item {% if '/assignment/register' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Register Activity</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
                 <span class="nav-section-title">Other Activities</span>
                 <a href="/non-revenue/" class="nav-item {% if '/non-revenue' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

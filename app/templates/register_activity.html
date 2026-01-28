@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Register New Activity - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Register New Activity</h1>
+    <div>
+        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+    </div>
+</div>
+
+<div style="margin-bottom: 20px;">
+    <span class="badge" style="background: #dbeafe; color: #1d4ed8; padding: 8px 16px; font-size: 0.9rem;">
+        Step 1: Minimal Registration
+    </span>
+    <p class="text-muted" style="margin-top: 8px;">
+        Register a new activity with basic information. After Head approval, a Team Leader will be assigned and full details can be filled in.
+    </p>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" style="margin-bottom: 20px; padding: 15px; background: #fff5f5; border: 1px solid #fc8181; border-radius: 8px;">
+    {{ error }}
+</div>
+{% endif %}
+
+<div class="card">
+    <form method="POST" action="/assignment/register" id="registerForm">
+        <h3 style="margin-bottom: 20px; color: #2d3748; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px;">
+            Basic Information
+        </h3>
+
+        <div class="form-group">
+            <label for="title">Title *</label>
+            <input type="text" id="title" name="title" class="form-control" required
+                   placeholder="Enter activity / project title">
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="type">Activity Type *</label>
+                <select id="type" name="type" class="form-control" required>
+                    <option value="ASSIGNMENT">Assignment / Project</option>
+                    <option value="TRAINING">Training Programme</option>
+                    <option value="DEVELOPMENT">Development Work</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="client">Client / Organization</label>
+                <input type="text" id="client" name="client" class="form-control"
+                       placeholder="Enter client name">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Brief Description</label>
+            <textarea id="description" name="description" class="form-control" rows="3"
+                      placeholder="Brief description of the activity (optional)"></textarea>
+        </div>
+
+        <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #e2e8f0; display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-primary">
+                Submit for Approval
+            </button>
+            <a href="/dashboard" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<!-- Workflow Info -->
+<div class="card" style="margin-top: 20px; background: #f7fafc;">
+    <h4 style="margin-bottom: 12px; color: #4a5568;">Workflow Steps</h4>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+        <span class="badge" style="background: #3b82f6; color: white; padding: 6px 12px;">1. Register</span>
+        <span style="color: #a0aec0;">&rarr;</span>
+        <span class="badge" style="background: #e2e8f0; color: #718096; padding: 6px 12px;">2. Head Approves</span>
+        <span style="color: #a0aec0;">&rarr;</span>
+        <span class="badge" style="background: #e2e8f0; color: #718096; padding: 6px 12px;">3. TL Assigned</span>
+        <span style="color: #a0aec0;">&rarr;</span>
+        <span class="badge" style="background: #e2e8f0; color: #718096; padding: 6px 12px;">4. Details Filled</span>
+        <span style="color: #a0aec0;">&rarr;</span>
+        <span class="badge" style="background: #e2e8f0; color: #718096; padding: 6px 12px;">5. Active</span>
+    </div>
+</div>
+{% endblock %}

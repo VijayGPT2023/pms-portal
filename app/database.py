@@ -282,10 +282,39 @@ def init_database():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
+                -- Workflow columns
+                registered_by TEXT,
+                registration_status TEXT DEFAULT 'DRAFT',
+                workflow_stage TEXT DEFAULT 'REGISTRATION',
+
+                -- Section approval columns
+                approval_status TEXT DEFAULT 'DRAFT',
+                cost_approval_status TEXT DEFAULT 'DRAFT',
+                cost_submitted_by TEXT,
+                cost_submitted_at TIMESTAMP,
+                cost_approved_by TEXT,
+                cost_approved_at TIMESTAMP,
+                team_approval_status TEXT DEFAULT 'DRAFT',
+                team_submitted_by TEXT,
+                team_submitted_at TIMESTAMP,
+                team_approved_by TEXT,
+                team_approved_at TIMESTAMP,
+                milestone_approval_status TEXT DEFAULT 'DRAFT',
+                milestone_submitted_by TEXT,
+                milestone_submitted_at TIMESTAMP,
+                milestone_approved_by TEXT,
+                milestone_approved_at TIMESTAMP,
+                revenue_approval_status TEXT DEFAULT 'DRAFT',
+                revenue_submitted_by TEXT,
+                revenue_submitted_at TIMESTAMP,
+                revenue_approved_by TEXT,
+                revenue_approved_at TIMESTAMP,
+
                 FOREIGN KEY (office_id) REFERENCES offices(office_id),
                 FOREIGN KEY (team_leader_officer_id) REFERENCES officers(officer_id),
                 FOREIGN KEY (faculty1_officer_id) REFERENCES officers(officer_id),
-                FOREIGN KEY (faculty2_officer_id) REFERENCES officers(officer_id)
+                FOREIGN KEY (faculty2_officer_id) REFERENCES officers(officer_id),
+                FOREIGN KEY (registered_by) REFERENCES officers(officer_id)
             )
         """)
 
@@ -318,6 +347,14 @@ def init_database():
 
                 status TEXT DEFAULT 'Pending' CHECK(status IN ('Pending', 'In Progress', 'Completed', 'Delayed', 'Cancelled')),
                 remarks TEXT,
+                approval_status TEXT DEFAULT 'PENDING',
+                -- Tentative date change tracking
+                tentative_date_status TEXT DEFAULT 'APPROVED',
+                tentative_date_reason TEXT,
+                tentative_date_requested_by TEXT,
+                tentative_date_requested_at TIMESTAMP,
+                tentative_date_approved_by TEXT,
+                tentative_date_approved_at TIMESTAMP,
                 version INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -487,6 +524,10 @@ def init_database():
                 approved_at TIMESTAMP,
                 escalated_to TEXT,
                 escalated_at TIMESTAMP,
+                -- Change request review columns (Officer→TL→Head flow)
+                reviewed_by TEXT,
+                review_status TEXT,
+                review_notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (requested_by) REFERENCES officers(officer_id),
@@ -546,6 +587,64 @@ def init_database():
             cursor.execute("ALTER TABLE invoice_requests ADD COLUMN finance_verified_at TIMESTAMP")
         except:
             pass
+
+        # Workflow columns on assignments (for existing databases)
+        for col_def in [
+            "registered_by TEXT",
+            "registration_status TEXT DEFAULT 'DRAFT'",
+            "workflow_stage TEXT DEFAULT 'REGISTRATION'",
+            "approval_status TEXT DEFAULT 'DRAFT'",
+            "cost_approval_status TEXT DEFAULT 'DRAFT'",
+            "cost_submitted_by TEXT",
+            "cost_submitted_at TIMESTAMP",
+            "cost_approved_by TEXT",
+            "cost_approved_at TIMESTAMP",
+            "team_approval_status TEXT DEFAULT 'DRAFT'",
+            "team_submitted_by TEXT",
+            "team_submitted_at TIMESTAMP",
+            "team_approved_by TEXT",
+            "team_approved_at TIMESTAMP",
+            "milestone_approval_status TEXT DEFAULT 'DRAFT'",
+            "milestone_submitted_by TEXT",
+            "milestone_submitted_at TIMESTAMP",
+            "milestone_approved_by TEXT",
+            "milestone_approved_at TIMESTAMP",
+            "revenue_approval_status TEXT DEFAULT 'DRAFT'",
+            "revenue_submitted_by TEXT",
+            "revenue_submitted_at TIMESTAMP",
+            "revenue_approved_by TEXT",
+            "revenue_approved_at TIMESTAMP",
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE assignments ADD COLUMN {col_def}")
+            except:
+                pass
+
+        # Change request columns on approval_requests (for existing databases)
+        for col_def in [
+            "reviewed_by TEXT",
+            "review_status TEXT",
+            "review_notes TEXT",
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE approval_requests ADD COLUMN {col_def}")
+            except:
+                pass
+
+        # Milestone columns for tentative date tracking (for existing databases)
+        for col_def in [
+            "approval_status TEXT DEFAULT 'PENDING'",
+            "tentative_date_status TEXT DEFAULT 'APPROVED'",
+            "tentative_date_reason TEXT",
+            "tentative_date_requested_by TEXT",
+            "tentative_date_requested_at TIMESTAMP",
+            "tentative_date_approved_by TEXT",
+            "tentative_date_approved_at TIMESTAMP",
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE milestones ADD COLUMN {col_def}")
+            except:
+                pass
 
         # Create officer_roles table for multiple roles per officer
         # No UNIQUE constraint - allows tracking history of same role assignments

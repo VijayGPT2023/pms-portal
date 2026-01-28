@@ -11,12 +11,25 @@
     </div>
 </div>
 
-<!-- Summary Cards - Assignments -->
-<h3 style="margin-bottom: 15px; color: #2d3748;">Assignment Approvals</h3>
+<!-- Summary Cards - Workflow -->
+<h3 style="margin-bottom: 15px; color: #2d3748;">Workflow Approvals</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px;">
+    <div class="card" style="text-align: center; padding: 15px; border-left: 4px solid #f56565;">
+        <h3 style="color: #e53e3e; margin: 0;">{{ pending_registrations|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Registrations</p>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px; border-left: 4px solid #805ad5;">
+        <h3 style="color: #805ad5; margin: 0;">{{ pending_tl_assignments|length }}</h3>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Assign TL</p>
+    </div>
+</div>
+
+<!-- Summary Cards - Section Approvals -->
+<h3 style="margin-bottom: 15px; color: #2d3748;">Section Approvals</h3>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 20px;">
     <div class="card" style="text-align: center; padding: 15px;">
         <h3 style="color: #e53e3e; margin: 0;">{{ pending_assignments|length }}</h3>
-        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Assignments</p>
+        <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Basic Info</p>
     </div>
     <div class="card" style="text-align: center; padding: 15px;">
         <h3 style="color: #805ad5; margin: 0;">{{ unallocated_assignments|length }}</h3>
@@ -72,6 +85,101 @@
         <p style="margin: 5px 0 0; color: #718096; font-size: 12px;">Revenue Share</p>
     </div>
 </div>
+
+<!-- ============================================================ -->
+<!-- WORKFLOW: Pending Registrations -->
+<!-- ============================================================ -->
+{% if pending_registrations %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title" style="color: #e53e3e;">Pending Activity Registrations</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Office</th>
+                    <th>Registered By</th>
+                    <th>Client</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_registrations %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
+                    <td><span class="badge {% if item.type == 'TRAINING' %}badge-warning{% else %}badge-info{% endif %}">{{ item.type }}</span></td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.registered_by_name or '-' }}</td>
+                    <td>{{ item.client or '-' }}</td>
+                    <td>{{ item.created_at }}</td>
+                    <td>
+                        <a href="/assignment/view/{{ item.id }}" class="btn btn-sm btn-primary">View</a>
+                        <form method="POST" action="/approvals/registration/{{ item.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('registration', {{ item.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- WORKFLOW: Assign Team Leader (after registration approval) -->
+<!-- ============================================================ -->
+{% if pending_tl_assignments %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title" style="color: #805ad5;">Assign Team Leader</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Office</th>
+                    <th>Registered By</th>
+                    <th>Allocate Team Leader</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in pending_tl_assignments %}
+                <tr>
+                    <td><a href="/assignment/view/{{ item.id }}">{{ item.assignment_no }}</a></td>
+                    <td>{{ item.title[:40] }}{% if item.title|length > 40 %}...{% endif %}</td>
+                    <td><span class="badge {% if item.type == 'TRAINING' %}badge-warning{% else %}badge-info{% endif %}">{{ item.type }}</span></td>
+                    <td>{{ item.office_id }}</td>
+                    <td>{{ item.registered_by_name or '-' }}</td>
+                    <td>
+                        <form method="POST" action="/approvals/allocate-tl/{{ item.id }}" style="display: flex; gap: 10px;">
+                            <select name="team_leader_id" class="form-control" style="width: 200px;" required>
+                                <option value="">Select Team Leader</option>
+                                {% for officer in office_officers.get(item.office_id, []) %}
+                                <option value="{{ officer.officer_id }}">{{ officer.name }} ({{ officer.designation }})</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-primary">Assign</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
 <!-- Pending Assignments -->
 {% if pending_assignments %}
@@ -454,6 +562,89 @@
 {% endif %}
 
 <!-- ============================================================ -->
+<!-- CHANGE REQUESTS: TL Review -->
+<!-- ============================================================ -->
+{% if pending_cr_tl_review %}
+<div class="card">
+    <div class="card-header" style="background: #faf5ff; border-left: 4px solid #805ad5;">
+        <h2 class="card-title">Change Requests - Awaiting TL Review</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Assignment</th>
+                    <th>Requested By</th>
+                    <th>Type</th>
+                    <th>Details</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cr in pending_cr_tl_review %}
+                <tr>
+                    <td>#{{ cr.id }}</td>
+                    <td><a href="/assignment/view/{{ cr.reference_id }}">{{ cr.assignment_no }}</a></td>
+                    <td>{{ cr.requested_by_name }}</td>
+                    <td><span class="badge badge-info">{{ cr.remarks[:30] if cr.remarks else '-' }}</span></td>
+                    <td>{{ cr.request_data[:60] if cr.request_data else '-' }}{% if cr.request_data and cr.request_data|length > 60 %}...{% endif %}</td>
+                    <td>
+                        <a href="/change-request/review/{{ cr.id }}" class="btn btn-sm btn-primary">Review</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
+<!-- CHANGE REQUESTS: Head Approval (forwarded by TL) -->
+<!-- ============================================================ -->
+{% if pending_cr_head_approval %}
+<div class="card">
+    <div class="card-header" style="background: #fff5f5; border-left: 4px solid #e53e3e;">
+        <h2 class="card-title">Change Requests - Awaiting Head Approval</h2>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Assignment</th>
+                    <th>Requested By</th>
+                    <th>Reviewed By (TL)</th>
+                    <th>TL Notes</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cr in pending_cr_head_approval %}
+                <tr>
+                    <td>#{{ cr.id }}</td>
+                    <td><a href="/assignment/view/{{ cr.reference_id }}">{{ cr.assignment_no }}</a></td>
+                    <td>{{ cr.requested_by_name }}</td>
+                    <td>{{ cr.reviewed_by_name or '-' }}</td>
+                    <td>{{ cr.review_notes[:50] if cr.review_notes else '-' }}{% if cr.review_notes and cr.review_notes|length > 50 %}...{% endif %}</td>
+                    <td>
+                        <a href="/change-request/review/{{ cr.id }}" class="btn btn-sm btn-primary">View</a>
+                        <form method="POST" action="/change-request/{{ cr.id }}/approve" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                        </form>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                onclick="showRejectModal('change-request-head', {{ cr.id }})">Reject</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- ============================================================ -->
 <!-- TRAINING PROGRAMME APPROVALS -->
 <!-- ============================================================ -->
 
@@ -701,6 +892,8 @@ function showRejectModal(type, id, prefix) {
     // Handle training-specific actions
     if (type === 'training-programme') {
         document.getElementById('rejectForm').action = prefix + '/reject/' + id;
+    } else if (type === 'change-request-head') {
+        document.getElementById('rejectForm').action = '/change-request/' + id + '/reject';
     } else {
         document.getElementById('rejectForm').action = prefix + '/' + type + '/' + id + '/reject';
     }

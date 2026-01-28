@@ -155,6 +155,18 @@ async def revenue_share_submit(request: Request, assignment_id: int):
                 VALUES ({ph}, {ph}, {ph}, {ph})
             """, (assignment_id, share['officer_id'], share['share_percent'], share['share_amount']))
 
+        # Reset revenue and team approval if previously approved (re-approval needed on edit)
+        resets = []
+        if assignment.get('revenue_approval_status') == 'APPROVED':
+            resets.append("revenue_approval_status = 'SUBMITTED'")
+        if assignment.get('team_approval_status') == 'APPROVED':
+            resets.append("team_approval_status = 'SUBMITTED'")
+        if resets:
+            cursor.execute(f"""
+                UPDATE assignments SET {', '.join(resets)}, updated_at = CURRENT_TIMESTAMP
+                WHERE id = {ph}
+            """, (assignment_id,))
+
     # Check if user wants to finish wizard
     next_step = form_data.get('next_step', '')
     if next_step == 'finish':

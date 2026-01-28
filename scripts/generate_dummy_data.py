@@ -853,6 +853,23 @@ def generate_dummy_data():
             ))
         conn.commit()
 
+    # Set all existing assignments to ACTIVE workflow stage (they skip the workflow)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE assignments
+            SET workflow_stage = 'ACTIVE',
+                registration_status = 'APPROVED',
+                approval_status = 'APPROVED',
+                cost_approval_status = 'APPROVED',
+                team_approval_status = 'APPROVED',
+                milestone_approval_status = 'APPROVED',
+                revenue_approval_status = 'APPROVED'
+            WHERE workflow_stage IS NULL OR workflow_stage = 'REGISTRATION'
+        """)
+        conn.commit()
+    print("Set all existing assignments to ACTIVE workflow stage.")
+
     print(f"\n{'='*50}")
     print(f"Enhanced dummy data generation complete!")
     print(f"  Assignments created: {total_assignments}")

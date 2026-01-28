@@ -31,7 +31,10 @@ async def approvals_page(request: Request):
     user, redirect = require_approver_access(request)
     if redirect:
         return redirect
+    return await _approvals_page_inner(request, user)
 
+
+async def _approvals_page_inner(request, user):
     with get_db() as conn:
         cursor = conn.cursor()
 
@@ -48,24 +51,53 @@ async def approvals_page(request: Request):
             office_filter = f"AND a.office_id = {ph}"
             office_params = [user_office]
 
-        # Get pending assignments (DRAFT status, needs approval)
+        # ============================================================
+        # WORKFLOW: Get pending registrations (new activities awaiting approval)
+        # ============================================================
+        cursor.execute(f"""
+            SELECT a.*, reg.name as registered_by_name
+            FROM assignments a
+            LEFT JOIN officers reg ON a.registered_by = reg.officer_id
+            WHERE a.registration_status = 'PENDING_APPROVAL'
+            {office_filter}
+            ORDER BY a.created_at DESC
+        """, office_params)
+        pending_registrations = [dict(row) for row in cursor.fetchall()]
+
+        # ============================================================
+        # WORKFLOW: Get approved registrations needing TL assignment
+        # ============================================================
+        cursor.execute(f"""
+            SELECT a.*, reg.name as registered_by_name
+            FROM assignments a
+            LEFT JOIN officers reg ON a.registered_by = reg.officer_id
+            WHERE a.workflow_stage = 'TL_ASSIGNMENT'
+            AND (a.team_leader_officer_id IS NULL OR a.team_leader_officer_id = '')
+            {office_filter}
+            ORDER BY a.created_at DESC
+        """, office_params)
+        pending_tl_assignments = [dict(row) for row in cursor.fetchall()]
+
+        # Get pending assignments (DRAFT status, needs approval - legacy)
         cursor.execute(f"""
             SELECT a.*, o.name as created_by_name
             FROM assignments a
             LEFT JOIN officers o ON a.team_leader_officer_id = o.officer_id
             WHERE a.approval_status = 'DRAFT'
+            AND (a.registration_status IS NULL OR a.registration_status NOT IN ('PENDING_APPROVAL', 'APPROVED'))
             {office_filter}
             ORDER BY a.created_at DESC
         """, office_params)
         pending_assignments = [dict(row) for row in cursor.fetchall()]
 
-        # Get assignments without team leader (need allocation)
+        # Get assignments without team leader (need allocation - legacy)
         cursor.execute(f"""
             SELECT a.*, o.name as created_by_name
             FROM assignments a
             LEFT JOIN officers o ON a.team_leader_officer_id = o.officer_id
             WHERE (a.team_leader_officer_id IS NULL OR a.team_leader_officer_id = '')
             AND a.approval_status IN ('APPROVED', 'DRAFT')
+            AND (a.workflow_stage IS NULL OR a.workflow_stage NOT IN ('REGISTRATION', 'TL_ASSIGNMENT'))
             {office_filter}
             ORDER BY a.created_at DESC
         """, office_params)
@@ -192,67 +224,116 @@ async def approvals_page(request: Request):
             office_officers[oid].append(officer)
 
         # ============================================================
-        # TRAINING: Get pending programme approvals
+        # TRAINING: Get pending programme approvals (tables may not exist yet)
+        # ============================================================
+        pending_training_programmes = []
+        unallocated_training = []
+        pending_training_budget = []
+        pending_training_trainers = []
+        pending_training_revenue = []
+
+        # Check if training_programmes table exists before querying
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'training_programmes'
+            )
+        """ if USE_POSTGRES else """
+            SELECT COUNT(*) as cnt FROM sqlite_master WHERE type='table' AND name='training_programmes'
+        """)
+        training_table_exists = cursor.fetchone()[0] if USE_POSTGRES else cursor.fetchone()['cnt'] > 0
+
+        if training_table_exists:
+            cursor.execute(f"""
+                SELECT tp.*, cb.name as created_by_name
+                FROM training_programmes tp
+                LEFT JOIN officers cb ON tp.created_by = cb.officer_id
+                WHERE tp.approval_status = 'SUBMITTED'
+                {office_filter.replace('a.office_id', 'tp.office_id')}
+                ORDER BY tp.created_at DESC
+            """, office_params)
+            pending_training_programmes = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute(f"""
+                SELECT tp.*, cb.name as created_by_name
+                FROM training_programmes tp
+                LEFT JOIN officers cb ON tp.created_by = cb.officer_id
+                WHERE (tp.coordinator_id IS NULL OR tp.coordinator_id = '')
+                AND tp.approval_status IN ('APPROVED', 'DRAFT')
+                {office_filter.replace('a.office_id', 'tp.office_id')}
+                ORDER BY tp.created_at DESC
+            """, office_params)
+            unallocated_training = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute(f"""
+                SELECT tp.*, c.name as coordinator_name, sub.name as submitted_by_name
+                FROM training_programmes tp
+                LEFT JOIN officers c ON tp.coordinator_id = c.officer_id
+                LEFT JOIN officers sub ON tp.budget_submitted_by = sub.officer_id
+                WHERE tp.budget_approval_status = 'SUBMITTED'
+                {office_filter.replace('a.office_id', 'tp.office_id')}
+                ORDER BY tp.budget_submitted_at DESC
+            """, office_params)
+            pending_training_budget = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute(f"""
+                SELECT tp.*, c.name as coordinator_name, sub.name as submitted_by_name,
+                       (SELECT COUNT(*) FROM trainer_allocations WHERE programme_id = tp.id) as trainer_count
+                FROM training_programmes tp
+                LEFT JOIN officers c ON tp.coordinator_id = c.officer_id
+                LEFT JOIN officers sub ON tp.trainer_submitted_by = sub.officer_id
+                WHERE tp.trainer_approval_status = 'SUBMITTED'
+                {office_filter.replace('a.office_id', 'tp.office_id')}
+                ORDER BY tp.trainer_submitted_at DESC
+            """, office_params)
+            pending_training_trainers = [dict(row) for row in cursor.fetchall()]
+
+            cursor.execute(f"""
+                SELECT tp.*, c.name as coordinator_name, sub.name as submitted_by_name,
+                       (SELECT COUNT(*) FROM trainer_allocations WHERE programme_id = tp.id) as trainer_count
+                FROM training_programmes tp
+                LEFT JOIN officers c ON tp.coordinator_id = c.officer_id
+                LEFT JOIN officers sub ON tp.revenue_submitted_by = sub.officer_id
+                WHERE tp.revenue_approval_status = 'SUBMITTED'
+                {office_filter.replace('a.office_id', 'tp.office_id')}
+                ORDER BY tp.revenue_submitted_at DESC
+            """, office_params)
+            pending_training_revenue = [dict(row) for row in cursor.fetchall()]
+
+        # ============================================================
+        # CHANGE REQUESTS: Pending TL review (for TL users)
         # ============================================================
         cursor.execute(f"""
-            SELECT tp.*, cb.name as created_by_name
-            FROM training_programmes tp
-            LEFT JOIN officers cb ON tp.created_by = cb.officer_id
-            WHERE tp.approval_status = 'SUBMITTED'
-            {office_filter.replace('a.office_id', 'tp.office_id')}
-            ORDER BY tp.created_at DESC
+            SELECT ar.*, a.assignment_no, a.title as assignment_title,
+                   o.name as requested_by_name
+            FROM approval_requests ar
+            JOIN assignments a ON ar.reference_id = a.id
+            JOIN officers o ON ar.requested_by = o.officer_id
+            WHERE ar.request_type = 'CHANGE_REQUEST'
+            AND ar.review_status = 'PENDING'
+            AND ar.status = 'PENDING'
+            {office_filter.replace('a.office_id', 'ar.office_id')}
+            ORDER BY ar.created_at DESC
         """, office_params)
-        pending_training_programmes = [dict(row) for row in cursor.fetchall()]
+        pending_cr_tl_review = [dict(row) for row in cursor.fetchall()]
 
-        # TRAINING: Get programmes needing coordinator
+        # ============================================================
+        # CHANGE REQUESTS: Forwarded by TL, pending Head approval
+        # ============================================================
         cursor.execute(f"""
-            SELECT tp.*, cb.name as created_by_name
-            FROM training_programmes tp
-            LEFT JOIN officers cb ON tp.created_by = cb.officer_id
-            WHERE (tp.coordinator_id IS NULL OR tp.coordinator_id = '')
-            AND tp.approval_status IN ('APPROVED', 'DRAFT')
-            {office_filter.replace('a.office_id', 'tp.office_id')}
-            ORDER BY tp.created_at DESC
+            SELECT ar.*, a.assignment_no, a.title as assignment_title,
+                   o.name as requested_by_name, tl.name as reviewed_by_name
+            FROM approval_requests ar
+            JOIN assignments a ON ar.reference_id = a.id
+            JOIN officers o ON ar.requested_by = o.officer_id
+            LEFT JOIN officers tl ON ar.reviewed_by = tl.officer_id
+            WHERE ar.request_type = 'CHANGE_REQUEST'
+            AND ar.review_status = 'FORWARDED'
+            AND ar.status = 'PENDING'
+            {office_filter.replace('a.office_id', 'ar.office_id')}
+            ORDER BY ar.created_at DESC
         """, office_params)
-        unallocated_training = [dict(row) for row in cursor.fetchall()]
-
-        # TRAINING: Get pending budget approvals
-        cursor.execute(f"""
-            SELECT tp.*, c.name as coordinator_name, sub.name as submitted_by_name
-            FROM training_programmes tp
-            LEFT JOIN officers c ON tp.coordinator_id = c.officer_id
-            LEFT JOIN officers sub ON tp.budget_submitted_by = sub.officer_id
-            WHERE tp.budget_approval_status = 'SUBMITTED'
-            {office_filter.replace('a.office_id', 'tp.office_id')}
-            ORDER BY tp.budget_submitted_at DESC
-        """, office_params)
-        pending_training_budget = [dict(row) for row in cursor.fetchall()]
-
-        # TRAINING: Get pending trainer allocation approvals
-        cursor.execute(f"""
-            SELECT tp.*, c.name as coordinator_name, sub.name as submitted_by_name,
-                   (SELECT COUNT(*) FROM trainer_allocations WHERE programme_id = tp.id) as trainer_count
-            FROM training_programmes tp
-            LEFT JOIN officers c ON tp.coordinator_id = c.officer_id
-            LEFT JOIN officers sub ON tp.trainer_submitted_by = sub.officer_id
-            WHERE tp.trainer_approval_status = 'SUBMITTED'
-            {office_filter.replace('a.office_id', 'tp.office_id')}
-            ORDER BY tp.trainer_submitted_at DESC
-        """, office_params)
-        pending_training_trainers = [dict(row) for row in cursor.fetchall()]
-
-        # TRAINING: Get pending revenue share approvals
-        cursor.execute(f"""
-            SELECT tp.*, c.name as coordinator_name, sub.name as submitted_by_name,
-                   (SELECT COUNT(*) FROM trainer_allocations WHERE programme_id = tp.id) as trainer_count
-            FROM training_programmes tp
-            LEFT JOIN officers c ON tp.coordinator_id = c.officer_id
-            LEFT JOIN officers sub ON tp.revenue_submitted_by = sub.officer_id
-            WHERE tp.revenue_approval_status = 'SUBMITTED'
-            {office_filter.replace('a.office_id', 'tp.office_id')}
-            ORDER BY tp.revenue_submitted_at DESC
-        """, office_params)
-        pending_training_revenue = [dict(row) for row in cursor.fetchall()]
+        pending_cr_head_approval = [dict(row) for row in cursor.fetchall()]
 
         # ============================================================
         # Get pending Tentative Date Change Requests
@@ -272,6 +353,8 @@ async def approvals_page(request: Request):
     return templates.TemplateResponse("approvals.html", {
         "request": request,
         "user": user,
+        "pending_registrations": pending_registrations,
+        "pending_tl_assignments": pending_tl_assignments,
         "pending_assignments": pending_assignments,
         "unallocated_assignments": unallocated_assignments,
         "pending_cost_estimations": pending_cost_estimations,
@@ -283,6 +366,8 @@ async def approvals_page(request: Request):
         "pending_team": pending_team,
         "pending_invoices": pending_invoices,
         "pending_tentative_dates": pending_tentative_dates,
+        "pending_cr_tl_review": pending_cr_tl_review,
+        "pending_cr_head_approval": pending_cr_head_approval,
         "office_officers": office_officers,
         # Training approvals
         "pending_training_programmes": pending_training_programmes,
@@ -293,9 +378,113 @@ async def approvals_page(request: Request):
     })
 
 
+# ============================================================
+# Helper: Check if all 5 sections approved → set ACTIVE
+# ============================================================
+
+def _check_all_sections_approved(cursor, assignment_id, ph):
+    """Check if all 5 sections are approved. If so, advance to ACTIVE."""
+    cursor.execute(f"""
+        SELECT approval_status, cost_approval_status, team_approval_status,
+               milestone_approval_status, revenue_approval_status, workflow_stage
+        FROM assignments WHERE id = {ph}
+    """, (assignment_id,))
+    row = cursor.fetchone()
+    if not row:
+        return
+
+    all_approved = (
+        row['approval_status'] == 'APPROVED' and
+        row['cost_approval_status'] == 'APPROVED' and
+        row['team_approval_status'] == 'APPROVED' and
+        row['milestone_approval_status'] == 'APPROVED' and
+        row['revenue_approval_status'] == 'APPROVED'
+    )
+
+    if all_approved and row['workflow_stage'] in ('DETAIL_ENTRY', None, ''):
+        cursor.execute(f"""
+            UPDATE assignments
+            SET workflow_stage = 'ACTIVE', status = 'Ongoing', updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
+        """, (assignment_id,))
+
+
+# ============================================================
+# Registration Approval Workflow
+# ============================================================
+
+@router.post("/registration/{assignment_id}/approve")
+async def approve_registration(request: Request, assignment_id: int):
+    """Head approves a new activity registration."""
+    user, redirect = require_approver_access(request)
+    if redirect:
+        return redirect
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
+
+        cursor.execute(f"""
+            UPDATE assignments
+            SET registration_status = 'APPROVED',
+                workflow_stage = 'TL_ASSIGNMENT',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
+        """, (assignment_id,))
+
+        # Update related approval_request
+        cursor.execute(f"""
+            UPDATE approval_requests
+            SET status = 'APPROVED', approved_by = {ph}, approved_at = CURRENT_TIMESTAMP
+            WHERE reference_id = {ph} AND request_type = 'REGISTRATION' AND status = 'PENDING'
+        """, (user['officer_id'], assignment_id))
+
+        cursor.execute(f"""
+            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+            VALUES ({ph}, 'APPROVE', 'registration', {ph}, 'Activity registration approved')
+        """, (user['officer_id'], assignment_id))
+
+    return RedirectResponse(url="/approvals", status_code=302)
+
+
+@router.post("/registration/{assignment_id}/reject")
+async def reject_registration(request: Request, assignment_id: int,
+                               rejection_remarks: str = Form(...)):
+    """Head rejects a new activity registration."""
+    user, redirect = require_approver_access(request)
+    if redirect:
+        return redirect
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
+
+        cursor.execute(f"""
+            UPDATE assignments
+            SET registration_status = 'REJECTED',
+                remarks = {ph},
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = {ph}
+        """, (rejection_remarks, assignment_id))
+
+        # Update related approval_request
+        cursor.execute(f"""
+            UPDATE approval_requests
+            SET status = 'REJECTED', approval_remarks = {ph}, approved_by = {ph}, approved_at = CURRENT_TIMESTAMP
+            WHERE reference_id = {ph} AND request_type = 'REGISTRATION' AND status = 'PENDING'
+        """, (rejection_remarks, user['officer_id'], assignment_id))
+
+        cursor.execute(f"""
+            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+            VALUES ({ph}, 'REJECT', 'registration', {ph}, {ph})
+        """, (user['officer_id'], assignment_id, rejection_remarks))
+
+    return RedirectResponse(url="/approvals", status_code=302)
+
+
 @router.post("/assignment/{assignment_id}/approve")
 async def approve_assignment(request: Request, assignment_id: int):
-    """Approve an assignment."""
+    """Approve an assignment (basic info section)."""
     user, redirect = require_approver_access(request)
     if redirect:
         return redirect
@@ -309,6 +498,9 @@ async def approve_assignment(request: Request, assignment_id: int):
             SET approval_status = 'APPROVED', updated_at = CURRENT_TIMESTAMP
             WHERE id = {ph}
         """, (assignment_id,))
+
+        # Check if all sections are approved → advance to ACTIVE
+        _check_all_sections_approved(cursor, assignment_id, ph)
 
         # Log the action
         cursor.execute(f"""
@@ -358,10 +550,15 @@ async def allocate_team_leader(request: Request, assignment_id: int,
         cursor = conn.cursor()
         ph = '%s' if USE_POSTGRES else '?'
 
-        # Update assignment with team leader
+        # Update assignment with team leader and advance workflow
         cursor.execute(f"""
             UPDATE assignments
-            SET team_leader_officer_id = {ph}, updated_at = CURRENT_TIMESTAMP
+            SET team_leader_officer_id = {ph},
+                workflow_stage = CASE
+                    WHEN workflow_stage = 'TL_ASSIGNMENT' THEN 'DETAIL_ENTRY'
+                    ELSE COALESCE(workflow_stage, 'DETAIL_ENTRY')
+                END,
+                updated_at = CURRENT_TIMESTAMP
             WHERE id = {ph}
         """, (team_leader_id, assignment_id))
 
@@ -543,6 +740,8 @@ async def approve_cost_estimation(request: Request, assignment_id: int):
             WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
 
+        _check_all_sections_approved(cursor, assignment_id, ph)
+
         cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
             VALUES ({ph}, 'APPROVE', 'cost_estimation', {ph}, 'Cost estimation approved')
@@ -646,6 +845,8 @@ async def approve_team_constitution(request: Request, assignment_id: int):
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
+
+        _check_all_sections_approved(cursor, assignment_id, ph)
 
         cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
@@ -759,6 +960,8 @@ async def approve_milestone_planning(request: Request, assignment_id: int):
             WHERE assignment_id = {ph} AND approval_status = 'PENDING'
         """, (assignment_id,))
 
+        _check_all_sections_approved(cursor, assignment_id, ph)
+
         cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
             VALUES ({ph}, 'APPROVE', 'milestone_planning', {ph}, 'Milestone planning approved')
@@ -870,6 +1073,8 @@ async def approve_revenue_shares(request: Request, assignment_id: int):
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = {ph}
         """, (user['officer_id'], assignment_id))
+
+        _check_all_sections_approved(cursor, assignment_id, ph)
 
         cursor.execute(f"""
             INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)

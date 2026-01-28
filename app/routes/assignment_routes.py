@@ -75,6 +75,116 @@ def get_assignment(assignment_id: int):
         return dict(row) if row else None
 
 
+# ============================================================
+# Registration Workflow (Step 1): Any officer registers new activity
+# ============================================================
+
+@router.get("/register", response_class=HTMLResponse)
+async def register_activity_page(request: Request):
+    """Display minimal registration form for any officer."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    error = request.query_params.get('error', '')
+    return templates.TemplateResponse(
+        "register_activity.html",
+        {
+            "request": request,
+            "user": user,
+            "error": error
+        }
+    )
+
+
+@router.post("/register")
+async def register_activity_submit(request: Request):
+    """Create a minimal assignment registration and submit for Head approval."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    form_data = await request.form()
+    title = form_data.get('title', '').strip()
+    activity_type = form_data.get('type', 'ASSIGNMENT')
+    client = form_data.get('client', '').strip()
+    description = form_data.get('description', '').strip()
+
+    if not title:
+        return RedirectResponse(url="/assignment/register?error=Title is required", status_code=302)
+
+    if activity_type not in ('ASSIGNMENT', 'TRAINING', 'DEVELOPMENT'):
+        activity_type = 'ASSIGNMENT'
+
+    office_id = user['office_id']
+    ph = '%s' if USE_POSTGRES else '?'
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+
+        # Generate assignment number
+        if USE_POSTGRES:
+            cursor.execute("""
+                SELECT COUNT(*) + 1 as next_no FROM assignments
+                WHERE office_id = %s AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
+            """, (office_id,))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) + 1 as next_no FROM assignments
+                WHERE office_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
+            """, (office_id,))
+        next_no = cursor.fetchone()['next_no']
+
+        import datetime
+        year = datetime.datetime.now().year
+        assignment_no = f"{office_id}/{year}/{next_no:03d}"
+
+        # Insert minimal assignment with workflow state
+        cursor.execute(f"""
+            INSERT INTO assignments
+            (assignment_no, type, title, client, tor_scope, office_id, status,
+             registered_by, registration_status, workflow_stage, approval_status)
+            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, 'Pipeline',
+                    {ph}, 'PENDING_APPROVAL', 'REGISTRATION', 'DRAFT')
+        """, (
+            assignment_no,
+            activity_type,
+            title,
+            client,
+            description,
+            office_id,
+            user['officer_id']
+        ))
+
+        # Get the new assignment ID
+        if USE_POSTGRES:
+            cursor.execute("SELECT lastval() as id")
+            assignment_id = cursor.fetchone()['id']
+        else:
+            assignment_id = cursor.lastrowid
+
+        # Create approval request for Head
+        cursor.execute(f"""
+            INSERT INTO approval_requests
+            (request_type, reference_type, reference_id, requested_by, office_id, status, request_data, remarks)
+            VALUES ('REGISTRATION', 'assignment', {ph}, {ph}, {ph}, 'PENDING', {ph}, {ph})
+        """, (
+            assignment_id,
+            user['officer_id'],
+            office_id,
+            f'{{"title": "{title}", "type": "{activity_type}", "client": "{client}"}}',
+            f'New {activity_type.lower()} registration by {user["name"]}'
+        ))
+
+        # Log the action
+        cursor.execute(f"""
+            INSERT INTO activity_log (actor_id, action, entity_type, entity_id, remarks)
+            VALUES ({ph}, 'CREATE', 'assignment', {ph}, {ph})
+        """, (user['officer_id'], assignment_id, f'Registered new {activity_type.lower()}: {title}'))
+
+    return RedirectResponse(url=f"/assignment/view/{assignment_id}?registered=1", status_code=302)
+
+
 @router.get("/workorders", response_class=HTMLResponse)
 async def workorders_list(request: Request):
     """Display Work Orders list."""
@@ -209,7 +319,12 @@ async def edit_assignment_page(request: Request, assignment_id: int):
 
     officers = get_officers_list()
 
-    template_name = "assignment_form.html" if assignment['type'] == 'ASSIGNMENT' else "training_form.html"
+    if assignment['type'] == 'ASSIGNMENT':
+        template_name = "assignment_form.html"
+    elif assignment['type'] == 'DEVELOPMENT':
+        template_name = "development_form.html"
+    else:
+        template_name = "training_form.html"
 
     return templates.TemplateResponse(
         template_name,
@@ -249,7 +364,10 @@ async def edit_assignment_submit(
     duration_days: Optional[int] = Form(None),
     type_of_participants: Optional[str] = Form(None),
     faculty1_officer_id: Optional[str] = Form(None),
-    faculty2_officer_id: Optional[str] = Form(None)
+    faculty2_officer_id: Optional[str] = Form(None),
+    # Development-specific fields
+    man_days: Optional[float] = Form(None),
+    daily_rate: Optional[float] = Form(None)
 ):
     """Handle assignment edit form submission."""
     user = get_current_user(request)
@@ -263,8 +381,13 @@ async def edit_assignment_submit(
     with get_db() as conn:
         cursor = conn.cursor()
 
+        # Reset basic info approval if it was previously approved (re-approval needed)
+        reset_clause = ""
+        if assignment.get('approval_status') == 'APPROVED':
+            reset_clause = ", approval_status = 'SUBMITTED'"
+
         if assignment['type'] == 'ASSIGNMENT':
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE assignments SET
                     title = ?,
                     tor_scope = ?,
@@ -277,7 +400,8 @@ async def edit_assignment_submit(
                     target_date = ?,
                     team_leader_officer_id = ?,
                     status = ?,
-                    details_filled = 1,
+                    details_filled = 1
+                    {reset_clause},
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (
@@ -294,8 +418,45 @@ async def edit_assignment_submit(
                 status,
                 assignment_id
             ))
+        elif assignment['type'] == 'DEVELOPMENT':
+            man_days_val = man_days or 0
+            daily_rate_val = 0.20  # 20k per day = 0.20 Lakhs
+            total_value = man_days_val * daily_rate_val
+
+            cursor.execute(f"""
+                UPDATE assignments SET
+                    title = ?,
+                    tor_scope = ?,
+                    client = ?,
+                    man_days = ?,
+                    daily_rate = ?,
+                    is_notional = 1,
+                    total_value = ?,
+                    gross_value = ?,
+                    start_date = ?,
+                    target_date = ?,
+                    team_leader_officer_id = ?,
+                    status = ?,
+                    details_filled = 1
+                    {reset_clause},
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (
+                title,
+                tor_scope,
+                client,
+                man_days_val,
+                daily_rate_val,
+                total_value,
+                total_value,
+                start_date if start_date else None,
+                target_date if target_date else None,
+                team_leader_officer_id if team_leader_officer_id else None,
+                status,
+                assignment_id
+            ))
         else:  # TRAINING
-            cursor.execute("""
+            cursor.execute(f"""
                 UPDATE assignments SET
                     title = ?,
                     venue = ?,
@@ -306,7 +467,8 @@ async def edit_assignment_submit(
                     faculty1_officer_id = ?,
                     faculty2_officer_id = ?,
                     status = ?,
-                    details_filled = 1,
+                    details_filled = 1
+                    {reset_clause},
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (
@@ -734,13 +896,19 @@ async def save_milestones(request: Request, assignment_id: int):
         # Calculate shareable revenue
         total_revenue = amount_received + (invoice_amount - amount_received) * 0.8
 
-        cursor.execute("""
+        # Reset milestone approval if previously approved (re-approval needed on edit)
+        ms_reset = ""
+        if assignment.get('milestone_approval_status') == 'APPROVED':
+            ms_reset = ", milestone_approval_status = 'SUBMITTED'"
+
+        cursor.execute(f"""
             UPDATE assignments SET
                 physical_progress_percent = ?,
                 timeline_progress_percent = ?,
                 invoice_amount = ?,
                 amount_received = ?,
-                total_revenue = ?,
+                total_revenue = ?
+                {ms_reset},
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (physical_progress, timeline_progress, invoice_amount, amount_received, total_revenue, assignment_id))
@@ -1065,11 +1233,16 @@ async def save_expenditure(request: Request, assignment_id: int):
                         WHERE assignment_id = ? AND head_id = ?
                     """, (assignment_id, head_id))
 
-        # Update assignment total expenditure
-        cursor.execute("""
+        # Update assignment total expenditure and reset cost approval if previously approved
+        cost_reset = ""
+        if assignment.get('cost_approval_status') == 'APPROVED':
+            cost_reset = ", cost_approval_status = 'SUBMITTED'"
+
+        cursor.execute(f"""
             UPDATE assignments SET
                 total_expenditure = ?,
-                surplus_deficit = COALESCE(total_revenue, 0) - ?,
+                surplus_deficit = COALESCE(total_revenue, 0) - ?
+                {cost_reset},
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         """, (total_actual, total_actual, assignment_id))

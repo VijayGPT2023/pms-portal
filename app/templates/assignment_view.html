@@ -13,17 +13,103 @@
         {{ assignment.assignment_no }}
     </h1>
     <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% if assignment.workflow_stage in ('DETAIL_ENTRY', 'ACTIVE', None) %}
         <a href="/assignment/edit/{{ assignment.id }}" class="btn btn-primary btn-sm">Edit</a>
+        {% endif %}
+        {% if assignment.workflow_stage == 'ACTIVE' %}
         <a href="/finance/invoice-request/{{ assignment.id }}" class="btn btn-success btn-sm">Raise Invoice</a>
-        <a href="/mis/assignment/{{ assignment.id }}/progress" class="btn btn-sm" style="background: #805ad5; color: white;">Progress</a>
+        <a href="/change-request/new/{{ assignment.id }}" class="btn btn-sm" style="background: #805ad5; color: white;">Request Change</a>
+        {% endif %}
+        <a href="/mis/assignment/{{ assignment.id }}/progress" class="btn btn-sm" style="background: #6b7280; color: white;">Progress</a>
         <a href="/dashboard" class="btn btn-secondary btn-sm">Dashboard</a>
     </div>
 </div>
+
+<!-- Registration Success Message -->
+{% if request.query_params.get('registered') == '1' %}
+<div class="alert alert-success" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
+    <strong>Activity registered successfully!</strong> It has been submitted for Head approval.
+</div>
+{% endif %}
+
+<!-- Change Request Submitted Message -->
+{% if request.query_params.get('success') == 'change_request_submitted' %}
+<div class="alert alert-success" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
+    <strong>Change request submitted!</strong> The Team Leader will review it before forwarding to the Head.
+</div>
+{% endif %}
+
+<!-- Section Approval Success Messages -->
+{% if request.query_params.get('success') in ('cost_submitted', 'team_submitted', 'milestone_submitted', 'revenue_submitted') %}
+<div class="alert alert-success" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
+    <strong>Section submitted for approval!</strong> The Head will review and approve.
+</div>
+{% endif %}
 
 <!-- Wizard Completion Message -->
 {% if request.query_params.get('completed') == '1' %}
 <div class="alert alert-success" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
     <strong>Assignment setup complete!</strong> All details have been saved successfully.
+</div>
+{% endif %}
+
+<!-- Workflow Stage Banner -->
+{% if assignment.workflow_stage and assignment.workflow_stage != 'ACTIVE' %}
+<div style="margin-bottom: 20px; padding: 15px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <strong style="color: #92400e;">Workflow Stage:</strong>
+        {% set stage = assignment.workflow_stage or 'REGISTRATION' %}
+        {% set stages = ['REGISTRATION', 'TL_ASSIGNMENT', 'DETAIL_ENTRY', 'ACTIVE'] %}
+        {% set stage_labels = {'REGISTRATION': 'Registration', 'TL_ASSIGNMENT': 'TL Assignment', 'DETAIL_ENTRY': 'Detail Entry', 'ACTIVE': 'Active'} %}
+        {% for s in stages %}
+            {% if s == stage %}
+                <span class="badge" style="background: #f59e0b; color: white; padding: 4px 10px;">{{ stage_labels[s] }}</span>
+            {% elif stages.index(s) < stages.index(stage) %}
+                <span class="badge" style="background: #10b981; color: white; padding: 4px 10px;">{{ stage_labels[s] }} &#10003;</span>
+            {% else %}
+                <span class="badge" style="background: #e5e7eb; color: #6b7280; padding: 4px 10px;">{{ stage_labels[s] }}</span>
+            {% endif %}
+            {% if not loop.last %}<span style="color: #d1d5db;">&rarr;</span>{% endif %}
+        {% endfor %}
+    </div>
+    {% if assignment.registration_status == 'PENDING_APPROVAL' %}
+    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">Awaiting Head approval for registration.</p>
+    {% elif assignment.registration_status == 'REJECTED' %}
+    <p style="margin: 0; color: #dc2626; font-size: 0.9rem;">Registration was rejected. {% if assignment.remarks %}Reason: {{ assignment.remarks }}{% endif %}</p>
+    {% elif stage == 'TL_ASSIGNMENT' %}
+    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">Registration approved. Waiting for Head to assign a Team Leader.</p>
+    {% elif stage == 'DETAIL_ENTRY' %}
+    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">Team Leader assigned. Please fill in all details and submit each section for approval.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Section Approval Status (visible during DETAIL_ENTRY and after) -->
+{% if assignment.workflow_stage in ('DETAIL_ENTRY', 'ACTIVE') %}
+<div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+    <strong style="color: #0369a1; margin-bottom: 8px; display: block;">Section Approvals:</strong>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% set sections = [
+            ('Basic Info', assignment.approval_status),
+            ('Cost Estimation', assignment.cost_approval_status),
+            ('Milestones', assignment.milestone_approval_status),
+            ('Team', assignment.team_approval_status),
+            ('Revenue Sharing', assignment.revenue_approval_status)
+        ] %}
+        {% for name, status in sections %}
+        <span class="badge" style="padding: 5px 10px;
+            {% if status == 'APPROVED' %}background: #d1fae5; color: #065f46;
+            {% elif status == 'SUBMITTED' %}background: #fef3c7; color: #92400e;
+            {% elif status == 'REJECTED' %}background: #fee2e2; color: #991b1b;
+            {% else %}background: #f3f4f6; color: #6b7280;{% endif %}">
+            {{ name }}:
+            {% if status == 'APPROVED' %}&#10003; Approved
+            {% elif status == 'SUBMITTED' %}&#9203; Pending
+            {% elif status == 'REJECTED' %}&#10007; Rejected
+            {% else %}Not Submitted{% endif %}
+        </span>
+        {% endfor %}
+    </div>
 </div>
 {% endif %}
 
