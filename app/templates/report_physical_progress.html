@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block title %}Physical Progress Report - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="tab-container">
+    <!-- Page Header -->
+    <div class="tab-header">
+        <h1>Physical Progress Report</h1>
+        <div class="tab-actions">
+            <a href="/dashboard" class="btn btn-secondary btn-sm">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <!-- View Tabs -->
+    <div class="tab-nav" style="margin-bottom: 0; border-bottom: 2px solid #e2e8f0;">
+        <a href="/reports/physical-progress?view=office{% if filter_office %}&filter_office={{ filter_office }}{% endif %}{% if filter_type %}&filter_type={{ filter_type }}{% endif %}"
+           class="tab-btn {% if view == 'office' %}active{% endif %}" style="text-decoration: none;">
+            By Office
+        </a>
+        <a href="/reports/physical-progress?view=domain{% if filter_office %}&filter_office={{ filter_office }}{% endif %}{% if filter_type %}&filter_type={{ filter_type }}{% endif %}"
+           class="tab-btn {% if view == 'domain' %}active{% endif %}" style="text-decoration: none;">
+            By Domain
+        </a>
+        <a href="/reports/physical-progress?view=officer{% if filter_office %}&filter_office={{ filter_office }}{% endif %}{% if filter_type %}&filter_type={{ filter_type }}{% endif %}"
+           class="tab-btn {% if view == 'officer' %}active{% endif %}" style="text-decoration: none;">
+            By Officer
+        </a>
+        <a href="/reports/physical-progress?view=type{% if filter_office %}&filter_office={{ filter_office }}{% endif %}{% if filter_type %}&filter_type={{ filter_type }}{% endif %}"
+           class="tab-btn {% if view == 'type' %}active{% endif %}" style="text-decoration: none;">
+            By Type
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div style="padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+        <form method="GET" action="/reports/physical-progress" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <input type="hidden" name="view" value="{{ view }}">
+            {% if view in ['office', 'officer'] %}
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.75rem; color: #64748b;">Office</label>
+                <select name="filter_office" class="form-control" style="min-width: 150px; font-size: 0.8125rem; padding: 6px 8px;">
+                    <option value="">All Offices</option>
+                    {% for office in offices %}
+                    <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                        {{ office.office_name }} ({{ office.office_id }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% if view == 'type' or view == 'office' %}
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.75rem; color: #64748b;">Type</label>
+                <select name="filter_type" class="form-control" style="min-width: 150px; font-size: 0.8125rem; padding: 6px 8px;">
+                    <option value="">All Types</option>
+                    <option value="ASSIGNMENT" {% if filter_type == 'ASSIGNMENT' %}selected{% endif %}>Assignment</option>
+                    <option value="TRAINING" {% if filter_type == 'TRAINING' %}selected{% endif %}>Training</option>
+                    <option value="DEVELOPMENT" {% if filter_type == 'DEVELOPMENT' %}selected{% endif %}>Development</option>
+                </select>
+            </div>
+            {% endif %}
+            <div style="display: flex; gap: 8px; align-items: flex-end;">
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                <a href="/reports/physical-progress?view={{ view }}" class="btn btn-secondary btn-sm">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Data Table -->
+    <div style="padding: 20px;">
+        {% if progress_data %}
+        <div class="card">
+            <div class="table-container">
+                <table class="compact-table">
+                    <thead>
+                        {% if view == 'office' %}
+                        <tr>
+                            <th>Office</th>
+                            <th style="text-align: right;">Total Assignments</th>
+                            <th style="min-width: 160px;">Avg Physical Progress</th>
+                            <th style="min-width: 160px;">Avg Timeline Progress</th>
+                            <th style="text-align: right;">Completed</th>
+                            <th style="text-align: right;">Active</th>
+                            <th style="text-align: right;">Total Milestones</th>
+                            <th style="text-align: right;">Completed MS</th>
+                            <th style="text-align: right;">Delayed MS</th>
+                        </tr>
+                        {% elif view == 'domain' %}
+                        <tr>
+                            <th>Domain</th>
+                            <th style="text-align: right;">Total Assignments</th>
+                            <th style="min-width: 160px;">Avg Physical Progress</th>
+                            <th style="min-width: 160px;">Avg Timeline Progress</th>
+                            <th style="text-align: right;">Completed</th>
+                            <th style="text-align: right;">Active</th>
+                        </tr>
+                        {% elif view == 'officer' %}
+                        <tr>
+                            <th>Officer</th>
+                            <th>Office</th>
+                            <th style="text-align: right;">Total Assignments</th>
+                            <th style="min-width: 160px;">Avg Physical Progress</th>
+                            <th style="text-align: right;">Completed</th>
+                        </tr>
+                        {% elif view == 'type' %}
+                        <tr>
+                            <th>Type</th>
+                            <th style="text-align: right;">Total Assignments</th>
+                            <th style="min-width: 160px;">Avg Physical Progress</th>
+                            <th style="min-width: 160px;">Avg Timeline Progress</th>
+                            <th style="text-align: right;">Completed</th>
+                            <th style="text-align: right;">Active</th>
+                        </tr>
+                        {% endif %}
+                    </thead>
+                    <tbody>
+                        {% for row in progress_data %}
+                        <tr>
+                            {% if view == 'office' %}
+                            <td>
+                                <strong>{{ row.office_id or row.office_name or '-' }}</strong>
+                                {% if row.office_name and row.office_id %}
+                                <div style="font-size: 0.7rem; color: #64748b;">{{ row.office_name }}</div>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">{{ row.total_assignments or 0 }}</td>
+                            <td>
+                                {% set phys_pct = (row.avg_physical_progress or 0)|round|int %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: {{ phys_pct }}%; height: 100%; border-radius: 4px;
+                                            background: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 36px; text-align: right;
+                                        color: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};">{{ phys_pct }}%</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% set time_pct = (row.avg_timeline_progress or 0)|round|int %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: {{ time_pct }}%; height: 100%; border-radius: 4px;
+                                            background: {% if time_pct >= 80 %}#38a169{% elif time_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 36px; text-align: right;
+                                        color: {% if time_pct >= 80 %}#38a169{% elif time_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};">{{ time_pct }}%</span>
+                                </div>
+                            </td>
+                            <td style="text-align: right; color: #059669; font-weight: 600;">{{ row.completed or 0 }}</td>
+                            <td style="text-align: right; color: #3b82f6; font-weight: 600;">{{ row.active or 0 }}</td>
+                            <td style="text-align: right;">{{ row.total_milestones or 0 }}</td>
+                            <td style="text-align: right; color: #059669;">{{ row.completed_milestones or 0 }}</td>
+                            <td style="text-align: right; color: #e53e3e;">{{ row.delayed_milestones or 0 }}</td>
+
+                            {% elif view == 'domain' %}
+                            <td><strong>{{ row.domain or '-' }}</strong></td>
+                            <td style="text-align: right;">{{ row.total_assignments or 0 }}</td>
+                            <td>
+                                {% set phys_pct = (row.avg_physical_progress or 0)|round|int %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: {{ phys_pct }}%; height: 100%; border-radius: 4px;
+                                            background: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 36px; text-align: right;
+                                        color: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};">{{ phys_pct }}%</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% set time_pct = (row.avg_timeline_progress or 0)|round|int %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: {{ time_pct }}%; height: 100%; border-radius: 4px;
+                                            background: {% if time_pct >= 80 %}#38a169{% elif time_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 36px; text-align: right;
+                                        color: {% if time_pct >= 80 %}#38a169{% elif time_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};">{{ time_pct }}%</span>
+                                </div>
+                            </td>
+                            <td style="text-align: right; color: #059669; font-weight: 600;">{{ row.completed or 0 }}</td>
+                            <td style="text-align: right; color: #3b82f6; font-weight: 600;">{{ row.active or 0 }}</td>
+
+                            {% elif view == 'officer' %}
+                            <td><strong>{{ row.officer_name or row.name or '-' }}</strong></td>
+                            <td>{{ row.office_id or '-' }}</td>
+                            <td style="text-align: right;">{{ row.total_assignments or 0 }}</td>
+                            <td>
+                                {% set phys_pct = (row.avg_physical_progress or 0)|round|int %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: {{ phys_pct }}%; height: 100%; border-radius: 4px;
+                                            background: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 36px; text-align: right;
+                                        color: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};">{{ phys_pct }}%</span>
+                                </div>
+                            </td>
+                            <td style="text-align: right; color: #059669; font-weight: 600;">{{ row.completed or 0 }}</td>
+
+                            {% elif view == 'type' %}
+                            <td>
+                                <span class="badge {% if row.type == 'ASSIGNMENT' %}badge-info{% elif row.type == 'TRAINING' %}badge-purple{% else %}badge-secondary{% endif %}" style="font-size: 0.75rem;">
+                                    {{ row.type or '-' }}
+                                </span>
+                            </td>
+                            <td style="text-align: right;">{{ row.total_assignments or 0 }}</td>
+                            <td>
+                                {% set phys_pct = (row.avg_physical_progress or 0)|round|int %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: {{ phys_pct }}%; height: 100%; border-radius: 4px;
+                                            background: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 36px; text-align: right;
+                                        color: {% if phys_pct >= 80 %}#38a169{% elif phys_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};">{{ phys_pct }}%</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% set time_pct = (row.avg_timeline_progress or 0)|round|int %}
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                        <div style="width: {{ time_pct }}%; height: 100%; border-radius: 4px;
+                                            background: {% if time_pct >= 80 %}#38a169{% elif time_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};"></div>
+                                    </div>
+                                    <span style="font-size: 0.75rem; font-weight: 600; min-width: 36px; text-align: right;
+                                        color: {% if time_pct >= 80 %}#38a169{% elif time_pct >= 50 %}#dd6b20{% else %}#e53e3e{% endif %};">{{ time_pct }}%</span>
+                                </div>
+                            </td>
+                            <td style="text-align: right; color: #059669; font-weight: 600;">{{ row.completed or 0 }}</td>
+                            <td style="text-align: right; color: #3b82f6; font-weight: 600;">{{ row.active or 0 }}</td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div style="margin-top: 12px; display: flex; gap: 16px; font-size: 0.75rem; color: #64748b; flex-wrap: wrap;">
+            <span>Progress bar colors:</span>
+            <span><span style="display: inline-block; width: 12px; height: 12px; background: #38a169; border-radius: 3px; margin-right: 4px; vertical-align: middle;"></span>>=80% (On Track)</span>
+            <span><span style="display: inline-block; width: 12px; height: 12px; background: #dd6b20; border-radius: 3px; margin-right: 4px; vertical-align: middle;"></span>50-79% (Needs Attention)</span>
+            <span><span style="display: inline-block; width: 12px; height: 12px; background: #e53e3e; border-radius: 3px; margin-right: 4px; vertical-align: middle;"></span>&lt;50% (Critical)</span>
+        </div>
+
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No progress data available</h3>
+            <p>Adjust filters or ensure assignments exist for the selected view.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    /* No additional scripts needed for this template */
+</script>
+{% endblock %}

@@ -1,5 +1,18 @@
 """
 Revenue sharing routes: fill and update revenue shares.
+
+Compatibility note (Feature 4A -- Multi-Milestone Invoice):
+    Revenue share percentages defined here are per-officer, per-assignment.
+    They are independent of the invoice-to-milestone linkage. When an invoice
+    covering multiple milestones is approved, the 80-20 revenue allocation
+    still uses these per-officer share percentages applied to the total
+    invoice amount. The invoice_milestone_links table tracks which milestones
+    each invoice covers, but does not alter the officer share calculation.
+
+Compatibility note (Feature 4C -- Revenue on Case Basis):
+    Revenue is recognized on a CASE basis in finance_routes.py (triggered by
+    invoice approval and payment receipt events). The revenue_shares defined
+    here determine the allocation percentages, not the timing of recognition.
 """
 from typing import List
 from fastapi import APIRouter, Request, Form

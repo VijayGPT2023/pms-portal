@@ -1,14 +1,18 @@
 """
 Assignment routes: view, create, update assignment details.
 """
+import re
 from datetime import date
 from typing import Optional
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import RedirectResponse, HTMLResponse
 
-from app.database import get_db, USE_POSTGRES
+from app.database import get_db, USE_POSTGRES, get_current_fy
 from app.dependencies import get_current_user
-from app.config import ASSIGNMENT_STATUS_OPTIONS, CLIENT_TYPE_OPTIONS, DOMAIN_OPTIONS
+from app.config import (
+    ASSIGNMENT_STATUS_OPTIONS, CLIENT_TYPE_OPTIONS, DOMAIN_OPTIONS,
+    TRAINING_MODE, ACTIVITY_TYPE_CODES, DEV_WORK_QUANTIFICATION
+)
 from app.templates_config import templates
 
 router = APIRouter()
@@ -75,6 +79,47 @@ def get_assignment(assignment_id: int):
         return dict(row) if row else None
 
 
+def generate_assignment_number(office_id, assignment_type, client_name):
+    """Generate new format: NPC/OFFICE/TYPE/CLIENT/SEQ/FY"""
+    type_code = ACTIVITY_TYPE_CODES.get(assignment_type, 'ASG')
+
+    # Client code: first 3 chars, uppercase, alphanumeric only
+    if client_name:
+        clean = re.sub(r'[^A-Za-z0-9]', '', client_name)
+        client_code = clean[:3].upper() if clean else 'GEN'
+    else:
+        client_code = 'GEN'
+
+    fy = get_current_fy()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) + 1 as next_no FROM assignments
+            WHERE office_id = ? AND assignment_no LIKE ?
+        """, (office_id, f"NPC/{office_id}/%/{fy}"))
+        next_no = cursor.fetchone()['next_no']
+
+    return f"NPC/{office_id}/{type_code}/{client_code}/{next_no:04d}/{fy}"
+
+
+def calculate_dev_man_days(sub_type, proposal_value=0, num_members=0, event_days=0):
+    """Auto-calculate man_days based on development sub-type."""
+    if sub_type == 'PROPOSAL_PREP':
+        for threshold, days in DEV_WORK_QUANTIFICATION['PROPOSAL_PREP']['slabs']:
+            if proposal_value <= threshold:
+                return days
+        return 5
+    elif sub_type == 'EVENT_MGMT':
+        return min(event_days, DEV_WORK_QUANTIFICATION['EVENT_MGMT']['max_days'])
+    elif sub_type == 'COMMITTEE':
+        return num_members * DEV_WORK_QUANTIFICATION['COMMITTEE']['per_member_days']
+    elif sub_type == 'MEETING':
+        return max(event_days, DEV_WORK_QUANTIFICATION['MEETING']['min_days'])
+    else:
+        return 0  # Manual entry for OTHER
+
+
 # ============================================================
 # Registration Workflow (Step 1): Any officer registers new activity
 # ============================================================
@@ -122,22 +167,8 @@ async def register_activity_submit(request: Request):
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Generate assignment number
-        if USE_POSTGRES:
-            cursor.execute("""
-                SELECT COUNT(*) + 1 as next_no FROM assignments
-                WHERE office_id = %s AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
-            """, (office_id,))
-        else:
-            cursor.execute("""
-                SELECT COUNT(*) + 1 as next_no FROM assignments
-                WHERE office_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
-            """, (office_id,))
-        next_no = cursor.fetchone()['next_no']
-
-        import datetime
-        year = datetime.datetime.now().year
-        assignment_no = f"{office_id}/{year}/{next_no:03d}"
+        # Generate assignment number using new format
+        assignment_no = generate_assignment_number(office_id, activity_type, client)
 
         # Insert minimal assignment with workflow state
         cursor.execute(f"""
@@ -336,7 +367,8 @@ async def edit_assignment_page(request: Request, assignment_id: int):
             "status_options": ASSIGNMENT_STATUS_OPTIONS,
             "client_type_options": CLIENT_TYPE_OPTIONS,
             "domain_options": DOMAIN_OPTIONS,
-            "is_edit": True
+            "is_edit": True,
+            "training_mode": TRAINING_MODE
         }
     )
 
@@ -367,7 +399,12 @@ async def edit_assignment_submit(
     faculty2_officer_id: Optional[str] = Form(None),
     # Development-specific fields
     man_days: Optional[float] = Form(None),
-    daily_rate: Optional[float] = Form(None)
+    daily_rate: Optional[float] = Form(None),
+    # Development Work quantification fields
+    dev_sub_type: Optional[str] = Form(None),
+    proposal_value_lakhs: Optional[float] = Form(None),
+    num_committee_members: Optional[int] = Form(None),
+    event_duration_days: Optional[float] = Form(None)
 ):
     """Handle assignment edit form submission."""
     user = get_current_user(request)
@@ -421,6 +458,20 @@ async def edit_assignment_submit(
         elif assignment['type'] == 'DEVELOPMENT':
             man_days_val = man_days or 0
             daily_rate_val = 0.20  # 20k per day = 0.20 Lakhs
+            dev_sub = dev_sub_type or None
+            prop_val = proposal_value_lakhs or 0
+            num_members = num_committee_members or 0
+            evt_days = event_duration_days or 0
+
+            # Auto-calculate man_days for Development Work based on sub-type
+            if dev_sub and dev_sub != 'OTHER':
+                man_days_val = calculate_dev_man_days(
+                    dev_sub,
+                    proposal_value=prop_val,
+                    num_members=num_members,
+                    event_days=evt_days
+                )
+
             total_value = man_days_val * daily_rate_val
 
             cursor.execute(f"""
@@ -437,7 +488,11 @@ async def edit_assignment_submit(
                     target_date = ?,
                     team_leader_officer_id = ?,
                     status = ?,
-                    details_filled = 1
+                    details_filled = 1,
+                    dev_sub_type = ?,
+                    proposal_value_lakhs = ?,
+                    num_committee_members = ?,
+                    event_duration_days = ?
                     {reset_clause},
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
@@ -453,6 +508,10 @@ async def edit_assignment_submit(
                 target_date if target_date else None,
                 team_leader_officer_id if team_leader_officer_id else None,
                 status,
+                dev_sub,
+                prop_val,
+                num_members,
+                evt_days,
                 assignment_id
             ))
         else:  # TRAINING
@@ -606,6 +665,7 @@ async def view_assignment(request: Request, assignment_id: int):
         "expenditure_items": expenditure_items,
         "expenditure_entries": expenditure_entries,
         "expenditure_heads": expenditure_heads,
+        "training_mode": TRAINING_MODE,
     }
 
     if active_tab == 'basic':
@@ -651,7 +711,8 @@ async def manage_milestones(request: Request, assignment_id: int):
             "request": request,
             "user": user,
             "assignment": assignment,
-            "milestones": milestones
+            "milestones": milestones,
+            "training_mode": TRAINING_MODE
         }
     )
 
@@ -1005,7 +1066,8 @@ async def new_assignment_page(request: Request):
             "activity_type": activity_type,
             "status_options": get_config_options('status'),
             "client_type_options": get_config_options('client_type'),
-            "domain_options": get_config_options('domain')
+            "domain_options": get_config_options('domain'),
+            "training_mode": TRAINING_MODE
         }
     )
 
@@ -1038,33 +1100,37 @@ async def create_assignment(request: Request):
     if not title or not office_id:
         return RedirectResponse(url=f"/assignment/new?type={assignment_type}", status_code=302)
 
+    # Read Development Work quantification fields
+    client_name = form_data.get('client', '')
+    dev_sub_type = form_data.get('dev_sub_type', '')
+    proposal_value_lakhs = float(form_data.get('proposal_value_lakhs', 0) or 0)
+    num_committee_members = int(form_data.get('num_committee_members', 0) or 0)
+    event_duration_days = float(form_data.get('event_duration_days', 0) or 0)
+
+    # Auto-calculate man_days for Development Work based on sub-type
+    if assignment_type == 'DEVELOPMENT' and dev_sub_type and dev_sub_type != 'OTHER':
+        man_days = calculate_dev_man_days(
+            dev_sub_type,
+            proposal_value=proposal_value_lakhs,
+            num_members=num_committee_members,
+            event_days=event_duration_days
+        )
+        total_value = man_days * daily_rate
+
     with get_db() as conn:
         cursor = conn.cursor()
 
-        # Generate assignment number
-        if USE_POSTGRES:
-            cursor.execute("""
-                SELECT COUNT(*) + 1 as next_no FROM assignments
-                WHERE office_id = %s AND EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM CURRENT_DATE)
-            """, (office_id,))
-        else:
-            cursor.execute("""
-                SELECT COUNT(*) + 1 as next_no FROM assignments
-                WHERE office_id = ? AND strftime('%Y', created_at) = strftime('%Y', 'now')
-            """, (office_id,))
-        next_no = cursor.fetchone()['next_no']
-
-        import datetime
-        year = datetime.datetime.now().year
-        assignment_no = f"{office_id}/{year}/{next_no:03d}"
+        # Generate assignment number using new format
+        assignment_no = generate_assignment_number(office_id, assignment_type, client_name)
 
         # Insert assignment
         cursor.execute("""
             INSERT INTO assignments
             (assignment_no, type, title, office_id, status, total_value, gross_value,
              client, client_type, city, domain, sub_domain, work_order_date, start_date, target_date,
-             team_leader_officer_id, tor_scope, man_days, daily_rate, is_notional)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             team_leader_officer_id, tor_scope, man_days, daily_rate, is_notional,
+             dev_sub_type, proposal_value_lakhs, num_committee_members, event_duration_days)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             assignment_no,
             assignment_type,
@@ -1073,7 +1139,7 @@ async def create_assignment(request: Request):
             form_data.get('status', 'Pipeline'),
             total_value,
             total_value,
-            form_data.get('client', ''),
+            client_name,
             form_data.get('client_type', ''),
             form_data.get('city', ''),
             form_data.get('domain', ''),
@@ -1085,7 +1151,11 @@ async def create_assignment(request: Request):
             form_data.get('tor_scope', ''),
             man_days,
             daily_rate,
-            is_notional
+            is_notional,
+            dev_sub_type if dev_sub_type else None,
+            proposal_value_lakhs,
+            num_committee_members,
+            event_duration_days
         ))
 
         assignment_id = cursor.lastrowid
@@ -1166,7 +1236,8 @@ async def manage_expenditure(request: Request, assignment_id: int):
             "user": user,
             "assignment": assignment,
             "expenditure_heads": expenditure_heads,
-            "existing_by_head": existing_by_head
+            "existing_by_head": existing_by_head,
+            "training_mode": TRAINING_MODE
         }
     )
 
@@ -1288,7 +1359,8 @@ async def expenditure_entry_form(request: Request, assignment_id: int):
             "request": request,
             "user": user,
             "assignment": assignment,
-            "expenditure_heads": expenditure_heads
+            "expenditure_heads": expenditure_heads,
+            "training_mode": TRAINING_MODE
         }
     )
 

@@ -982,6 +982,177 @@ def init_database():
             )
         """)
 
+
+        # ============================================================
+        # PHASE-2 UPGRADE: Client Master, Multi-Client, Utilization,
+        # Document Upload, Finance Officer, Invoice-Milestone Links
+        # ============================================================
+
+        # Client Master (for 3A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_code TEXT UNIQUE NOT NULL,
+                client_name TEXT NOT NULL,
+                client_type TEXT,
+                address TEXT,
+                city TEXT,
+                state TEXT,
+                contact_person TEXT,
+                contact_email TEXT,
+                contact_phone TEXT,
+                gstin TEXT,
+                pan TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_by TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES officers(officer_id)
+            )
+        """)
+
+        # Multi-client junction table (for 3B)
+        # Each client is a sub-activity under the assignment
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS assignment_clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assignment_id INTEGER NOT NULL,
+                client_id INTEGER NOT NULL,
+                sub_activity_number TEXT,
+                billing_share_percent REAL DEFAULT 100,
+                description TEXT,
+                is_primary INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (assignment_id) REFERENCES assignments(id) ON DELETE CASCADE,
+                FOREIGN KEY (client_id) REFERENCES clients(id),
+                UNIQUE(assignment_id, client_id)
+            )
+        """)
+
+        # Multi-milestone per invoice links (for 4A)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS invoice_milestone_links (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                invoice_request_id INTEGER NOT NULL,
+                milestone_id INTEGER NOT NULL,
+                milestone_share_amount REAL NOT NULL DEFAULT 0,
+                revenue_share_percent REAL NOT NULL DEFAULT 0,
+                milestone_date DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (invoice_request_id) REFERENCES invoice_requests(id) ON DELETE CASCADE,
+                FOREIGN KEY (milestone_id) REFERENCES milestones(id),
+                UNIQUE(invoice_request_id, milestone_id)
+            )
+        """)
+
+        # Officer effort/utilization tracking (for 3F)
+        # claim_type: ASSIGNMENT_WORK, PROPOSAL_PREP, EVENT_MGMT, COMMITTEE, MEETING, TRAVEL, LEAVE, OTHER
+        # status: DRAFT, SUBMITTED, TL_APPROVED, HEAD_RECTIFIED, FINAL
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS utilization_claims (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                claim_number TEXT UNIQUE NOT NULL,
+                officer_id TEXT NOT NULL,
+                assignment_id INTEGER,
+                claim_month TEXT NOT NULL,
+                activity_date DATE NOT NULL,
+                man_days_claimed REAL NOT NULL,
+                activity_description TEXT,
+                claim_type TEXT NOT NULL DEFAULT 'ASSIGNMENT_WORK',
+                status TEXT DEFAULT 'DRAFT',
+                submitted_at TIMESTAMP,
+                tl_approved_by TEXT,
+                tl_approved_at TIMESTAMP,
+                tl_remarks TEXT,
+                head_rectified_by TEXT,
+                head_rectified_at TIMESTAMP,
+                head_remarks TEXT,
+                rectified_days REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
+                FOREIGN KEY (assignment_id) REFERENCES assignments(id),
+                FOREIGN KEY (tl_approved_by) REFERENCES officers(officer_id),
+                FOREIGN KEY (head_rectified_by) REFERENCES officers(officer_id)
+            )
+        """)
+
+        # Proposal/document file uploads (for 3G)
+        # document_type: PROPOSAL, WORKLOAD, TOR, WORK_ORDER, OTHER
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS proposal_documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                assignment_id INTEGER,
+                document_type TEXT NOT NULL DEFAULT 'PROPOSAL',
+                file_name TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                file_size INTEGER DEFAULT 0,
+                mime_type TEXT,
+                description TEXT,
+                uploaded_by TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (assignment_id) REFERENCES assignments(id),
+                FOREIGN KEY (uploaded_by) REFERENCES officers(officer_id)
+            )
+        """)
+
+        # Finance officer per office (for 3H)
+        # One finance officer can manage multiple offices
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS finance_officers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                officer_id TEXT NOT NULL,
+                office_id TEXT NOT NULL,
+                is_active INTEGER DEFAULT 1,
+                assigned_by TEXT,
+                assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (officer_id) REFERENCES officers(officer_id),
+                FOREIGN KEY (office_id) REFERENCES offices(office_id)
+            )
+        """)
+
+        # ============================================================
+        # PHASE-2 UPGRADE: ALTER TABLE for existing tables
+        # ============================================================
+
+        # Assignment table additions (2B - Development Work sub-types)
+        for col_def in [
+            "dev_sub_type TEXT",
+            "proposal_value_lakhs REAL DEFAULT 0",
+            "num_committee_members INTEGER DEFAULT 0",
+            "event_duration_days REAL DEFAULT 0",
+            "linked_proposal_id INTEGER",
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE assignments ADD COLUMN {col_def}")
+            except:
+                pass
+
+        # Invoice requests table additions (3B, 3H, 4A)
+        for col_def in [
+            "client_id INTEGER",
+            "requested_by_officer_id TEXT",
+            "tl_revenue_hold INTEGER DEFAULT 0",
+            "officer_request_status TEXT DEFAULT 'DIRECT'",
+            "finance_officer_id TEXT",
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE invoice_requests ADD COLUMN {col_def}")
+            except:
+                pass
+
+        # Officer revenue ledger additions (4A - TL hold)
+        for col_def in [
+            "is_held INTEGER DEFAULT 0",
+            "released_by TEXT",
+            "released_at TIMESTAMP",
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE officer_revenue_ledger ADD COLUMN {col_def}")
+            except:
+                pass
+
+
         # NOTE: Removed orphan tables (training_programmes, trainer_allocations,
         # training_participants, training_revenue_ledger, training_checklist,
         # cost_estimate_versions, cost_estimate_version_details, milestone_plan_versions)
@@ -998,6 +1169,17 @@ def init_database():
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_officer_revenue_ledger_assignment ON officer_revenue_ledger(assignment_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_grievance_tickets_officer ON grievance_tickets(officer_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_grievance_tickets_status ON grievance_tickets(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_clients_code ON clients(client_code)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_assignment_clients_assignment ON assignment_clients(assignment_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_assignment_clients_client ON assignment_clients(client_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_utilization_claims_officer ON utilization_claims(officer_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_utilization_claims_month ON utilization_claims(claim_month)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_utilization_claims_status ON utilization_claims(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_proposal_documents_assignment ON proposal_documents(assignment_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_finance_officers_officer ON finance_officers(officer_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_finance_officers_office ON finance_officers(office_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoice_milestone_links_invoice ON invoice_milestone_links(invoice_request_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoice_milestone_links_milestone ON invoice_milestone_links(milestone_id)")
 
         # Create indexes for better performance
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_assignments_office ON assignments(office_id)")
@@ -1491,6 +1673,43 @@ def generate_payment_receipt_number() -> str:
         next_num = cursor.fetchone()['next_num']
 
     return f"RCPT/{year}/{next_num:06d}"
+
+
+
+def generate_utilization_claim_number(officer_id: str, claim_month: str) -> str:
+    """Generate unique utilization claim number: UTL/OFFICER/YYYY-MM/NNNN"""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) + 1 as next_num FROM utilization_claims
+            WHERE claim_number LIKE ?
+        """, (f"UTL/{officer_id}/{claim_month}/%",))
+        next_num = cursor.fetchone()['next_num']
+    return f"UTL/{officer_id}/{claim_month}/{next_num:04d}"
+
+
+def generate_client_code(client_name: str, client_type: str) -> str:
+    """Generate unique client code: CLT/TYPE_PREFIX/NNNN"""
+    import re
+    type_prefixes = {
+        'Central Government': 'CG',
+        'State Government': 'SG',
+        'PSU': 'PSU',
+        'Private': 'PVT',
+        'International': 'INT',
+        'Others': 'OTH'
+    }
+    prefix = type_prefixes.get(client_type, 'OTH')
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) + 1 as next_num FROM clients
+            WHERE client_code LIKE ?
+        """, (f"CLT/{prefix}/%",))
+        next_num = cursor.fetchone()['next_num']
+    return f"CLT/{prefix}/{next_num:04d}"
+
 
 
 # ============================================================

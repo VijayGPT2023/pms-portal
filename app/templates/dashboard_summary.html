@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Summary - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard Summary</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<!-- Summary Cards Grid -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <!-- Total Assignments -->
+    <div class="card" style="text-align: center; padding: 24px;">
+        <div style="font-size: 0.8rem; color: #718096; margin-bottom: 8px;">Total Assignments</div>
+        <h3 style="color: #3182ce; margin: 0; font-size: 1.5rem;">{{ summary.total_assignments or 0 }}</h3>
+    </div>
+
+    <!-- In Progress -->
+    <div class="card" style="text-align: center; padding: 24px;">
+        <div style="font-size: 0.8rem; color: #718096; margin-bottom: 8px;">In Progress</div>
+        <h3 style="color: #dd6b20; margin: 0; font-size: 1.5rem;">{{ summary.total_in_progress or 0 }}</h3>
+    </div>
+
+    <!-- Completed -->
+    <div class="card" style="text-align: center; padding: 24px;">
+        <div style="font-size: 0.8rem; color: #718096; margin-bottom: 8px;">Completed</div>
+        <h3 style="color: #38a169; margin: 0; font-size: 1.5rem;">{{ summary.total_completed or 0 }}</h3>
+    </div>
+
+    <!-- Total Value -->
+    <div class="card" style="text-align: center; padding: 24px; background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+        <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 8px;">Total Value</div>
+        <h3 style="margin: 0; font-size: 1.5rem;">{{ "%.2f"|format(summary.total_value or 0) }} L</h3>
+    </div>
+
+    <!-- Total Invoiced -->
+    <div class="card" style="text-align: center; padding: 24px;">
+        <div style="font-size: 0.8rem; color: #718096; margin-bottom: 8px;">Total Invoiced</div>
+        <h3 style="color: #3182ce; margin: 0; font-size: 1.5rem;">{{ "%.2f"|format(summary.total_invoiced or 0) }} L</h3>
+    </div>
+
+    <!-- Total Received -->
+    <div class="card" style="text-align: center; padding: 24px; background: linear-gradient(135deg, #48bb78, #38a169); color: white;">
+        <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 8px;">Total Received</div>
+        <h3 style="margin: 0; font-size: 1.5rem;">{{ "%.2f"|format(summary.total_received or 0) }} L</h3>
+    </div>
+
+    <!-- Total Expenditure -->
+    <div class="card" style="text-align: center; padding: 24px;">
+        <div style="font-size: 0.8rem; color: #718096; margin-bottom: 8px;">Total Expenditure</div>
+        <h3 style="color: #e53e3e; margin: 0; font-size: 1.5rem;">{{ "%.2f"|format(summary.total_expenditure or 0) }} L</h3>
+    </div>
+
+    <!-- Pending Invoices -->
+    <div class="card" style="text-align: center; padding: 24px;">
+        <div style="font-size: 0.8rem; color: #718096; margin-bottom: 8px;">Pending Invoices</div>
+        <h3 style="color: #dd6b20; margin: 0; font-size: 1.5rem;">{{ summary.pending_invoices or 0 }}</h3>
+    </div>
+
+    <!-- My Total Share -->
+    <div class="card" style="text-align: center; padding: 24px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white;">
+        <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 8px;">My Total Share</div>
+        <h3 style="margin: 0; font-size: 1.5rem;">{{ "%.2f"|format(summary.my_total_share or 0) }} L</h3>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% endblock %}

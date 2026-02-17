@@ -20,6 +20,7 @@ ROLE_RD_HEAD = 'RD_HEAD'
 ROLE_GROUP_HEAD = 'GROUP_HEAD'
 ROLE_TEAM_LEADER = 'TEAM_LEADER'
 ROLE_OFFICER = 'OFFICER'
+ROLE_FINANCE = 'FINANCE'
 
 # All roles in hierarchy order (highest to lowest)
 ALL_ROLES = [
@@ -30,6 +31,7 @@ ALL_ROLES = [
     ROLE_RD_HEAD,
     ROLE_GROUP_HEAD,
     ROLE_TEAM_LEADER,
+    ROLE_FINANCE,
     ROLE_OFFICER
 ]
 
@@ -42,6 +44,7 @@ ROLE_NAMES = {
     ROLE_RD_HEAD: 'Regional Director / Head',
     ROLE_GROUP_HEAD: 'Group Head',
     ROLE_TEAM_LEADER: 'Team Leader',
+    ROLE_FINANCE: 'Finance Officer',
     ROLE_OFFICER: 'Officer'
 }
 
@@ -65,6 +68,9 @@ PERM_FILL_MILESTONE_DETAILS = 'fill_milestone_details'
 PERM_REGISTER_ASSIGNMENT = 'register_assignment'
 PERM_RAISE_REQUEST = 'raise_request'
 PERM_DOWNLOAD_REPORTS = 'download_reports'
+PERM_APPROVE_INVOICE = 'approve_invoice'
+PERM_RECORD_PAYMENT = 'record_payment'
+PERM_MANAGE_FINANCE = 'manage_finance'
 
 # Role-Permission Mapping
 ROLE_PERMISSIONS = {
@@ -114,6 +120,13 @@ ROLE_PERMISSIONS = {
         PERM_SET_TEAM,
         PERM_FILL_ASSIGNMENT_DETAILS,
         PERM_FILL_MILESTONE_DETAILS,
+        PERM_DOWNLOAD_REPORTS,
+    ],
+    ROLE_FINANCE: [
+        PERM_VIEW_OFFICE_MIS,
+        PERM_APPROVE_INVOICE,
+        PERM_RECORD_PAYMENT,
+        PERM_MANAGE_FINANCE,
         PERM_DOWNLOAD_REPORTS,
     ],
     ROLE_OFFICER: [
@@ -506,3 +519,23 @@ def get_reporting_ddg(entity_type: str, entity_value: str) -> str:
         if row:
             return row['reports_to_role']
     return None
+
+
+def is_finance_officer(user: dict) -> bool:
+    """Check if user is a finance officer."""
+    role = get_user_role(user)
+    return role == ROLE_FINANCE
+
+
+def is_finance_for_office(user: dict, office_id: str) -> bool:
+    """Check if user is finance officer for a specific office."""
+    if not user:
+        return False
+    from app.database import get_db
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id FROM finance_officers
+            WHERE officer_id = ? AND office_id = ? AND is_active = 1
+        """, (user.get('officer_id'), office_id))
+        return cursor.fetchone() is not None

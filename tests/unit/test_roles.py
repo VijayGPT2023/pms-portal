@@ -46,8 +46,8 @@ def _mock_db():
 # ── Role constants ───────────────────────────────────────────────────
 
 class TestRoleConstants:
-    def test_hierarchy_has_eight_roles(self):
-        assert len(ALL_ROLES) == 8
+    def test_hierarchy_has_nine_roles(self):
+        assert len(ALL_ROLES) == 9
 
     def test_admin_is_highest(self):
         assert ALL_ROLES[0] == ROLE_ADMIN
@@ -56,9 +56,10 @@ class TestRoleConstants:
         assert ALL_ROLES[-1] == ROLE_OFFICER
 
     def test_hierarchy_order(self):
+        from app.roles import ROLE_FINANCE
         expected = [
             ROLE_ADMIN, ROLE_DG, ROLE_DDG_I, ROLE_DDG_II,
-            ROLE_RD_HEAD, ROLE_GROUP_HEAD, ROLE_TEAM_LEADER, ROLE_OFFICER,
+            ROLE_RD_HEAD, ROLE_GROUP_HEAD, ROLE_TEAM_LEADER, ROLE_FINANCE, ROLE_OFFICER,
         ]
         assert ALL_ROLES == expected
 

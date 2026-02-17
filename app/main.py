@@ -9,7 +9,12 @@ from fastapi.responses import RedirectResponse
 
 from app.database import init_database
 from app.templates_config import templates
-from app.routes import auth_routes, dashboard_routes, assignment_routes, revenue_routes, mis_routes, data_routes, admin_routes, approval_routes, finance_routes, non_revenue_routes, profile_routes, change_request_routes
+from app.routes import (
+    auth_routes, dashboard_routes, assignment_routes, revenue_routes,
+    mis_routes, data_routes, admin_routes, approval_routes, finance_routes,
+    non_revenue_routes, profile_routes, change_request_routes,
+    client_routes, utilization_routes, report_routes, proposal_routes,
+)
 
 # Create FastAPI app
 app = FastAPI(
@@ -52,6 +57,10 @@ app.include_router(finance_routes.router, prefix="/finance", tags=["Finance & In
 app.include_router(non_revenue_routes.router, tags=["Non-Revenue Activities"])
 app.include_router(change_request_routes.router, prefix="/change-request", tags=["Change Requests"])
 app.include_router(profile_routes.router, tags=["User Profile"])
+app.include_router(client_routes.router, prefix="/clients", tags=["Client Database"])
+app.include_router(utilization_routes.router, prefix="/utilization", tags=["Utilization Claims"])
+app.include_router(report_routes.router, prefix="/reports", tags=["Reports & Progress"])
+app.include_router(proposal_routes.router, prefix="/proposals", tags=["Proposals & Documents"])
 
 
 # Error handlers

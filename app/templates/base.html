@@ -122,6 +122,27 @@
                     </svg>
                     <span>Finance</span>
                 </a>
+                <a href="/clients/" class="nav-item {% if '/clients' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    <span>Clients</span>
+                </a>
+                <a href="/utilization/" class="nav-item {% if '/utilization' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 6v6l4 2"></path>
+                    </svg>
+                    <span>Utilization</span>
+                </a>
+                <a href="/proposals/" class="nav-item {% if '/proposals' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                    </svg>
+                    <span>Proposals</span>
+                </a>
                 <a href="/mis" class="nav-item {% if '/mis' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -129,6 +150,32 @@
                         <line x1="6" y1="20" x2="6" y2="14"></line>
                     </svg>
                     <span>MIS / Analytics</span>
+                </a>
+            </div>
+
+            <div class="nav-section">
+                <span class="nav-section-title">Reports</span>
+                <a href="/reports/delays" class="nav-item {% if '/reports/delays' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>Delay Tracking</span>
+                </a>
+                <a href="/reports/physical-progress" class="nav-item {% if '/reports/physical' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                    <span>Physical Progress</span>
+                </a>
+                <a href="/reports/financial-progress" class="nav-item {% if '/reports/financial' in request.url.path %}active{% endif %}" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="20" x2="12" y2="10"></line>
+                        <line x1="18" y1="20" x2="18" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="16"></line>
+                    </svg>
+                    <span>Financial Progress</span>
                 </a>
             </div>
 

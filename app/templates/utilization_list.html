@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}My Utilization Claims - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1>My Utilization Claims</h1>
+        <p class="page-subtitle">Track and manage your man-day utilization claims</p>
+    </div>
+    <div>
+        <a href="/utilization/summary" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            Summary
+        </a>
+        <a href="/utilization/new" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Claim
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom: 20px; padding: 16px;">
+    <form method="GET" action="/utilization/" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 4px; display: block;">Month</label>
+            <input type="month" name="month" value="{{ filter_month }}" class="form-control" style="min-width: 160px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 4px; display: block;">Status</label>
+            <select name="status" class="form-control" style="min-width: 150px;">
+                <option value="">All Statuses</option>
+                {% for key, label in status_labels.items() %}
+                <option value="{{ key }}" {% if filter_status == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            <a href="/utilization/" class="btn btn-secondary btn-sm">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Claims Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Claims</h2>
+    </div>
+    <div class="table-container">
+        {% if claims %}
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Claim #</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Assignment</th>
+                    <th>Days Claimed</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for claim in claims %}
+                <tr>
+                    <td><strong>{{ claim.claim_number }}</strong></td>
+                    <td>{{ claim.activity_date }}</td>
+                    <td>
+                        <span class="badge badge-purple">
+                            {{ claim_type_labels.get(claim.claim_type, claim.claim_type)|replace('_', ' ') }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if claim.assignment_no %}
+                        {{ claim.assignment_no }} - {{ claim.assignment_title[:25] }}{% if claim.assignment_title|length > 25 %}...{% endif %}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td style="font-weight: 600;">{{ claim.man_days_claimed }}</td>
+                    <td>
+                        <span class="badge
+                            {% if claim.status == 'DRAFT' %}badge-secondary
+                            {% elif claim.status == 'SUBMITTED' %}badge-warning
+                            {% elif claim.status == 'TL_APPROVED' %}badge-info
+                            {% elif claim.status == 'HEAD_RECTIFIED' %}badge-primary
+                            {% elif claim.status == 'FINAL' %}badge-success
+                            {% else %}badge-secondary{% endif %}">
+                            {{ status_labels.get(claim.status, claim.status)|replace('_', ' ') }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if claim.status == 'DRAFT' %}
+                        <div style="display: flex; gap: 6px;">
+                            <a href="/utilization/{{ claim.id }}/edit" class="btn btn-sm btn-secondary">Edit</a>
+                            <form method="POST" action="/utilization/{{ claim.id }}/submit" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-primary"
+                                        onclick="return confirm('Submit this claim? You will not be able to edit it after submission.')">
+                                    Submit
+                                </button>
+                            </form>
+                        </div>
+                        {% else %}
+                        <span style="color: #94a3b8; font-size: 0.8125rem;">--</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No claims found</h3>
+            <p style="color: #64748b;">Create your first utilization claim to get started.</p>
+            <a href="/utilization/new" class="btn btn-primary">New Claim</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

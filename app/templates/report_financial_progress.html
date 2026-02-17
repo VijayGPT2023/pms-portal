@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+
+{% block title %}Financial Progress Report - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="tab-container">
+    <!-- Page Header -->
+    <div class="tab-header">
+        <div>
+            <h1>Financial Progress Report</h1>
+            <p style="margin: 4px 0 0; font-size: 0.8125rem; color: #64748b;">Revenue: Case Basis | Expenditure: Accrual Basis</p>
+        </div>
+        <div class="tab-actions">
+            <a href="/dashboard" class="btn btn-secondary btn-sm">Back to Dashboard</a>
+        </div>
+    </div>
+
+    <!-- View Tabs -->
+    <div class="tab-nav" style="margin-bottom: 0; border-bottom: 2px solid #e2e8f0;">
+        <a href="/reports/financial-progress?view=office{% if fy %}&fy={{ fy }}{% endif %}{% if filter_office %}&filter_office={{ filter_office }}{% endif %}"
+           class="tab-btn {% if view == 'office' %}active{% endif %}" style="text-decoration: none;">
+            By Office
+        </a>
+        <a href="/reports/financial-progress?view=domain{% if fy %}&fy={{ fy }}{% endif %}{% if filter_office %}&filter_office={{ filter_office }}{% endif %}"
+           class="tab-btn {% if view == 'domain' %}active{% endif %}" style="text-decoration: none;">
+            By Domain
+        </a>
+        <a href="/reports/financial-progress?view=type{% if fy %}&fy={{ fy }}{% endif %}{% if filter_office %}&filter_office={{ filter_office }}{% endif %}"
+           class="tab-btn {% if view == 'type' %}active{% endif %}" style="text-decoration: none;">
+            By Type
+        </a>
+    </div>
+
+    <!-- Filters -->
+    <div style="padding: 16px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+        <form method="GET" action="/reports/financial-progress" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <input type="hidden" name="view" value="{{ view }}">
+            <div class="form-group" style="margin: 0;">
+                <label style="font-size: 0.75rem; color: #64748b;">Office</label>
+                <select name="filter_office" class="form-control" style="min-width: 150px; font-size: 0.8125rem; padding: 6px 8px;">
+                    <option value="">All Offices</option>
+                    {% for office in offices %}
+                    <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                        {{ office.office_name if office.office_name else office.office_id }} ({{ office.office_id }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: flex-end;">
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+                <a href="/reports/financial-progress?view={{ view }}" class="btn btn-secondary btn-sm">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Grand Totals Summary Cards -->
+    {% if totals %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; padding: 20px;">
+        <div class="card" style="text-align: center; padding: 18px; background: linear-gradient(135deg, #dbeafe, #bfdbfe);">
+            <div style="font-size: 1.375rem; font-weight: 700; color: #1d4ed8;">{{ "%.2f"|format(totals.grand_value or 0) }} L</div>
+            <div style="font-size: 0.75rem; color: #3b82f6; margin-top: 4px;">Total Value</div>
+        </div>
+        <div class="card" style="text-align: center; padding: 18px; background: linear-gradient(135deg, #f3e8ff, #e9d5ff);">
+            <div style="font-size: 1.375rem; font-weight: 700; color: #7c3aed;">{{ "%.2f"|format(totals.grand_invoiced or 0) }} L</div>
+            <div style="font-size: 0.75rem; color: #8b5cf6; margin-top: 4px;">Total Invoiced</div>
+        </div>
+        <div class="card" style="text-align: center; padding: 18px; background: linear-gradient(135deg, #d1fae5, #a7f3d0);">
+            <div style="font-size: 1.375rem; font-weight: 700; color: #047857;">{{ "%.2f"|format(totals.grand_received or 0) }} L</div>
+            <div style="font-size: 0.75rem; color: #059669; margin-top: 4px;">Total Received</div>
+        </div>
+        <div class="card" style="text-align: center; padding: 18px; background: linear-gradient(135deg, #fee2e2, #fecaca);">
+            <div style="font-size: 1.375rem; font-weight: 700; color: #991b1b;">{{ "%.2f"|format(totals.grand_expenditure or 0) }} L</div>
+            <div style="font-size: 0.75rem; color: #dc2626; margin-top: 4px;">Total Expenditure</div>
+        </div>
+        <div class="card" style="text-align: center; padding: 18px;
+            background: linear-gradient(135deg, {% if (totals.grand_net or 0) >= 0 %}#dcfce7, #bbf7d0{% else %}#fee2e2, #fecaca{% endif %});">
+            <div style="font-size: 1.375rem; font-weight: 700; color: {% if (totals.grand_net or 0) >= 0 %}#166534{% else %}#991b1b{% endif %};">
+                {{ "%.2f"|format(totals.grand_net or 0) }} L
+            </div>
+            <div style="font-size: 0.75rem; color: {% if (totals.grand_net or 0) >= 0 %}#16a34a{% else %}#dc2626{% endif %}; margin-top: 4px;">Net Revenue</div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Financial Data Table -->
+    <div style="padding: 0 20px 20px;">
+        {% if financial_data %}
+        <div class="card">
+            <div class="card-header">
+                <h3 style="margin: 0;">
+                    {% if view == 'office' %}Office-wise{% elif view == 'domain' %}Domain-wise{% else %}Type-wise{% endif %} Financial Summary
+                </h3>
+            </div>
+            <div class="table-container">
+                <table class="compact-table">
+                    <thead>
+                        <tr>
+                            {% if view == 'office' %}
+                            <th>Office</th>
+                            <th style="text-align: right;">Assignments</th>
+                            <th style="text-align: right;">Total Value (L)</th>
+                            <th style="text-align: right;">Invoiced (L)</th>
+                            <th style="text-align: right;">Received (L)</th>
+                            <th style="text-align: right;">Expenditure (L)</th>
+                            <th style="text-align: right;">Net Revenue (L)</th>
+                            <th style="text-align: right;">Surplus/Deficit (L)</th>
+                            {% elif view == 'domain' %}
+                            <th>Domain</th>
+                            <th style="text-align: right;">Assignments</th>
+                            <th style="text-align: right;">Total Value (L)</th>
+                            <th style="text-align: right;">Invoiced (L)</th>
+                            <th style="text-align: right;">Received (L)</th>
+                            <th style="text-align: right;">Expenditure (L)</th>
+                            <th style="text-align: right;">Net Revenue (L)</th>
+                            {% elif view == 'type' %}
+                            <th>Type</th>
+                            <th style="text-align: right;">Assignments</th>
+                            <th style="text-align: right;">Total Value (L)</th>
+                            <th style="text-align: right;">Invoiced (L)</th>
+                            <th style="text-align: right;">Received (L)</th>
+                            <th style="text-align: right;">Expenditure (L)</th>
+                            <th style="text-align: right;">Net Revenue (L)</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in financial_data %}
+                        <tr>
+                            {% if view == 'office' %}
+                            <td>
+                                <strong>{{ row.office_id or '-' }}</strong>
+                                {% if row.office_name %}
+                                <div style="font-size: 0.7rem; color: #64748b;">{{ row.office_name }}</div>
+                                {% endif %}
+                            </td>
+                            <td style="text-align: right;">{{ row.assignments or row.assignment_count or 0 }}</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(row.total_value or 0) }}</td>
+                            <td style="text-align: right; color: #7c3aed;">{{ "%.2f"|format(row.invoiced or 0) }}</td>
+                            <td style="text-align: right; color: #047857;">{{ "%.2f"|format(row.received or 0) }}</td>
+                            <td style="text-align: right; color: #dc2626;">{{ "%.2f"|format(row.expenditure or 0) }}</td>
+                            <td style="text-align: right; font-weight: 600; color: {% if (row.net_revenue or 0) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format(row.net_revenue or 0) }}
+                            </td>
+                            <td style="text-align: right; font-weight: 600; color: {% if (row.surplus_deficit or 0) >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format(row.surplus_deficit or 0) }}
+                            </td>
+
+                            {% elif view == 'domain' %}
+                            <td><strong>{{ row.domain or '-' }}</strong></td>
+                            <td style="text-align: right;">{{ row.assignments or row.assignment_count or 0 }}</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(row.total_value or 0) }}</td>
+                            <td style="text-align: right; color: #7c3aed;">{{ "%.2f"|format(row.invoiced or 0) }}</td>
+                            <td style="text-align: right; color: #047857;">{{ "%.2f"|format(row.received or 0) }}</td>
+                            <td style="text-align: right; color: #dc2626;">{{ "%.2f"|format(row.expenditure or 0) }}</td>
+                            <td style="text-align: right; font-weight: 600; color: {% if (row.net_revenue or 0) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format(row.net_revenue or 0) }}
+                            </td>
+
+                            {% elif view == 'type' %}
+                            <td>
+                                <span class="badge {% if row.type == 'ASSIGNMENT' %}badge-info{% elif row.type == 'TRAINING' %}badge-purple{% else %}badge-secondary{% endif %}" style="font-size: 0.75rem;">
+                                    {{ row.type or '-' }}
+                                </span>
+                            </td>
+                            <td style="text-align: right;">{{ row.assignments or row.assignment_count or 0 }}</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(row.total_value or 0) }}</td>
+                            <td style="text-align: right; color: #7c3aed;">{{ "%.2f"|format(row.invoiced or 0) }}</td>
+                            <td style="text-align: right; color: #047857;">{{ "%.2f"|format(row.received or 0) }}</td>
+                            <td style="text-align: right; color: #dc2626;">{{ "%.2f"|format(row.expenditure or 0) }}</td>
+                            <td style="text-align: right; font-weight: 600; color: {% if (row.net_revenue or 0) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format(row.net_revenue or 0) }}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    {% if totals %}
+                    <tfoot style="background: #f1f5f9; font-weight: 600;">
+                        <tr>
+                            <td>TOTAL</td>
+                            <td style="text-align: right;">{{ financial_data|length }}</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(totals.grand_value or 0) }}</td>
+                            <td style="text-align: right; color: #7c3aed;">{{ "%.2f"|format(totals.grand_invoiced or 0) }}</td>
+                            <td style="text-align: right; color: #047857;">{{ "%.2f"|format(totals.grand_received or 0) }}</td>
+                            <td style="text-align: right; color: #dc2626;">{{ "%.2f"|format(totals.grand_expenditure or 0) }}</td>
+                            <td style="text-align: right; color: {% if (totals.grand_net or 0) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format(totals.grand_net or 0) }}
+                            </td>
+                            {% if view == 'office' %}
+                            <td style="text-align: right; color: {% if ((totals.grand_received or 0) - (totals.grand_expenditure or 0)) >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format((totals.grand_received or 0) - (totals.grand_expenditure or 0)) }}
+                            </td>
+                            {% endif %}
+                        </tr>
+                    </tfoot>
+                    {% endif %}
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No financial data available</h3>
+            <p>Adjust filters or ensure assignments exist for the selected view.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Expenditure Breakdown Section -->
+    {% if expenditure_breakdown %}
+    <div style="padding: 0 20px 20px;">
+        <div class="card">
+            <div class="card-header">
+                <h3 style="margin: 0;">Expenditure Breakdown</h3>
+            </div>
+            <div class="table-container">
+                <table class="compact-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Head</th>
+                            <th style="text-align: right;">Budgeted (L)</th>
+                            <th style="text-align: right;">Actual Spent (L)</th>
+                            <th style="text-align: right;">Variance (L)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set ns = namespace(total_budgeted=0, total_actual=0) %}
+                        {% for item in expenditure_breakdown %}
+                        {% set ns.total_budgeted = ns.total_budgeted + (item.budgeted or 0) %}
+                        {% set ns.total_actual = ns.total_actual + (item.actual_spent or 0) %}
+                        <tr>
+                            <td><strong>{{ item.category or '-' }}</strong></td>
+                            <td>{{ item.head_name or '-' }}</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(item.budgeted or 0) }}</td>
+                            <td style="text-align: right; color: #dc2626;">{{ "%.2f"|format(item.actual_spent or 0) }}</td>
+                            <td style="text-align: right; font-weight: 600;
+                                color: {% if ((item.budgeted or 0) - (item.actual_spent or 0)) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format((item.budgeted or 0) - (item.actual_spent or 0)) }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot style="background: #f1f5f9; font-weight: 600;">
+                        <tr>
+                            <td colspan="2">TOTAL</td>
+                            <td style="text-align: right;">{{ "%.2f"|format(ns.total_budgeted) }}</td>
+                            <td style="text-align: right; color: #dc2626;">{{ "%.2f"|format(ns.total_actual) }}</td>
+                            <td style="text-align: right; color: {% if (ns.total_budgeted - ns.total_actual) >= 0 %}#16a34a{% else %}#dc2626{% endif %};">
+                                {{ "%.2f"|format(ns.total_budgeted - ns.total_actual) }}
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Legend -->
+    <div style="padding: 0 20px 20px;">
+        <div class="card" style="padding: 15px;">
+            <h4 style="margin: 0 0 10px; color: #475569;">Notes</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 10px; font-size: 0.8125rem; color: #64748b;">
+                <div><strong>Revenue (Case Basis):</strong> Recognized when milestone is completed and invoiced.</div>
+                <div><strong>Expenditure (Accrual Basis):</strong> Recognized when expense is incurred, regardless of payment.</div>
+                <div><strong>Net Revenue:</strong> Total Received - Total Expenditure.</div>
+                <div><strong>Variance:</strong> Budgeted amount - Actual spent. Green = under budget, Red = over budget.</div>
+                <div><strong>All values in Lakhs (L):</strong> 1 Lakh = 1,00,000.</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    /* No additional scripts needed for this template */
+</script>
+{% endblock %}

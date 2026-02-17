@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Client MIS - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Client MIS</h1>
+    <a href="/mis" class="btn btn-secondary">Back to MIS Dashboard</a>
+</div>
+
+<!-- Filters -->
+<div class="card">
+    <form method="GET" action="/clients/mis" class="filters">
+        <div class="filter-group">
+            <label>Client Type</label>
+            <select name="filter_type" class="form-control">
+                <option value="">All Types</option>
+                {% for ctype in client_types %}
+                <option value="{{ ctype }}" {% if filter_type == ctype %}selected{% endif %}>{{ ctype }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="/clients/mis" class="btn btn-secondary">Reset</a>
+    </form>
+</div>
+
+<!-- Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 15px; margin-bottom: 20px;">
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #dbeafe, #bfdbfe);">
+        <div style="font-size: 0.8rem; color: #3b82f6; margin-bottom: 4px;">Total Clients</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #1d4ed8;">{{ totals.total_clients or 0 }}</div>
+    </div>
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #f3e8ff, #e9d5ff);">
+        <div style="font-size: 0.8rem; color: #8b5cf6; margin-bottom: 4px;">Total Assignments</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #7c3aed;">{{ totals.total_assignments or 0 }}</div>
+    </div>
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #dcfce7, #bbf7d0);">
+        <div style="font-size: 0.8rem; color: #16a34a; margin-bottom: 4px;">Grand Total Value</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #166534;">{{ "%.2f"|format(totals.grand_total_value or 0) }} L</div>
+    </div>
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #fef3c7, #fde68a);">
+        <div style="font-size: 0.8rem; color: #b45309; margin-bottom: 4px;">Grand Total Invoiced</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #92400e;">{{ "%.2f"|format(totals.grand_total_invoiced or 0) }} L</div>
+    </div>
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #d1fae5, #a7f3d0);">
+        <div style="font-size: 0.8rem; color: #059669; margin-bottom: 4px;">Grand Total Received</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #047857;">{{ "%.2f"|format(totals.grand_total_received or 0) }} L</div>
+    </div>
+</div>
+
+<!-- Client Data Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Client-wise Summary ({{ client_data|length }})</h2>
+    </div>
+
+    {% if client_data %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Client Code</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>City</th>
+                    <th class="text-right">Assignments</th>
+                    <th class="text-right">Total Value (L)</th>
+                    <th class="text-right">Invoiced (L)</th>
+                    <th class="text-right">Received (L)</th>
+                    <th class="text-right">Collection Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cd in client_data %}
+                <tr>
+                    <td>
+                        <a href="/clients/{{ cd.id }}">{{ cd.client_code }}</a>
+                    </td>
+                    <td><strong>{{ cd.client_name }}</strong></td>
+                    <td>
+                        <span class="badge
+                            {% if cd.client_type == 'Government' %}badge-info
+                            {% elif cd.client_type == 'PSU' %}badge-warning
+                            {% elif cd.client_type == 'Private' %}badge-success
+                            {% else %}badge-secondary{% endif %}">
+                            {{ cd.client_type or '-' }}
+                        </span>
+                    </td>
+                    <td>{{ cd.city or '-' }}</td>
+                    <td class="text-right">{{ cd.assignment_count or 0 }}</td>
+                    <td class="text-right">{{ "%.2f"|format(cd.total_value or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(cd.total_invoiced or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(cd.total_received or 0) }}</td>
+                    <td class="text-right">
+                        {% set collection_rate = ((cd.total_received or 0) / (cd.total_value) * 100) if cd.total_value else 0 %}
+                        <span class="badge
+                            {% if collection_rate >= 80 %}badge-success
+                            {% elif collection_rate >= 50 %}badge-warning
+                            {% else %}badge-danger{% endif %}"
+                            style="min-width: 55px; display: inline-block; text-align: center;">
+                            {{ "%.1f"|format(collection_rate) }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight: bold; background: #f7fafc;">
+                    <td colspan="4">TOTAL</td>
+                    <td class="text-right">{{ totals.total_assignments or 0 }}</td>
+                    <td class="text-right">{{ "%.2f"|format(totals.grand_total_value or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(totals.grand_total_invoiced or 0) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(totals.grand_total_received or 0) }}</td>
+                    <td class="text-right">
+                        {% set overall_rate = ((totals.grand_total_received or 0) / totals.grand_total_value * 100) if totals.grand_total_value else 0 %}
+                        <span class="badge
+                            {% if overall_rate >= 80 %}badge-success
+                            {% elif overall_rate >= 50 %}badge-warning
+                            {% else %}badge-danger{% endif %}"
+                            style="min-width: 55px; display: inline-block; text-align: center;">
+                            {{ "%.1f"|format(overall_rate) }}%
+                        </span>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No client data found matching your criteria.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

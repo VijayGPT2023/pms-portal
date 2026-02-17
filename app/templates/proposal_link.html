@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block title %}Link Proposal - {{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Link Proposal for {{ assignment.assignment_no }}</h1>
+    <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
+</div>
+
+<!-- Current Linked Proposal -->
+{% if linked_proposal %}
+<div class="card" style="margin-bottom: 20px; border-left: 4px solid #38a169;">
+    <div class="card-header">
+        <h2 class="card-title" style="color: #276749;">Currently Linked Proposal</h2>
+    </div>
+    <div style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <div>
+                <strong>Assignment No:</strong><br>{{ linked_proposal.assignment_no }}
+            </div>
+            <div>
+                <strong>Title:</strong><br>{{ linked_proposal.title }}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Two-Tab Form: Upload New / Link Existing -->
+{% if can_manage %}
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Add Proposal</h2>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav" style="padding: 0 20px;">
+        <button class="tab-btn active" data-tab-btn="proposal" onclick="switchTab('tab-upload', 'proposal')">
+            Upload New
+        </button>
+        <button class="tab-btn" data-tab-btn="proposal" onclick="switchTab('tab-link', 'proposal')">
+            Link Existing
+        </button>
+    </div>
+
+    <!-- Tab 1: Upload New -->
+    <div id="tab-upload" class="tab-content active" data-tab-group="proposal">
+        <form method="POST" action="/proposals/link/{{ assignment.id }}" enctype="multipart/form-data" style="padding: 20px;">
+            <input type="hidden" name="link_mode" value="upload">
+            <div class="form-group">
+                <label>Proposal File <span style="color: red;">*</span></label>
+                <input type="file" name="file" class="form-control" required
+                       style="padding: 10px; border: 2px dashed #cbd5e0; border-radius: 8px;">
+            </div>
+            <div class="form-group" style="margin-top: 15px;">
+                <label>Description</label>
+                <textarea name="description" class="form-control" rows="3"
+                          placeholder="Optional description of the proposal..."></textarea>
+            </div>
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">Upload & Link Proposal</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Tab 2: Link Existing -->
+    <div id="tab-link" class="tab-content" data-tab-group="proposal">
+        <form method="POST" action="/proposals/link/{{ assignment.id }}" style="padding: 20px;">
+            <input type="hidden" name="link_mode" value="link">
+            <div class="form-group">
+                <label>Select Existing Proposal <span style="color: red;">*</span></label>
+                <select name="linked_assignment_id" class="form-control" required>
+                    <option value="">-- Select a Proposal --</option>
+                    {% for p in available_proposals %}
+                    <option value="{{ p.id }}">{{ p.assignment_no }} - {{ p.title }} ({{ p.type }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn btn-primary">Link Proposal</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Existing Documents List -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Existing Documents ({{ documents|length }})</h2>
+    </div>
+
+    {% if documents %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>File Name</th>
+                    <th>Description</th>
+                    <th>Uploaded By</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documents %}
+                <tr>
+                    <td>
+                        <span class="badge
+                            {% if doc.document_type == 'PROPOSAL' %}badge-info
+                            {% elif doc.document_type == 'WORKLOAD' %}badge-warning
+                            {% elif doc.document_type == 'TOR' %}badge-success
+                            {% elif doc.document_type == 'WORK_ORDER' %}badge-primary
+                            {% else %}badge-secondary{% endif %}">
+                            {{ doc.document_type }}
+                        </span>
+                    </td>
+                    <td>{{ doc.file_name }}</td>
+                    <td>{{ doc.description or '-' }}</td>
+                    <td>{{ doc.uploaded_by_name or '-' }}</td>
+                    <td>{{ doc.created_at|format_date }}</td>
+                    <td>
+                        <a href="/proposals/download/{{ doc.id }}" class="btn btn-sm btn-primary">Download</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No documents available.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Ensure tab content visibility is handled correctly
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.tab-content[data-tab-group="proposal"]').forEach(function(el) {
+            if (el.classList.contains('active')) {
+                el.style.display = 'block';
+            } else {
+                el.style.display = 'none';
+            }
+        });
+    });
+
+    // Override switchTab to also handle display toggling for this page
+    const originalSwitchTab = window.switchTab;
+    window.switchTab = function(tabId, tabGroup) {
+        document.querySelectorAll('[data-tab-group="' + tabGroup + '"]').forEach(function(content) {
+            content.classList.remove('active');
+            content.style.display = 'none';
+        });
+        document.querySelectorAll('[data-tab-btn="' + tabGroup + '"]').forEach(function(btn) {
+            btn.classList.remove('active');
+        });
+        var el = document.getElementById(tabId);
+        if (el) {
+            el.classList.add('active');
+            el.style.display = 'block';
+        }
+        if (event && event.currentTarget) {
+            event.currentTarget.classList.add('active');
+        }
+    };
+</script>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Utilization Summary - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1>Utilization Summary</h1>
+        <p class="page-subtitle">Monthly officer utilization rates across offices</p>
+    </div>
+    <a href="/utilization/" class="btn btn-secondary">Back to My Claims</a>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom: 20px; padding: 16px;">
+    <form method="GET" action="/utilization/summary" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 4px; display: block;">Month</label>
+            <input type="month" name="month" value="{{ filter_month }}" class="form-control" style="min-width: 160px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.75rem; font-weight: 600; color: #475569; margin-bottom: 4px; display: block;">Office</label>
+            <select name="office" class="form-control" style="min-width: 180px;">
+                <option value="">All Offices</option>
+                {% for office in offices %}
+                <option value="{{ office.office_id }}" {% if filter_office == office.office_id %}selected{% endif %}>
+                    {{ office.office_id }} - {{ office.office_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            <a href="/utilization/summary" class="btn btn-secondary btn-sm">Reset</a>
+        </div>
+    </form>
+</div>
+
+<!-- Working Days Info -->
+<div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+    <div class="card" style="text-align: center; padding: 15px 24px; border-left: 4px solid #3b82f6;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">{{ working_days }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Working Days in Month</div>
+    </div>
+    <div class="card" style="text-align: center; padding: 15px 24px; border-left: 4px solid #10b981;">
+        <div style="font-size: 1.5rem; font-weight: 700; color: #10b981;">{{ summary|length }}</div>
+        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">Officers</div>
+    </div>
+</div>
+
+<!-- Summary Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Officer Utilization</h2>
+    </div>
+    <div class="table-container">
+        {% if summary %}
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Officer</th>
+                    <th>Office</th>
+                    <th>Claims</th>
+                    <th>Days Claimed</th>
+                    <th>Days Approved</th>
+                    <th>Days Rectified (Final)</th>
+                    <th>Utilization Rate</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in summary %}
+                {% set util_rate = (row.total_rectified / working_days * 100) if working_days > 0 else 0 %}
+                <tr>
+                    <td><strong>{{ row.officer_name }}</strong></td>
+                    <td>{{ row.office_id }}</td>
+                    <td>{{ row.claim_count }}</td>
+                    <td>{{ row.total_claimed }}</td>
+                    <td>{{ row.total_approved }}</td>
+                    <td style="font-weight: 600;">{{ row.total_rectified }}</td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex: 1; max-width: 100px; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden;">
+                                <div style="height: 100%; border-radius: 4px; width: {{ [util_rate, 100]|min }}%;
+                                    background: {% if util_rate >= 80 %}#10b981{% elif util_rate >= 60 %}#f59e0b{% else %}#ef4444{% endif %};">
+                                </div>
+                            </div>
+                            <span style="font-weight: 700; font-size: 0.875rem; min-width: 50px;
+                                color: {% if util_rate >= 80 %}#059669{% elif util_rate >= 60 %}#d97706{% else %}#dc2626{% endif %};">
+                                {{ "%.1f"|format(util_rate) }}%
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3>No Data Available</h3>
+            <p style="color: #64748b;">No utilization data found for the selected filters.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Legend -->
+<div style="margin-top: 16px; display: flex; gap: 20px; font-size: 0.8125rem; color: #64748b; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="width: 12px; height: 12px; border-radius: 3px; background: #10b981; display: inline-block;"></span>
+        Green: 80%+ utilization
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="width: 12px; height: 12px; border-radius: 3px; background: #f59e0b; display: inline-block;"></span>
+        Amber: 60-79% utilization
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="width: 12px; height: 12px; border-radius: 3px; background: #ef4444; display: inline-block;"></span>
+        Red: Below 60% utilization
+    </div>
+</div>
+{% endblock %}

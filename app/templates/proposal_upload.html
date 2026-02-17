@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Documents - {{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Upload Documents for {{ assignment.assignment_no }}</h1>
+    <a href="/assignment/view/{{ assignment.id }}" class="btn btn-secondary">Back to Assignment</a>
+</div>
+
+<!-- Assignment Info Card -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Assignment Details</h2>
+    </div>
+    <div style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <div>
+                <strong>Assignment No:</strong><br>{{ assignment.assignment_no }}
+            </div>
+            <div>
+                <strong>Title:</strong><br>{{ assignment.title }}
+            </div>
+            <div>
+                <strong>Office:</strong><br>{{ assignment.office_name }}
+            </div>
+            <div>
+                <strong>Team Leader:</strong><br>{{ assignment.team_leader_name or '-' }}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Form -->
+{% if can_manage %}
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Upload New Document</h2>
+    </div>
+    <form method="POST" action="/proposals/upload/{{ assignment.id }}" enctype="multipart/form-data" style="padding: 20px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+            <div class="form-group">
+                <label>File <span style="color: red;">*</span></label>
+                <input type="file" name="file" class="form-control" required
+                       style="padding: 10px; border: 2px dashed #cbd5e0; border-radius: 8px;">
+            </div>
+            <div class="form-group">
+                <label>Document Type <span style="color: red;">*</span></label>
+                <select name="document_type" class="form-control" required>
+                    <option value="">-- Select Type --</option>
+                    {% for dtype in document_types %}
+                    <option value="{{ dtype }}">{{ dtype }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-group" style="margin-top: 15px;">
+            <label>Description</label>
+            <textarea name="description" class="form-control" rows="3"
+                      placeholder="Optional description of the document..."></textarea>
+        </div>
+        <div style="margin-top: 20px;">
+            <button type="submit" class="btn btn-primary">Upload Document</button>
+        </div>
+    </form>
+</div>
+
+<!-- Upload Constraints Note -->
+<div class="card" style="margin-bottom: 20px; background: #ebf8ff; border-left: 4px solid #3182ce;">
+    <div style="padding: 15px;">
+        <strong style="color: #2b6cb0;">Upload Guidelines:</strong>
+        <ul style="margin: 8px 0 0; padding-left: 20px; color: #2b6cb0;">
+            <li>Maximum file size: <strong>{{ max_upload_size_mb }} MB</strong></li>
+            <li>Allowed extensions: <strong>{{ allowed_extensions|join(', ') }}</strong></li>
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<!-- Existing Documents Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Existing Documents ({{ documents|length }})</h2>
+    </div>
+
+    {% if documents %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>File Name</th>
+                    <th>Size</th>
+                    <th>Description</th>
+                    <th>Uploaded By</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in documents %}
+                <tr>
+                    <td>
+                        <span class="badge
+                            {% if doc.document_type == 'PROPOSAL' %}badge-info
+                            {% elif doc.document_type == 'WORKLOAD' %}badge-warning
+                            {% elif doc.document_type == 'TOR' %}badge-success
+                            {% elif doc.document_type == 'WORK_ORDER' %}badge-primary
+                            {% else %}badge-secondary{% endif %}">
+                            {{ doc.document_type }}
+                        </span>
+                    </td>
+                    <td>{{ doc.file_name }}</td>
+                    <td>
+                        {% if doc.file_size >= 1048576 %}
+                            {{ "%.2f"|format(doc.file_size / 1048576) }} MB
+                        {% elif doc.file_size >= 1024 %}
+                            {{ "%.1f"|format(doc.file_size / 1024) }} KB
+                        {% else %}
+                            {{ doc.file_size }} B
+                        {% endif %}
+                    </td>
+                    <td>{{ doc.description or '-' }}</td>
+                    <td>{{ doc.uploaded_by_name or '-' }}</td>
+                    <td>{{ doc.created_at|format_date }}</td>
+                    <td>
+                        <a href="/proposals/download/{{ doc.id }}" class="btn btn-sm btn-primary">Download</a>
+                        {% if can_manage %}
+                        <form method="POST" action="/proposals/delete/{{ doc.id }}" style="display: inline;"
+                              onsubmit="return confirm('Are you sure you want to delete this document?');">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No documents uploaded yet.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // File size validation on the client side
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                const maxSize = {{ max_upload_size_mb }} * 1024 * 1024;
+                if (this.files[0] && this.files[0].size > maxSize) {
+                    alert('File size exceeds the maximum allowed size of {{ max_upload_size_mb }} MB.');
+                    this.value = '';
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

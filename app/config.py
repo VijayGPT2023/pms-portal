@@ -75,3 +75,58 @@ CLIENT_TYPE_OPTIONS = [
     "International",
     "Others"
 ]
+
+# Feature Flags
+SHOW_RANKINGS = False  # Hide rankings during training period (visible to DDG/DG only)
+TRAINING_MODE = True  # Allow access to all assignment form pages even if blank
+
+# Revenue weightage for performance calculation
+REVENUE_WEIGHTAGE_REAL = 1.0  # 100% weight for real revenue
+REVENUE_WEIGHTAGE_NOTIONAL = 0.5  # 50% weight for notional revenue
+
+# Development Work Quantification Rules (man-days)
+DEV_WORK_QUANTIFICATION = {
+    'PROPOSAL_PREP': {
+        'slabs': [
+            (20, 1),    # Up to 20 Lakhs = 1 man-day
+            (50, 2),    # Up to 50 Lakhs = 2 man-days
+            (100, 3),   # Up to 100 Lakhs = 3 man-days
+            (200, 4),   # Up to 200 Lakhs = 4 man-days
+            (float('inf'), 5),  # More than 200 Lakhs = 5 man-days
+        ]
+    },
+    'EVENT_MGMT': {
+        'max_days': 5,  # Up to 5 man-days
+    },
+    'COMMITTEE': {
+        'per_member_days': 0.25,  # 0.25 man-days per committee member
+    },
+    'MEETING': {
+        'min_days': 0.5,  # Minimum 0.5 day per meeting/event
+    },
+}
+
+# File upload settings
+UPLOAD_DIR = BASE_DIR / "uploads"
+MAX_UPLOAD_SIZE_MB = 10
+ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.png']
+
+# Activity number format
+ACTIVITY_NUMBER_FORMAT = "NPC/{office_id}/{type_code}/{client_code}/{seq:04d}/{fy}"
+ACTIVITY_TYPE_CODES = {
+    'ASSIGNMENT': 'ASG',
+    'TRAINING': 'TRG',
+    'DEVELOPMENT': 'DEV',
+}
+
+# Utilization claim types
+UTILIZATION_CLAIM_TYPES = [
+    ('ASSIGNMENT_WORK', 'Assignment Work'),
+    ('PROPOSAL_PREP', 'Proposal Preparation'),
+    ('EVENT_MGMT', 'Event Management'),
+    ('COMMITTEE', 'Committee Work'),
+    ('MEETING', 'Meetings/Events'),
+    ('TRAVEL', 'Official Travel'),
+    ('LEAVE', 'Leave'),
+    ('OTHER', 'Other'),
+]

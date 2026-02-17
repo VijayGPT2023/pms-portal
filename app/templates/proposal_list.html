@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Proposals & Documents - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Proposals & Documents</h1>
+    <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom: 20px;">
+    <form method="GET" action="/proposals" class="filters">
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="filter_office">
+                <option value="">All Offices</option>
+                {% for office in offices %}
+                <option value="{{ office.office_id if office.office_id is defined else office }}"
+                        {% if filter_office == (office.office_id if office.office_id is defined else office) %}selected{% endif %}>
+                    {{ office.office_name if office.office_name is defined else office }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Type</label>
+            <select name="filter_type">
+                <option value="">All Types</option>
+                <option value="ASSIGNMENT" {% if filter_type == 'ASSIGNMENT' %}selected{% endif %}>Assignment</option>
+                <option value="TRAINING" {% if filter_type == 'TRAINING' %}selected{% endif %}>Training</option>
+                <option value="DEVELOPMENT" {% if filter_type == 'DEVELOPMENT' %}selected{% endif %}>Development</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Has Proposal</label>
+            <select name="filter_has_proposal">
+                <option value="" {% if not filter_has_proposal %}selected{% endif %}>All</option>
+                <option value="yes" {% if filter_has_proposal == 'yes' %}selected{% endif %}>Yes</option>
+                <option value="no" {% if filter_has_proposal == 'no' %}selected{% endif %}>No</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="/proposals" class="btn btn-secondary">Reset</a>
+    </form>
+</div>
+
+<!-- Assignments Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Assignments ({{ assignments|length }})</h2>
+    </div>
+
+    {% if assignments %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Office</th>
+                    <th>Documents</th>
+                    <th>Linked Proposal</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td>
+                        <a href="/assignment/view/{{ a.id }}">{{ a.assignment_no }}</a>
+                    </td>
+                    <td>{{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}</td>
+                    <td>
+                        <span class="badge
+                            {% if a.type == 'ASSIGNMENT' %}badge-info
+                            {% elif a.type == 'TRAINING' %}badge-warning
+                            {% elif a.type == 'DEVELOPMENT' %}badge-success
+                            {% else %}badge-secondary{% endif %}">
+                            {{ a.type or '-' }}
+                        </span>
+                    </td>
+                    <td>{{ a.office_name or a.office_id }}</td>
+                    <td>
+                        <span class="badge {% if a.doc_count > 0 %}badge-success{% else %}badge-secondary{% endif %}">
+                            {{ a.doc_count }} doc{{ 's' if a.doc_count != 1 else '' }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if a.linked_proposal_id %}
+                        <a href="/assignment/view/{{ a.linked_proposal_id }}">{{ a.linked_assignment_no }}</a>
+                        <br><small class="text-muted">{{ a.linked_title[:30] }}{% if a.linked_title and a.linked_title|length > 30 %}...{% endif %}</small>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/proposals/upload/{{ a.id }}" class="btn btn-sm btn-primary">Upload</a>
+                        <a href="/proposals/link/{{ a.id }}" class="btn btn-sm btn-secondary">Link</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No assignments found matching your criteria.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Head Rectification - Utilization Claims - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1>Head Rectification</h1>
+        <p class="page-subtitle">Rectify man-day claims approved by Team Leaders and finalize utilization</p>
+    </div>
+    <a href="/utilization/" class="btn btn-secondary">Back to My Claims</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Claims for Rectification</h2>
+        <span class="badge badge-info" style="font-size: 0.8125rem;">{{ claims|length }} claims</span>
+    </div>
+    <div class="table-container">
+        {% if claims %}
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Claim #</th>
+                    <th>Officer</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Assignment</th>
+                    <th>Days Claimed</th>
+                    <th>TL Remarks</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for claim in claims %}
+                <tr>
+                    <td><strong>{{ claim.claim_number }}</strong></td>
+                    <td>{{ claim.officer_name }}</td>
+                    <td>{{ claim.activity_date }}</td>
+                    <td>
+                        <span class="badge badge-purple">
+                            {{ claim_type_labels.get(claim.claim_type, claim.claim_type)|replace('_', ' ') }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if claim.assignment_no %}
+                        {{ claim.assignment_no }} - {{ claim.assignment_title[:20] }}{% if claim.assignment_title|length > 20 %}...{% endif %}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td style="font-weight: 600;">{{ claim.man_days_claimed }}</td>
+                    <td>{{ claim.tl_remarks or '-' }}</td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-primary"
+                                onclick="showRectifyForm({{ claim.id }})">Rectify</button>
+                    </td>
+                </tr>
+                <!-- Inline Rectify Form -->
+                <tr id="rectify-row-{{ claim.id }}" style="display: none;">
+                    <td colspan="8" style="background: #eff6ff; padding: 16px;">
+                        <form method="POST" action="/utilization/{{ claim.id }}/head-rectify">
+                            <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                                <div class="form-group" style="margin-bottom: 0; min-width: 140px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #1e40af;">Rectified Days *</label>
+                                    <input type="number" name="rectified_days" class="form-control"
+                                           value="{{ claim.man_days_claimed }}" step="0.25" min="0" required
+                                           style="max-width: 120px;">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #1e40af;">Head Remarks</label>
+                                    <textarea name="head_remarks" class="form-control" rows="2"
+                                              placeholder="Reason for rectification, if any"></textarea>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="submit" class="btn btn-sm btn-primary">Submit Rectification</button>
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                            onclick="hideRectifyForm({{ claim.id }})">Cancel</button>
+                                </div>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Finalize Section -->
+        <div style="margin-top: 24px; padding: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+            <h3 style="margin: 0 0 8px; font-size: 0.9375rem; color: #166534;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                    <path d="M9 11l3 3L22 4"></path>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                </svg>
+                Finalize Rectified Claims
+            </h3>
+            <p style="font-size: 0.8125rem; color: #15803d; margin: 0 0 12px;">
+                Once claims have been rectified (status: HEAD_RECTIFIED), you can finalize them below.
+                Finalized claims cannot be changed.
+            </p>
+            {% set rectified_claims = [] %}
+            {% for claim in claims %}
+                {% if claim.status is defined and claim.status == 'HEAD_RECTIFIED' %}
+                    {% if rectified_claims.append(claim) %}{% endif %}
+                {% endif %}
+            {% endfor %}
+            {% if rectified_claims %}
+            <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                {% for claim in rectified_claims %}
+                <form method="POST" action="/utilization/{{ claim.id }}/finalize" style="display: inline;">
+                    <button type="submit" class="btn btn-sm btn-success"
+                            onclick="return confirm('Finalize claim {{ claim.claim_number }}? This action cannot be undone.')">
+                        Finalize {{ claim.claim_number }}
+                    </button>
+                </form>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="font-size: 0.8125rem; color: #64748b; margin: 0;">No rectified claims ready for finalization in this view.</p>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3 style="color: #48bb78;">All Clear!</h3>
+            <p style="color: #64748b;">No utilization claims pending rectification.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function showRectifyForm(claimId) {
+    // Hide any open forms first
+    document.querySelectorAll('[id^="rectify-row-"]').forEach(function(row) {
+        row.style.display = 'none';
+    });
+    document.getElementById('rectify-row-' + claimId).style.display = 'table-row';
+}
+
+function hideRectifyForm(claimId) {
+    document.getElementById('rectify-row-' + claimId).style.display = 'none';
+}
+</script>
+{% endblock %}

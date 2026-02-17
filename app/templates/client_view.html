@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client.client_name }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ client.client_name }}</h1>
+    <div style="display: flex; gap: 8px;">
+        <a href="/clients/{{ client.id }}/edit" class="btn btn-primary btn-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            Edit
+        </a>
+        <a href="/clients" class="btn btn-secondary btn-sm">Back to List</a>
+    </div>
+</div>
+
+<!-- Client Details Card -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Client Details</h2>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; padding: 5px 0;">
+        <!-- Left Column -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Organization
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096; width: 40%;">Client Type:</td>
+                    <td style="padding: 8px 0;">
+                        <span class="badge
+                            {% if client.client_type == 'Government' %}badge-info
+                            {% elif client.client_type == 'PSU' %}badge-warning
+                            {% elif client.client_type == 'Private' %}badge-success
+                            {% else %}badge-secondary{% endif %}">
+                            {{ client.client_type or '-' }}
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Client Code:</td>
+                    <td style="padding: 8px 0;"><strong>{{ client.client_code or '-' }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Address:</td>
+                    <td style="padding: 8px 0;">{{ client.address or '-' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">City:</td>
+                    <td style="padding: 8px 0;">{{ client.city or '-' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">State:</td>
+                    <td style="padding: 8px 0;">{{ client.state or '-' }}</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Right Column -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Contact & Tax Details
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096; width: 40%;">Contact Person:</td>
+                    <td style="padding: 8px 0;"><strong>{{ client.contact_person or '-' }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Email:</td>
+                    <td style="padding: 8px 0;">
+                        {% if client.contact_email %}
+                        <a href="mailto:{{ client.contact_email }}">{{ client.contact_email }}</a>
+                        {% else %}-{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Phone:</td>
+                    <td style="padding: 8px 0;">{{ client.contact_phone or '-' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">GSTIN:</td>
+                    <td style="padding: 8px 0;">{{ client.gstin or '-' }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">PAN:</td>
+                    <td style="padding: 8px 0;">{{ client.pan or '-' }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #dbeafe, #bfdbfe);">
+        <div style="font-size: 0.8rem; color: #3b82f6; margin-bottom: 4px;">Total Assignments</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #1d4ed8;">{{ stats.total_assignments or 0 }}</div>
+    </div>
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #dcfce7, #bbf7d0);">
+        <div style="font-size: 0.8rem; color: #16a34a; margin-bottom: 4px;">Total Value</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #166534;">{{ "%.2f"|format(stats.total_value or 0) }} L</div>
+    </div>
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #fef3c7, #fde68a);">
+        <div style="font-size: 0.8rem; color: #b45309; margin-bottom: 4px;">Total Invoiced</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #92400e;">{{ "%.2f"|format(stats.total_invoiced or 0) }} L</div>
+    </div>
+    <div class="card" style="padding: 20px; text-align: center; background: linear-gradient(135deg, #f3e8ff, #e9d5ff);">
+        <div style="font-size: 0.8rem; color: #8b5cf6; margin-bottom: 4px;">Total Received</div>
+        <div style="font-size: 1.8rem; font-weight: 700; color: #7c3aed;">{{ "%.2f"|format(stats.total_received or 0) }} L</div>
+    </div>
+</div>
+
+<!-- Assignments Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Assignments ({{ assignments|length }})</h2>
+    </div>
+
+    {% if assignments %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Sub-Activity #</th>
+                    <th class="text-right">Billing Share %</th>
+                    <th class="text-right">Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td>
+                        <a href="/assignment/view/{{ a.id if a.id else '' }}">{{ a.assignment_no }}</a>
+                    </td>
+                    <td>
+                        <strong>{{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}</strong>
+                        {% if a.sub_desc %}
+                        <br><small style="color: #718096;">{{ a.sub_desc }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% elif a.type == 'TRAINING' %}badge-warning{% else %}badge-secondary{% endif %}">
+                            {{ a.type or '-' }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge
+                            {% if a.status == 'Completed' %}badge-success
+                            {% elif a.status == 'Ongoing' or a.status == 'In Progress' %}badge-info
+                            {% elif a.status == 'On Hold' %}badge-warning
+                            {% else %}badge-secondary{% endif %}">
+                            {{ a.status or '-' }}
+                        </span>
+                    </td>
+                    <td>{{ a.sub_activity_number or '-' }}</td>
+                    <td class="text-right">{{ "%.1f"|format(a.billing_share_percent or 0) }}%</td>
+                    <td class="text-right">{{ "%.2f"|format(a.total_value or 0) }} L</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No assignments linked to this client yet.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

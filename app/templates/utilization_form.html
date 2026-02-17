@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_edit %}Edit Claim{% else %}New Utilization Claim{% endif %} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1>{% if is_edit %}Edit Claim{% else %}New Utilization Claim{% endif %}</h1>
+        <p class="page-subtitle">Record your man-day utilization for an activity</p>
+    </div>
+    <a href="/utilization/" class="btn btn-secondary">Back to List</a>
+</div>
+
+<div class="card form-card">
+    <form method="POST" action="{% if is_edit %}/utilization/{{ claim.id }}/edit{% else %}/utilization/new{% endif %}">
+
+        <!-- Claim Details -->
+        <div class="form-section">
+            <h3 class="form-section-title">Claim Details</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="assignment_id">Assignment (Optional)</label>
+                    <select id="assignment_id" name="assignment_id" class="form-control">
+                        <option value="">-- No Assignment --</option>
+                        {% for a in assignments %}
+                        <option value="{{ a.id }}"
+                                {% if claim and claim.assignment_id == a.id %}selected{% endif %}>
+                            {{ a.assignment_no }} - {{ a.title[:40] }}{% if a.title|length > 40 %}...{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="activity_date">Activity Date *</label>
+                    <input type="date" id="activity_date" name="activity_date" class="form-control"
+                           value="{{ claim.activity_date if claim else '' }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="claim_type">Claim Type *</label>
+                    <select id="claim_type" name="claim_type" class="form-control" required onchange="toggleConditionalFields()">
+                        <option value="">Select Type</option>
+                        {% for value, label in claim_types %}
+                        <option value="{{ value }}"
+                                {% if claim and claim.claim_type == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="man_days_claimed">Man-Days Claimed *</label>
+                    <input type="number" id="man_days_claimed" name="man_days_claimed" class="form-control"
+                           value="{{ claim.man_days_claimed if claim else '' }}"
+                           step="0.25" min="0.25" max="5" required
+                           placeholder="e.g. 1.0">
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="activity_description">Activity Description *</label>
+                    <textarea id="activity_description" name="activity_description" class="form-control" rows="3"
+                              required placeholder="Describe the activity performed">{{ claim.activity_description if claim else '' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conditional Fields -->
+        <div class="form-section" id="conditional-fields" style="display: none;">
+            <h3 class="form-section-title">Additional Details</h3>
+            <div class="form-grid">
+                <div class="form-group" id="field-proposal-value" style="display: none;">
+                    <label for="proposal_value_lakhs">Proposal Value (Lakhs)</label>
+                    <input type="number" id="proposal_value_lakhs" name="proposal_value_lakhs" class="form-control"
+                           value="{{ claim.proposal_value_lakhs if claim else '' }}"
+                           step="0.01" min="0" placeholder="0.00">
+                </div>
+
+                <div class="form-group" id="field-committee-members" style="display: none;">
+                    <label for="num_committee_members">Number of Committee Members</label>
+                    <input type="number" id="num_committee_members" name="num_committee_members" class="form-control"
+                           value="{{ claim.num_committee_members if claim else '' }}"
+                           step="1" min="1" placeholder="e.g. 5">
+                </div>
+
+                <div class="form-group" id="field-event-duration" style="display: none;">
+                    <label for="event_duration_days">Event Duration (Days)</label>
+                    <input type="number" id="event_duration_days" name="event_duration_days" class="form-control"
+                           value="{{ claim.event_duration_days if claim else '' }}"
+                           step="0.5" min="0.5" placeholder="e.g. 2">
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="form-section">
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px;">
+                <h4 style="margin: 0 0 8px; font-size: 0.875rem; color: #1e40af;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                    </svg>
+                    Auto-Calculation Rules
+                </h4>
+                <ul style="margin: 0; padding-left: 20px; font-size: 0.8125rem; color: #1e3a5f; line-height: 1.6;">
+                    <li>Man-days are automatically validated against claim type rules.</li>
+                    <li><strong>Proposal Preparation:</strong> Days calculated based on proposal value slab.</li>
+                    <li><strong>Committee Work:</strong> Days calculated based on number of committee members.</li>
+                    <li><strong>Event Management:</strong> Days calculated based on event duration.</li>
+                    <li>All other types use the manually entered man-days value.</li>
+                    <li>Final days may be rectified by the Office Head during the rectification stage.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                    <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                {% if is_edit %}Save Changes{% else %}Create Claim{% endif %}
+            </button>
+            <a href="/utilization/" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function toggleConditionalFields() {
+    var claimType = document.getElementById('claim_type').value;
+    var conditionalSection = document.getElementById('conditional-fields');
+    var proposalField = document.getElementById('field-proposal-value');
+    var committeeField = document.getElementById('field-committee-members');
+    var eventField = document.getElementById('field-event-duration');
+
+    // Hide all conditional fields first
+    proposalField.style.display = 'none';
+    committeeField.style.display = 'none';
+    eventField.style.display = 'none';
+
+    var showSection = false;
+
+    if (claimType === 'PROPOSAL_PREP') {
+        proposalField.style.display = 'block';
+        showSection = true;
+    } else if (claimType === 'COMMITTEE') {
+        committeeField.style.display = 'block';
+        showSection = true;
+    } else if (claimType === 'EVENT_MGMT') {
+        eventField.style.display = 'block';
+        showSection = true;
+    }
+
+    conditionalSection.style.display = showSection ? 'block' : 'none';
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleConditionalFields();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Pending TL Approval - Utilization Claims - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-content">
+        <h1>Pending TL Approval</h1>
+        <p class="page-subtitle">Review and approve utilization claims submitted by your team members</p>
+    </div>
+    <a href="/utilization/" class="btn btn-secondary">Back to My Claims</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Claims Awaiting Approval</h2>
+        <span class="badge badge-warning" style="font-size: 0.8125rem;">{{ claims|length }} pending</span>
+    </div>
+    <div class="table-container">
+        {% if claims %}
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Claim #</th>
+                    <th>Officer</th>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Assignment</th>
+                    <th>Days</th>
+                    <th>Description</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for claim in claims %}
+                <tr>
+                    <td><strong>{{ claim.claim_number }}</strong></td>
+                    <td>{{ claim.officer_name }}</td>
+                    <td>{{ claim.activity_date }}</td>
+                    <td>
+                        <span class="badge badge-purple">
+                            {{ claim_type_labels.get(claim.claim_type, claim.claim_type)|replace('_', ' ') }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if claim.assignment_no %}
+                        {{ claim.assignment_no }} - {{ claim.assignment_title[:20] }}{% if claim.assignment_title|length > 20 %}...{% endif %}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td style="font-weight: 600;">{{ claim.man_days_claimed }}</td>
+                    <td>{{ claim.activity_description[:40] }}{% if claim.activity_description|length > 40 %}...{% endif %}</td>
+                    <td>
+                        <div style="display: flex; gap: 6px;">
+                            <button type="button" class="btn btn-sm btn-success"
+                                    onclick="showApproveForm({{ claim.id }})">Approve</button>
+                            <button type="button" class="btn btn-sm btn-danger"
+                                    onclick="showRejectForm({{ claim.id }})">Reject</button>
+                        </div>
+                    </td>
+                </tr>
+                <!-- Inline Approve Form -->
+                <tr id="approve-row-{{ claim.id }}" style="display: none;">
+                    <td colspan="8" style="background: #f0fdf4; padding: 16px;">
+                        <form method="POST" action="/utilization/{{ claim.id }}/tl-approve">
+                            <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #166534;">Remarks (Optional)</label>
+                                    <textarea name="remarks" class="form-control" rows="2"
+                                              placeholder="Any remarks for the officer"></textarea>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="submit" class="btn btn-sm btn-success">Confirm Approve</button>
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                            onclick="hideForm('approve-row-{{ claim.id }}')">Cancel</button>
+                                </div>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                <!-- Inline Reject Form -->
+                <tr id="reject-row-{{ claim.id }}" style="display: none;">
+                    <td colspan="8" style="background: #fef2f2; padding: 16px;">
+                        <form method="POST" action="/utilization/{{ claim.id }}/tl-reject">
+                            <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                                <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px;">
+                                    <label style="font-size: 0.75rem; font-weight: 600; color: #991b1b;">Rejection Reason *</label>
+                                    <textarea name="remarks" class="form-control" rows="2" required
+                                              placeholder="Please provide a reason for rejection"></textarea>
+                                </div>
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="submit" class="btn btn-sm btn-danger">Confirm Reject</button>
+                                    <button type="button" class="btn btn-sm btn-secondary"
+                                            onclick="hideForm('reject-row-{{ claim.id }}')">Cancel</button>
+                                </div>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state" style="padding: 40px; text-align: center;">
+            <h3 style="color: #48bb78;">All Caught Up!</h3>
+            <p style="color: #64748b;">No utilization claims pending your approval.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function showApproveForm(claimId) {
+    // Hide any open forms first
+    document.querySelectorAll('[id^="approve-row-"], [id^="reject-row-"]').forEach(function(row) {
+        row.style.display = 'none';
+    });
+    document.getElementById('approve-row-' + claimId).style.display = 'table-row';
+}
+
+function showRejectForm(claimId) {
+    // Hide any open forms first
+    document.querySelectorAll('[id^="approve-row-"], [id^="reject-row-"]').forEach(function(row) {
+        row.style.display = 'none';
+    });
+    document.getElementById('reject-row-' + claimId).style.display = 'table-row';
+}
+
+function hideForm(rowId) {
+    document.getElementById(rowId).style.display = 'none';
+}
+</script>
+{% endblock %}

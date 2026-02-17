@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Client Database - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Client Database</h1>
+    <a href="/clients/new" class="btn btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        New Client
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="card">
+    <form method="GET" action="/clients" class="filters">
+        <div class="filter-group">
+            <label>Search</label>
+            <input type="text" name="filter_search" value="{{ filter_search or '' }}" placeholder="Client name, code..." class="form-control">
+        </div>
+
+        <div class="filter-group">
+            <label>Client Type</label>
+            <select name="filter_type" class="form-control">
+                <option value="">All Types</option>
+                {% for ctype in client_types %}
+                <option value="{{ ctype }}" {% if filter_type == ctype %}selected{% endif %}>{{ ctype }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>City</label>
+            <input type="text" name="filter_city" value="{{ filter_city or '' }}" placeholder="Filter by city" class="form-control">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="/clients" class="btn btn-secondary">Reset</a>
+    </form>
+</div>
+
+<!-- Clients Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Clients ({{ clients|length }})</h2>
+    </div>
+
+    {% if clients %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Client Code</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>City</th>
+                    <th>Contact Person</th>
+                    <th class="text-right">Assignments</th>
+                    <th class="text-right">Total Value</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in clients %}
+                <tr>
+                    <td>
+                        <a href="/clients/{{ client.id }}">{{ client.client_code }}</a>
+                    </td>
+                    <td><strong>{{ client.client_name }}</strong></td>
+                    <td>
+                        <span class="badge
+                            {% if client.client_type == 'Government' %}badge-info
+                            {% elif client.client_type == 'PSU' %}badge-warning
+                            {% elif client.client_type == 'Private' %}badge-success
+                            {% else %}badge-secondary{% endif %}">
+                            {{ client.client_type or '-' }}
+                        </span>
+                    </td>
+                    <td>{{ client.city or '-' }}</td>
+                    <td>{{ client.contact_person or '-' }}</td>
+                    <td class="text-right">{{ client.assignment_count or 0 }}</td>
+                    <td class="text-right">{{ "%.2f"|format(client.total_value or 0) }} L</td>
+                    <td>
+                        <div style="display: flex; gap: 6px;">
+                            <a href="/clients/{{ client.id }}" class="btn btn-sm btn-primary">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                View
+                            </a>
+                            <a href="/clients/{{ client.id }}/edit" class="btn btn-sm btn-secondary">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                                Edit
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No clients found matching your criteria.
+        <a href="/clients/new">Add a new client</a>
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

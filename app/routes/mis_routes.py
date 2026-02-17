@@ -10,6 +10,8 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
 from app.templates_config import templates
+from app.config import SHOW_RANKINGS, REVENUE_WEIGHTAGE_REAL, REVENUE_WEIGHTAGE_NOTIONAL
+from app.roles import get_user_role, ROLE_DG, ROLE_DDG_I, ROLE_DDG_II, ROLE_ADMIN
 
 router = APIRouter()
 
@@ -146,10 +148,10 @@ async def mis_dashboard(
         cursor.execute(notional_query)
         notional_by_office = {row['office_id']: row['notional_revenue'] for row in cursor.fetchall()}
 
-        # Add notional revenue and calculate achievement percentages
+        # Add notional revenue and calculate achievement percentages (weighted)
         for o in office_data:
             o['notional_revenue'] = notional_by_office.get(o['office_id'], 0)
-            o['total_contribution'] = (o['total_revenue'] or 0) + o['notional_revenue']
+            o['total_contribution'] = ((o['total_revenue'] or 0) * REVENUE_WEIGHTAGE_REAL) + (o['notional_revenue'] * REVENUE_WEIGHTAGE_NOTIONAL)
             target = o['target'] or 0
             o['prorata_target'] = round(target * fy_progress, 2)
             # Achievement is now based on total_contribution (Real + Notional)
@@ -157,11 +159,19 @@ async def mis_dashboard(
             o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
             o['surplus_deficit_pct'] = round((o['surplus_deficit'] / o['total_revenue'] * 100), 1) if o['total_revenue'] > 0 else 0
 
+        # Office rankings only visible to DDG/DG/ADMIN
+        user_role = get_user_role(user)
+        can_see_rankings = user_role in [ROLE_DG, ROLE_DDG_I, ROLE_DDG_II, ROLE_ADMIN]
+
         # Mark top 3 and bottom 3 offices by achievement %
-        sorted_by_achievement = sorted([o for o in office_data if o['achievement_pct'] > 0],
-                                       key=lambda x: x['achievement_pct'], reverse=True)
-        top_3_offices = set(o['office_id'] for o in sorted_by_achievement[:3])
-        bottom_3_offices = set(o['office_id'] for o in sorted_by_achievement[-3:] if len(sorted_by_achievement) > 3)
+        if can_see_rankings:
+            sorted_by_achievement = sorted([o for o in office_data if o['achievement_pct'] > 0],
+                                           key=lambda x: x['achievement_pct'], reverse=True)
+            top_3_offices = set(o['office_id'] for o in sorted_by_achievement[:3])
+            bottom_3_offices = set(o['office_id'] for o in sorted_by_achievement[-3:] if len(sorted_by_achievement) > 3)
+        else:
+            top_3_offices = set()
+            bottom_3_offices = set()
 
         for o in office_data:
             o['is_top'] = o['office_id'] in top_3_offices
@@ -246,21 +256,26 @@ async def mis_dashboard(
         cursor.execute(officer_notional_query)
         notional_by_officer = {row['officer_id']: row['notional_revenue'] for row in cursor.fetchall()}
 
-        # Calculate officer achievement percentages with notional revenue
+        # Calculate officer achievement percentages with notional revenue (weighted)
         for o in officer_data:
             target = o['annual_target'] or 60.0
             o['prorata_target'] = round(target * fy_progress, 2)
             o['real_revenue'] = o['total_share_amount'] or 0
             o['notional_revenue'] = notional_by_officer.get(o['officer_id'], 0)
-            o['total_contribution'] = o['real_revenue'] + o['notional_revenue']
+            o['total_contribution'] = (o['real_revenue'] * REVENUE_WEIGHTAGE_REAL) + (o['notional_revenue'] * REVENUE_WEIGHTAGE_NOTIONAL)
             o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
             o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
 
         # Mark top 10 and bottom 10 officers BY ACHIEVEMENT % (not by value)
-        sorted_officers_by_achievement = sorted([o for o in officer_data if o['achievement_pct'] > 0],
-                                                key=lambda x: x['achievement_pct'], reverse=True)
-        top_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[:10])
-        bottom_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[-10:] if len(sorted_officers_by_achievement) > 10)
+        # (can_see_rankings already computed above for office rankings)
+        if can_see_rankings:
+            sorted_officers_by_achievement = sorted([o for o in officer_data if o['achievement_pct'] > 0],
+                                                    key=lambda x: x['achievement_pct'], reverse=True)
+            top_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[:10])
+            bottom_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[-10:] if len(sorted_officers_by_achievement) > 10)
+        else:
+            top_10_officers = set()
+            bottom_10_officers = set()
 
         for o in officer_data:
             o['is_top'] = o['officer_id'] in top_10_officers
@@ -356,7 +371,8 @@ async def mis_dashboard(
             "totals": totals,
             "fy_progress": fy_progress,
             "sort_by": sort_by,
-            "sort_order": sort_order
+            "sort_order": sort_order,
+            "can_see_rankings": can_see_rankings
         }
     )
 
@@ -414,11 +430,23 @@ async def office_detail(request: Request, office_id: str):
         """, (office_id,))
         officers = [dict(row) for row in cursor.fetchall()]
 
-        # Calculate achievement for each officer
+        # Get notional revenue for each officer in this office
+        cursor.execute(f"""
+            SELECT officer_id, COALESCE(SUM(notional_value), 0) as notional_revenue
+            FROM non_revenue_suggestions
+            WHERE status = 'COMPLETED' AND officer_id IS NOT NULL
+            GROUP BY officer_id
+        """)
+        notional_by_officer = {row['officer_id']: row['notional_revenue'] for row in cursor.fetchall()}
+
+        # Calculate achievement for each officer (weighted)
         for o in officers:
             target = o.get('annual_target', 60.0) or 60.0
             o['prorata_target'] = round(target * fy_progress, 2)
-            o['achievement_pct'] = round((o['total_share'] / target * 100), 1) if target > 0 else 0
+            o['real_revenue'] = o['total_share'] or 0
+            o['notional_revenue'] = notional_by_officer.get(o['officer_id'], 0)
+            o['total_contribution'] = (o['real_revenue'] * REVENUE_WEIGHTAGE_REAL) + (o['notional_revenue'] * REVENUE_WEIGHTAGE_NOTIONAL)
+            o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
 
         # Sort officers by achievement % (not by total value)
         officers = sorted(officers, key=lambda x: x['achievement_pct'] or 0, reverse=True)
@@ -436,22 +464,33 @@ async def office_detail(request: Request, office_id: str):
         """, (office_id,))
         status_breakdown = [dict(row) for row in cursor.fetchall()]
 
-        # Summary stats with target comparison
+        # Summary stats with target comparison (weighted revenue)
         target = office.get('fy_target') or office.get('annual_revenue_target') or 0
         total_revenue = sum(a['total_revenue'] or 0 for a in assignments)
         total_expenditure = sum(a['total_expenditure'] or 0 for a in assignments)
+        # Get office notional revenue
+        cursor.execute(f"""
+            SELECT COALESCE(SUM(notional_value), 0) as notional_revenue
+            FROM non_revenue_suggestions
+            WHERE status = 'COMPLETED' AND office_id = {ph}
+        """, (office_id,))
+        office_notional_row = cursor.fetchone()
+        office_notional_revenue = office_notional_row['notional_revenue'] if office_notional_row else 0
+        total_contribution = (total_revenue * REVENUE_WEIGHTAGE_REAL) + (office_notional_revenue * REVENUE_WEIGHTAGE_NOTIONAL)
         prorata_target = round(target * fy_progress, 2)
         avg_progress = sum(a['physical_progress_percent'] or 0 for a in assignments) / len(assignments) if assignments else 0
 
         summary = {
             'total_assignments': len(assignments),
             'total_revenue': total_revenue,
+            'notional_revenue': office_notional_revenue,
+            'total_contribution': total_contribution,
             'total_expenditure': total_expenditure,
             'surplus_deficit': total_revenue - total_expenditure,
             'officer_count': office.get('officer_count', len(officers)),
             'annual_target': target,
             'prorata_target': prorata_target,
-            'achievement_pct': round((total_revenue / prorata_target * 100), 1) if prorata_target > 0 else 0,
+            'achievement_pct': round((total_contribution / prorata_target * 100), 1) if prorata_target > 0 else 0,
             'avg_progress': round(avg_progress, 1)
         }
 
@@ -511,18 +550,31 @@ async def officer_detail(request: Request, officer_id: str):
         """, (officer_id,))
         shares = [dict(row) for row in cursor.fetchall()]
 
-        # Summary stats with target comparison
+        # Get notional revenue for this officer
+        cursor.execute(f"""
+            SELECT COALESCE(SUM(notional_value), 0) as notional_revenue
+            FROM non_revenue_suggestions
+            WHERE status = 'COMPLETED' AND officer_id = {ph}
+        """, (officer_id,))
+        notional_row = cursor.fetchone()
+        notional_revenue = notional_row['notional_revenue'] if notional_row else 0
+
+        # Summary stats with target comparison (weighted revenue)
         target = officer.get('annual_target', 60.0) or 60.0
         total_share = sum(s['share_amount'] or 0 for s in shares)
+        total_contribution = (total_share * REVENUE_WEIGHTAGE_REAL) + (notional_revenue * REVENUE_WEIGHTAGE_NOTIONAL)
 
         summary = {
             'total_assignments': len(shares),
             'total_share_amount': total_share,
+            'real_revenue': total_share,
+            'notional_revenue': notional_revenue,
+            'total_contribution': total_contribution,
             'avg_share_percent': sum(s['share_percent'] or 0 for s in shares) / len(shares) if shares else 0,
             'annual_target': target,
             'prorata_target': round(target * fy_progress, 2),
-            'achievement_pct': round((total_share / target * 100), 1) if target > 0 else 0,
-            'prorata_achievement_pct': round((total_share / (target * fy_progress) * 100), 1) if target * fy_progress > 0 else 0
+            'achievement_pct': round((total_contribution / target * 100), 1) if target > 0 else 0,
+            'prorata_achievement_pct': round((total_contribution / (target * fy_progress) * 100), 1) if target * fy_progress > 0 else 0
         }
 
     return templates.TemplateResponse(
@@ -613,10 +665,15 @@ async def assignments_list(
     filter_office: Optional[str] = Query(None),
     filter_domain: Optional[str] = Query(None),
     filter_status: Optional[str] = Query(None),
+    filter_type: Optional[str] = Query(None),
+    value_min: Optional[float] = Query(None),
+    value_max: Optional[float] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     sort_by: Optional[str] = Query("revenue"),
     sort_order: Optional[str] = Query("desc")
 ):
-    """List all assignments with sorting by revenue and timeline progress."""
+    """Enhanced assignment list MIS with additional filters, columns, and summary totals."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
@@ -641,6 +698,26 @@ async def assignments_list(
             conditions += f" AND a.status = {ph}"
             params.append(filter_status)
 
+        if filter_type:
+            conditions += f" AND a.type = {ph}"
+            params.append(filter_type)
+
+        if value_min is not None:
+            conditions += f" AND COALESCE(a.total_value, 0) >= {ph}"
+            params.append(value_min)
+
+        if value_max is not None:
+            conditions += f" AND COALESCE(a.total_value, 0) <= {ph}"
+            params.append(value_max)
+
+        if date_from:
+            conditions += f" AND a.created_at >= {ph}"
+            params.append(date_from)
+
+        if date_to:
+            conditions += f" AND a.created_at <= {ph}"
+            params.append(date_to)
+
         # Determine sort column
         sort_column = "a.total_revenue"
         if sort_by == "timeline":
@@ -649,6 +726,10 @@ async def assignments_list(
             sort_column = "a.physical_progress_percent"
         elif sort_by == "value":
             sort_column = "a.total_value"
+        elif sort_by == "expenditure":
+            sort_column = "a.total_expenditure"
+        elif sort_by == "received":
+            sort_column = "a.amount_received"
 
         order = "DESC" if sort_order == "desc" else "ASC"
 
@@ -656,11 +737,14 @@ async def assignments_list(
             SELECT
                 a.*,
                 o.office_name,
+                tl.name as team_leader_name,
                 (SELECT COUNT(*) FROM milestones WHERE assignment_id = a.id) as milestone_count,
                 (SELECT COUNT(*) FROM milestones WHERE assignment_id = a.id AND payment_received = 1) as paid_milestones,
-                (SELECT COUNT(*) FROM milestones WHERE assignment_id = a.id AND invoice_raised = 1) as invoiced_milestones
+                (SELECT COUNT(*) FROM milestones WHERE assignment_id = a.id AND invoice_raised = 1) as invoiced_milestones,
+                (SELECT COUNT(*) FROM assignment_team WHERE assignment_id = a.id AND is_active = 1) as team_size
             FROM assignments a
             LEFT JOIN offices o ON a.office_id = o.office_id
+            LEFT JOIN officers tl ON a.team_leader_officer_id = tl.officer_id
             {conditions}
             ORDER BY {sort_column} {order}
         """
@@ -669,14 +753,33 @@ async def assignments_list(
         assignments = [dict(row) for row in cursor.fetchall()]
 
         # Get filter options
-        cursor.execute("SELECT office_id FROM offices ORDER BY office_id")
-        offices = [row['office_id'] for row in cursor.fetchall()]
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        offices = [dict(row) for row in cursor.fetchall()]
 
         cursor.execute("SELECT DISTINCT domain FROM assignments WHERE domain IS NOT NULL ORDER BY domain")
         domains = [row['domain'] for row in cursor.fetchall()]
 
         cursor.execute("SELECT DISTINCT status FROM assignments WHERE status IS NOT NULL ORDER BY status")
         statuses = [row['status'] for row in cursor.fetchall()]
+
+        cursor.execute("SELECT DISTINCT type FROM assignments WHERE type IS NOT NULL ORDER BY type")
+        types = [row['type'] for row in cursor.fetchall()]
+
+        # Calculate summary totals
+        summary = {
+            'total_count': len(assignments),
+            'total_value': sum(a.get('total_value') or 0 for a in assignments),
+            'total_revenue': sum(a.get('total_revenue') or 0 for a in assignments),
+            'total_invoiced': sum(a.get('invoice_amount') or 0 for a in assignments),
+            'total_received': sum(a.get('amount_received') or 0 for a in assignments),
+            'total_expenditure': sum(a.get('total_expenditure') or 0 for a in assignments),
+            'avg_physical_progress': round(
+                sum(a.get('physical_progress_percent') or 0 for a in assignments) / len(assignments), 1
+            ) if assignments else 0,
+            'avg_timeline_progress': round(
+                sum(a.get('timeline_progress_percent') or 0 for a in assignments) / len(assignments), 1
+            ) if assignments else 0
+        }
 
     return templates.TemplateResponse(
         "assignments_list.html",
@@ -687,9 +790,16 @@ async def assignments_list(
             "offices": offices,
             "domains": domains,
             "statuses": statuses,
+            "types": types,
+            "summary": summary,
             "filter_office": filter_office,
             "filter_domain": filter_domain,
             "filter_status": filter_status,
+            "filter_type": filter_type,
+            "value_min": value_min,
+            "value_max": value_max,
+            "date_from": date_from,
+            "date_to": date_to,
             "sort_by": sort_by,
             "sort_order": sort_order
         }
@@ -964,11 +1074,11 @@ async def officers_direct(
         """, params)
         officers = [dict(row) for row in cursor.fetchall()]
 
-        # Calculate achievement percentages
+        # Calculate achievement percentages (weighted)
         for o in officers:
             target = o['annual_target'] or 60.0
             o['prorata_target'] = round(target * fy_progress, 2)
-            o['total_contribution'] = (o['real_revenue'] or 0) + (o['notional_revenue'] or 0)
+            o['total_contribution'] = ((o['real_revenue'] or 0) * REVENUE_WEIGHTAGE_REAL) + ((o['notional_revenue'] or 0) * REVENUE_WEIGHTAGE_NOTIONAL)
             o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
             o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
 
@@ -980,10 +1090,18 @@ async def officers_direct(
         else:  # achievement (default)
             officers = sorted(officers, key=lambda x: x['achievement_pct'] or 0, reverse=(sort_order == "desc"))
 
+        # Rankings only visible to DDG/DG/ADMIN
+        user_role = get_user_role(user)
+        can_see_rankings = user_role in [ROLE_DG, ROLE_DDG_I, ROLE_DDG_II, ROLE_ADMIN]
+
         # Mark top and bottom performers
-        active_performers = [o for o in officers if o['achievement_pct'] > 0]
-        top_10 = set(o['officer_id'] for o in active_performers[:10])
-        bottom_10 = set(o['officer_id'] for o in active_performers[-10:]) if len(active_performers) > 10 else set()
+        if can_see_rankings:
+            active_performers = [o for o in officers if o['achievement_pct'] > 0]
+            top_10 = set(o['officer_id'] for o in active_performers[:10])
+            bottom_10 = set(o['officer_id'] for o in active_performers[-10:]) if len(active_performers) > 10 else set()
+        else:
+            top_10 = set()
+            bottom_10 = set()
 
         for o in officers:
             o['is_top'] = o['officer_id'] in top_10
@@ -1016,6 +1134,7 @@ async def officers_direct(
             "sort_by": sort_by,
             "sort_order": sort_order,
             "fy_progress": fy_progress,
+            "can_see_rankings": can_see_rankings,
             "breadcrumb": [
                 {"label": "MIS Dashboard", "url": "/mis"},
                 {"label": "All Officers", "url": None}
