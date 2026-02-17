@@ -6,7 +6,7 @@ Revenue recognized on case basis, expenditure on accrual basis.
 from datetime import date, datetime
 
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from app.database import get_db, USE_POSTGRES, get_current_fy
 from app.dependencies import get_current_user
@@ -41,8 +41,6 @@ async def delay_dashboard(request: Request, office: str = None, domain: str = No
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
-
-    from fastapi.responses import RedirectResponse
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -194,7 +192,6 @@ async def physical_progress(request: Request, view: str = "office", office: str 
     """Physical progress report by office/domain/officer/type."""
     user = get_current_user(request)
     if not user:
-        from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/login", status_code=302)
 
     with get_db() as conn:
@@ -317,7 +314,6 @@ async def financial_progress(request: Request, view: str = "office",
     """Financial progress report. Revenue on case basis, expenditure on accrual basis."""
     user = get_current_user(request)
     if not user:
-        from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/login", status_code=302)
 
     if not fy:

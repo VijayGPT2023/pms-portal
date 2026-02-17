@@ -28,6 +28,12 @@ class DictRow:
     def __iter__(self):
         return iter(self._data.values())
 
+    def get(self, key, default=None):
+        try:
+            return self._data[key]
+        except (KeyError, IndexError):
+            return default
+
     def keys(self):
         return self._keys
 

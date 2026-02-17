@@ -120,7 +120,7 @@
                             <td>{{ activity.entity_type | capitalize }}</td>
                             <td>
                                 {% if activity.entity_type == 'assignment' and activity.entity_id %}
-                                <a href="/assignment/{{ activity.entity_id }}">#{{ activity.entity_id }}</a>
+                                <a href="/assignment/view/{{ activity.entity_id }}">#{{ activity.entity_id }}</a>
                                 {% else %}
                                 {{ activity.entity_id or '-' }}
                                 {% endif %}
