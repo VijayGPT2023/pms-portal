@@ -14,6 +14,7 @@ from app.routes import (
     mis_routes, data_routes, admin_routes, approval_routes, finance_routes,
     non_revenue_routes, profile_routes, change_request_routes,
     client_routes, utilization_routes, report_routes, proposal_routes,
+    training_routes,
 )
 
 # Create FastAPI app
@@ -61,6 +62,7 @@ app.include_router(client_routes.router, prefix="/clients", tags=["Client Databa
 app.include_router(utilization_routes.router, prefix="/utilization", tags=["Utilization Claims"])
 app.include_router(report_routes.router, prefix="/reports", tags=["Reports & Progress"])
 app.include_router(proposal_routes.router, prefix="/proposals", tags=["Proposals & Documents"])
+app.include_router(training_routes.router, prefix="/training", tags=["Training"])
 
 
 # Error handlers

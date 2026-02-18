@@ -1159,10 +1159,84 @@ def init_database():
                 pass
 
 
-        # NOTE: Removed orphan tables (training_programmes, trainer_allocations,
-        # training_participants, training_revenue_ledger, training_checklist,
-        # cost_estimate_versions, cost_estimate_version_details, milestone_plan_versions)
-        # Trainings are now tracked in the assignments table with type='TRAINING'
+        # Training tables (used by training_routes.py and approval_routes.py)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_programmes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                programme_number TEXT UNIQUE,
+                title TEXT,
+                topic_domain TEXT,
+                description TEXT,
+                office_id TEXT,
+                mode TEXT,
+                location TEXT,
+                venue_details TEXT,
+                training_start_date TEXT,
+                training_end_date TEXT,
+                duration_days REAL,
+                budgeted_participants INTEGER,
+                fee_per_participant REAL DEFAULT 0,
+                budgeted_revenue REAL DEFAULT 0,
+                actual_revenue REAL DEFAULT 0,
+                application_start_date TEXT,
+                application_end_date TEXT,
+                remarks TEXT,
+                coordinator_id TEXT,
+                stage TEXT DEFAULT 'DRAFT',
+                approval_status TEXT DEFAULT 'PENDING',
+                budget_approval_status TEXT DEFAULT 'PENDING',
+                budget_submitted_by TEXT,
+                budget_submitted_at TEXT,
+                trainer_approval_status TEXT DEFAULT 'PENDING',
+                trainer_submitted_by TEXT,
+                trainer_submitted_at TEXT,
+                revenue_approval_status TEXT DEFAULT 'PENDING',
+                revenue_submitted_by TEXT,
+                revenue_submitted_at TEXT,
+                created_by TEXT,
+                created_at TEXT,
+                updated_at TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trainer_allocations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                programme_id INTEGER NOT NULL,
+                officer_id TEXT NOT NULL,
+                trainer_role TEXT DEFAULT 'TRAINER',
+                sessions_count INTEGER DEFAULT 0,
+                revenue_share_percent REAL DEFAULT 0,
+                UNIQUE(programme_id, officer_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_participants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                programme_id INTEGER NOT NULL,
+                participant_name TEXT,
+                organization TEXT,
+                designation TEXT,
+                email TEXT,
+                phone TEXT,
+                registration_date TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_checklist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                programme_id INTEGER NOT NULL,
+                step_order INTEGER NOT NULL,
+                step_name TEXT NOT NULL,
+                is_completed INTEGER DEFAULT 0,
+                completed_by TEXT,
+                completed_date TEXT,
+                remarks TEXT,
+                UNIQUE(programme_id, step_order)
+            )
+        """)
 
         # ============================================================
         # Indexes for new tables
@@ -1716,6 +1790,71 @@ def generate_client_code(client_name: str, client_type: str) -> str:
         next_num = cursor.fetchone()['next_num']
     return f"CLT/{prefix}/{next_num:04d}"
 
+
+# ============================================================
+# Training Checklist Functions
+# ============================================================
+
+DEFAULT_CHECKLIST_STEPS = [
+    (1, "Venue Confirmation"),
+    (2, "Faculty / Resource Persons Confirmation"),
+    (3, "Participant List Finalization"),
+    (4, "Training Material Preparation"),
+    (5, "Budget Estimation & Approval"),
+    (6, "Logistics & Travel Arrangements"),
+    (7, "Pre-Programme Communication"),
+    (8, "Post-Programme Report & Feedback"),
+]
+
+
+def initialize_training_checklist(programme_id: int):
+    """Create default checklist steps for a training programme."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for step_order, step_name in DEFAULT_CHECKLIST_STEPS:
+            try:
+                cursor.execute("""
+                    INSERT INTO training_checklist (programme_id, step_order, step_name)
+                    VALUES (?, ?, ?)
+                """, (programme_id, step_order, step_name))
+            except Exception:
+                pass  # Already exists (UNIQUE constraint)
+        conn.commit()
+
+
+def get_training_checklist(programme_id: int):
+    """Get all checklist steps for a training programme, with completer names."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT tc.*, o.name as completed_by_name
+            FROM training_checklist tc
+            LEFT JOIN officers o ON tc.completed_by = o.officer_id
+            WHERE tc.programme_id = ?
+            ORDER BY tc.step_order
+        """, (programme_id,))
+        return cursor.fetchall()
+
+
+def update_checklist_step(programme_id: int, step_order: int, is_completed: bool,
+                          completed_by: str = None, remarks: str = ""):
+    """Update a checklist step's completion status."""
+    from datetime import date
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if is_completed:
+            cursor.execute("""
+                UPDATE training_checklist
+                SET is_completed = 1, completed_by = ?, completed_date = ?, remarks = ?
+                WHERE programme_id = ? AND step_order = ?
+            """, (completed_by, date.today().isoformat(), remarks, programme_id, step_order))
+        else:
+            cursor.execute("""
+                UPDATE training_checklist
+                SET is_completed = 0, completed_by = NULL, completed_date = NULL, remarks = ?
+                WHERE programme_id = ? AND step_order = ?
+            """, (remarks, programme_id, step_order))
+        conn.commit()
 
 
 # ============================================================
