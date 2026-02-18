@@ -1128,6 +1128,10 @@ def init_database():
             "num_committee_members INTEGER DEFAULT 0",
             "event_duration_days REAL DEFAULT 0",
             "linked_proposal_id INTEGER",
+            "target_participants INTEGER DEFAULT 0",
+            "tentative_participants INTEGER DEFAULT 0",
+            "actual_participants INTEGER DEFAULT 0",
+            "fee_per_participant REAL DEFAULT 0",
         ]:
             try:
                 cursor.execute(f"ALTER TABLE assignments ADD COLUMN {col_def}")
