@@ -1148,25 +1148,485 @@ def build_breadcrumbs(cursor, sub_view, sub_id, active_tab, fy, active_role, sco
     return crumbs
 
 
+# ─────────────────────────────────────────────
+# NEW 4-TAB DASHBOARD: Query Functions
+# ─────────────────────────────────────────────
+
+VALID_TABS = ('default_mis', 'physical_progress', 'financial_progress', 'business_mis')
+TAB_MIGRATION = {
+    'assignments': 'default_mis',
+    'training': 'default_mis',
+    'total_real_revenue': 'default_mis',
+    'total_revenue': 'default_mis',
+    'development': 'default_mis',
+}
+
+
+def _date_diff_sql(column):
+    """SQL expression for days since a date column (dual-DB)."""
+    if USE_POSTGRES:
+        return f"(CURRENT_DATE - {column}::date)"
+    return f"CAST(julianday('now') - julianday({column}) AS INTEGER)"
+
+
+def _traffic_light(days):
+    """Return traffic light color based on delay days."""
+    if days is None or days < 30:
+        return 'green'
+    elif days < 60:
+        return 'amber'
+    return 'red'
+
+
+def get_default_mis_data(cursor, role_where, role_params, view_type, user, fy, role_offices, role_groups, active_role, scope_value):
+    """Tab A: Office-proportionate Target-Revenue-Expenditure-Surplus.
+    Returns summary dict + office_rows list."""
+    fy_start, fy_end = get_fy_date_range(fy)
+
+    # Determine office list based on role
+    if active_role in ('DG', 'ADMIN'):
+        cursor.execute("SELECT office_id FROM offices ORDER BY office_id")
+        office_ids = [row['office_id'] for row in cursor.fetchall()]
+    elif active_role in ('DDG-I', 'DDG-II'):
+        office_ids = role_offices + role_groups
+    elif active_role in ('GROUP_HEAD', 'RD_HEAD'):
+        office_ids = [scope_value] if scope_value else []
+    else:
+        office_ids = [user.get('office_id', '')] if user.get('office_id') else []
+
+    if not office_ids:
+        return {'summary': {'fy_target': 0, 'revenue': 0, 'expenditure': 0, 'surplus_deficit': 0}, 'office_rows': []}
+
+    n = len(office_ids)
+    ph_list = ','.join([PH] * n)
+
+    query = f"""
+        WITH target_by_office AS (
+            SELECT fyt.office_id,
+                   COALESCE(fyt.annual_target, 0) as annual_target
+            FROM financial_year_targets fyt
+            WHERE fyt.office_id IN ({ph_list}) AND fyt.financial_year = {PH}
+        ),
+        billed_by_office AS (
+            SELECT a.office_id,
+                   COALESCE(SUM(ir.invoice_amount), 0) as billed
+            FROM invoice_requests ir
+            JOIN assignments a ON ir.assignment_id = a.id
+            WHERE a.office_id IN ({ph_list}) AND ir.fy_period = {PH}
+            GROUP BY a.office_id
+        ),
+        received_by_office AS (
+            SELECT a.office_id,
+                   COALESCE(SUM(pr.amount_received), 0) as received
+            FROM payment_receipts pr
+            JOIN invoice_requests ir ON pr.invoice_request_id = ir.id
+            JOIN assignments a ON ir.assignment_id = a.id
+            WHERE a.office_id IN ({ph_list}) AND pr.fy_period = {PH}
+            GROUP BY a.office_id
+        ),
+        expenses_by_office AS (
+            SELECT a.office_id,
+                   COALESCE(SUM(ee.amount), 0) as expenses
+            FROM expenditure_entries ee
+            JOIN assignments a ON ee.assignment_id = a.id
+            WHERE a.office_id IN ({ph_list}) AND ee.fy_period = {PH}
+            GROUP BY a.office_id
+        )
+        SELECT
+            o.office_id, o.office_name,
+            COALESCE(tgt.annual_target, 0) as fy_target,
+            COALESCE(bil.billed, 0) as revenue,
+            COALESCE(rec.received, 0) as payment_received,
+            COALESCE(exp.expenses, 0) as expenditure,
+            COALESCE(rec.received, 0) - COALESCE(exp.expenses, 0) as surplus_deficit
+        FROM offices o
+        LEFT JOIN target_by_office tgt ON o.office_id = tgt.office_id
+        LEFT JOIN billed_by_office bil ON o.office_id = bil.office_id
+        LEFT JOIN received_by_office rec ON o.office_id = rec.office_id
+        LEFT JOIN expenses_by_office exp ON o.office_id = exp.office_id
+        WHERE o.office_id IN ({ph_list})
+        ORDER BY COALESCE(tgt.annual_target, 0) DESC
+    """
+    params = (
+        list(office_ids) + [fy] +       # target CTE
+        list(office_ids) + [fy] +        # billed CTE
+        list(office_ids) + [fy] +        # received CTE
+        list(office_ids) + [fy] +        # expenses CTE
+        list(office_ids)                 # final WHERE
+    )
+
+    try:
+        cursor.execute(query, params)
+        office_rows = [dict(row) for row in cursor.fetchall()]
+    except Exception:
+        office_rows = []
+
+    # Compute achievement %
+    fy_progress = calculate_fy_progress()
+    for row in office_rows:
+        target = row.get('fy_target', 0) or 0
+        row['prorata_target'] = round(target * fy_progress, 2)
+        row['achievement_pct'] = round((row['revenue'] / target * 100), 1) if target > 0 else 0
+
+    # Summary totals
+    summary = {
+        'fy_target': sum(r.get('fy_target', 0) or 0 for r in office_rows),
+        'revenue': sum(r.get('revenue', 0) or 0 for r in office_rows),
+        'expenditure': sum(r.get('expenditure', 0) or 0 for r in office_rows),
+        'surplus_deficit': sum(r.get('surplus_deficit', 0) or 0 for r in office_rows),
+    }
+
+    return {'summary': summary, 'office_rows': office_rows}
+
+
+def _resolve_role_where(role_where, role_params, view_type, user):
+    """Resolve the special 'INDIVIDUAL' marker into a real WHERE clause for milestones/invoices.
+    For individual officers, joins via revenue_shares."""
+    if role_where == "INDIVIDUAL":
+        officer_id = user.get('officer_id', '')
+        return f"WHERE a.id IN (SELECT rs.assignment_id FROM revenue_shares rs WHERE rs.officer_id = {PH})", [officer_id]
+    return role_where, list(role_params)
+
+
+def get_physical_progress_data(cursor, role_where, role_params, view_type, user, fy, filter_office=None):
+    """Tab B: Milestone delay analysis with traffic-light indicators.
+    Returns summary dict + milestone_rows + delay_distribution."""
+    fy_start, fy_end = get_fy_date_range(fy)
+
+    # Resolve INDIVIDUAL marker to real WHERE clause
+    base_where, base_params = _resolve_role_where(role_where, role_params, view_type, user)
+
+    office_filter = ""
+    office_params = []
+    if filter_office:
+        office_filter = f" AND a.office_id = {PH}"
+        office_params = [filter_office]
+
+    # Total milestones in scope (with target_date in FY)
+    cursor.execute(f"""
+        SELECT
+            COUNT(*) as total,
+            SUM(CASE WHEN m.status = 'Completed' AND (m.actual_completion_date <= m.target_date OR m.actual_completion_date IS NULL) THEN 1 ELSE 0 END) as on_time,
+            SUM(CASE WHEN m.target_date < DATE('now') AND m.status NOT IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END) as delayed,
+            SUM(CASE WHEN m.target_date >= DATE('now') AND m.status NOT IN ('Completed', 'Cancelled') THEN 1 ELSE 0 END) as upcoming
+        FROM milestones m
+        JOIN assignments a ON m.assignment_id = a.id
+        {base_where} AND m.status != 'Cancelled'
+        AND m.target_date BETWEEN {PH} AND {PH}
+        {office_filter}
+    """, base_params + [fy_start, fy_end] + office_params)
+    row = cursor.fetchone()
+    summary = {
+        'total': (row['total'] or 0) if row else 0,
+        'on_time': (row['on_time'] or 0) if row else 0,
+        'delayed': (row['delayed'] or 0) if row else 0,
+        'upcoming': (row['upcoming'] or 0) if row else 0,
+        'avg_delay': 0,
+    }
+
+    # Average delay days for delayed milestones
+    cursor.execute(f"""
+        SELECT AVG({_date_diff_sql('m.target_date')}) as avg_delay
+        FROM milestones m
+        JOIN assignments a ON m.assignment_id = a.id
+        {base_where}
+        AND m.target_date < DATE('now')
+        AND m.status NOT IN ('Completed', 'Cancelled')
+        AND m.target_date BETWEEN {PH} AND {PH}
+        {office_filter}
+    """, base_params + [fy_start, fy_end] + office_params)
+    avg_row = cursor.fetchone()
+    summary['avg_delay'] = round(avg_row['avg_delay'] or 0) if avg_row and avg_row['avg_delay'] else 0
+
+    # Delay distribution buckets
+    cursor.execute(f"""
+        SELECT
+            SUM(CASE WHEN {_date_diff_sql('m.target_date')} BETWEEN 1 AND 30 THEN 1 ELSE 0 END) as d_0_30,
+            SUM(CASE WHEN {_date_diff_sql('m.target_date')} BETWEEN 31 AND 60 THEN 1 ELSE 0 END) as d_30_60,
+            SUM(CASE WHEN {_date_diff_sql('m.target_date')} BETWEEN 61 AND 90 THEN 1 ELSE 0 END) as d_60_90,
+            SUM(CASE WHEN {_date_diff_sql('m.target_date')} > 90 THEN 1 ELSE 0 END) as d_90_plus
+        FROM milestones m
+        JOIN assignments a ON m.assignment_id = a.id
+        {base_where}
+        AND m.target_date < DATE('now')
+        AND m.status NOT IN ('Completed', 'Cancelled')
+        AND m.target_date BETWEEN {PH} AND {PH}
+        {office_filter}
+    """, base_params + [fy_start, fy_end] + office_params)
+    dist_row = cursor.fetchone()
+    delay_distribution = {
+        '0_30': (dist_row['d_0_30'] or 0) if dist_row else 0,
+        '30_60': (dist_row['d_30_60'] or 0) if dist_row else 0,
+        '60_90': (dist_row['d_60_90'] or 0) if dist_row else 0,
+        '90_plus': (dist_row['d_90_plus'] or 0) if dist_row else 0,
+    }
+
+    # Detailed milestone rows (delayed, limited to 100)
+    cursor.execute(f"""
+        SELECT m.id, m.milestone_no, m.title as milestone_title, m.target_date, m.status,
+               m.revenue_percent, a.assignment_no, a.title, a.office_id, a.id as assignment_id,
+               {_date_diff_sql('m.target_date')} as delay_days
+        FROM milestones m
+        JOIN assignments a ON m.assignment_id = a.id
+        {base_where}
+        AND m.target_date < DATE('now')
+        AND m.status NOT IN ('Completed', 'Cancelled')
+        AND m.target_date BETWEEN {PH} AND {PH}
+        {office_filter}
+        ORDER BY {_date_diff_sql('m.target_date')} DESC
+        LIMIT 100
+    """, base_params + [fy_start, fy_end] + office_params)
+    milestone_rows = []
+    for r in cursor.fetchall():
+        row_dict = dict(r)
+        row_dict['traffic_light'] = _traffic_light(row_dict.get('delay_days'))
+        milestone_rows.append(row_dict)
+
+    return {'summary': summary, 'milestone_rows': milestone_rows, 'delay_distribution': delay_distribution}
+
+
+def get_financial_progress_data(cursor, role_where, role_params, view_type, user, fy, filter_office=None):
+    """Tab C: Invoice and payment delay analysis with aging buckets."""
+    fy_start, fy_end = get_fy_date_range(fy)
+
+    # Resolve INDIVIDUAL marker to real WHERE clause
+    base_where, base_params = _resolve_role_where(role_where, role_params, view_type, user)
+
+    office_filter = ""
+    office_params = []
+    if filter_office:
+        office_filter = f" AND a.office_id = {PH}"
+        office_params = [filter_office]
+
+    # Invoice delays: milestones past target_date but invoice not raised
+    cursor.execute(f"""
+        SELECT m.id, m.milestone_no, m.title as milestone_title, m.target_date,
+               m.revenue_percent, a.assignment_no, a.title, a.office_id, a.id as assignment_id,
+               {_date_diff_sql('m.target_date')} as delay_days
+        FROM milestones m
+        JOIN assignments a ON m.assignment_id = a.id
+        {base_where}
+        AND m.target_date < DATE('now')
+        AND m.invoice_raised = 0
+        AND m.status != 'Cancelled'
+        AND m.target_date BETWEEN {PH} AND {PH}
+        {office_filter}
+        ORDER BY {_date_diff_sql('m.target_date')} DESC
+        LIMIT 100
+    """, base_params + [fy_start, fy_end] + office_params)
+    invoice_delays = [dict(r) for r in cursor.fetchall()]
+
+    # Payment delays: invoices approved but no payment received
+    cursor.execute(f"""
+        SELECT ir.id, ir.request_number, ir.invoice_amount, ir.status,
+               ir.approved_at, a.assignment_no, a.title, a.office_id, a.id as assignment_id,
+               {_date_diff_sql('ir.approved_at')} as delay_days
+        FROM invoice_requests ir
+        JOIN assignments a ON ir.assignment_id = a.id
+        LEFT JOIN payment_receipts pr ON ir.id = pr.invoice_request_id
+        {base_where}
+        AND ir.status IN ('APPROVED', 'INVOICED')
+        AND pr.id IS NULL
+        AND ir.approved_at IS NOT NULL
+        AND ir.fy_period = {PH}
+        {office_filter}
+        ORDER BY {_date_diff_sql('ir.approved_at')} DESC
+        LIMIT 100
+    """, base_params + [fy] + office_params)
+    payment_delays = [dict(r) for r in cursor.fetchall()]
+
+    # Summary stats
+    avg_inv_delay = round(sum(r.get('delay_days', 0) or 0 for r in invoice_delays) / len(invoice_delays), 0) if invoice_delays else 0
+    avg_pay_delay = round(sum(r.get('delay_days', 0) or 0 for r in payment_delays) / len(payment_delays), 0) if payment_delays else 0
+    outstanding_inv_amount = sum(r.get('revenue_percent', 0) or 0 for r in invoice_delays)
+    outstanding_pay_amount = sum(r.get('invoice_amount', 0) or 0 for r in payment_delays)
+
+    summary = {
+        'avg_invoice_delay': int(avg_inv_delay),
+        'avg_payment_delay': int(avg_pay_delay),
+        'outstanding_invoices_count': len(invoice_delays),
+        'outstanding_invoices_amount': outstanding_inv_amount,
+        'outstanding_payments_count': len(payment_delays),
+        'outstanding_payments_amount': outstanding_pay_amount,
+    }
+
+    # Invoice aging buckets
+    invoice_aging = {'0_30': 0, '30_60': 0, '60_90': 0, '90_plus': 0}
+    for r in invoice_delays:
+        d = r.get('delay_days', 0) or 0
+        if d <= 30:
+            invoice_aging['0_30'] += 1
+        elif d <= 60:
+            invoice_aging['30_60'] += 1
+        elif d <= 90:
+            invoice_aging['60_90'] += 1
+        else:
+            invoice_aging['90_plus'] += 1
+
+    # Payment aging buckets
+    payment_aging = {'0_30': 0, '30_60': 0, '60_90': 0, '90_plus': 0}
+    for r in payment_delays:
+        d = r.get('delay_days', 0) or 0
+        if d <= 30:
+            payment_aging['0_30'] += 1
+        elif d <= 60:
+            payment_aging['30_60'] += 1
+        elif d <= 90:
+            payment_aging['60_90'] += 1
+        else:
+            payment_aging['90_plus'] += 1
+
+    return {
+        'summary': summary,
+        'invoice_delays': invoice_delays,
+        'payment_delays': payment_delays,
+        'invoice_aging': invoice_aging,
+        'payment_aging': payment_aging,
+    }
+
+
+def get_business_mis_data(cursor, role_where, role_params, view_type, user, fy,
+                          sub_section='proposals', filter_office=None, filter_status=None,
+                          filter_domain=None, sort_by=None, sort_order='desc'):
+    """Tab D: Business MIS -- Proposals pipeline + Work in Hand."""
+    fy_start, fy_end = get_fy_date_range(fy)
+    # Resolve INDIVIDUAL marker to real WHERE clause
+    base_where, role_params = _resolve_role_where(role_where, role_params, view_type, user)
+
+    extra_filters = ""
+    extra_params = []
+    if filter_office:
+        extra_filters += f" AND a.office_id = {PH}"
+        extra_params.append(filter_office)
+    if filter_domain:
+        extra_filters += f" AND a.domain = {PH}"
+        extra_params.append(filter_domain)
+
+    if sub_section == 'proposals':
+        # Proposals = assignments in early workflow stages (being pursued)
+        status_filter = ""
+        if filter_status:
+            status_filter = f" AND a.workflow_stage = {PH}"
+            extra_params_with_status = extra_params + [filter_status]
+        else:
+            extra_params_with_status = extra_params
+
+        # Pipeline by workflow_stage
+        cursor.execute(f"""
+            SELECT
+                COALESCE(a.workflow_stage, 'UNKNOWN') as stage,
+                COUNT(*) as cnt,
+                COALESCE(SUM(a.gross_value), 0) as total_value
+            FROM assignments a
+            {base_where}
+            {extra_filters}
+            {status_filter}
+            GROUP BY COALESCE(a.workflow_stage, 'UNKNOWN')
+            ORDER BY cnt DESC
+        """, list(role_params) + extra_params_with_status)
+        pipeline = {dict(r)['stage']: dict(r) for r in cursor.fetchall()}
+
+        # Total stats
+        total_proposals = sum(p.get('cnt', 0) for p in pipeline.values())
+        total_pipeline_value = sum(p.get('total_value', 0) for p in pipeline.values())
+        won_count = pipeline.get('ACTIVE', {}).get('cnt', 0) + pipeline.get('COMPLETED', {}).get('cnt', 0)
+        won_value = pipeline.get('ACTIVE', {}).get('total_value', 0) + pipeline.get('COMPLETED', {}).get('total_value', 0)
+        conversion_rate = round(won_count / total_proposals * 100, 1) if total_proposals > 0 else 0
+
+        summary = {
+            'pipeline_value': total_pipeline_value,
+            'active_proposals': total_proposals,
+            'won_value': won_value,
+            'conversion_rate': conversion_rate,
+        }
+
+        # Sortable columns
+        valid_sorts = {'assignment_no': 'a.assignment_no', 'title': 'a.title', 'gross_value': 'a.gross_value',
+                       'office_id': 'a.office_id', 'workflow_stage': 'a.workflow_stage'}
+        order_col = valid_sorts.get(sort_by, 'a.created_at')
+        order_dir = 'ASC' if sort_order == 'asc' else 'DESC'
+
+        cursor.execute(f"""
+            SELECT a.id, a.assignment_no, a.title, a.office_id, a.client,
+                   a.gross_value, a.workflow_stage, a.domain, a.status,
+                   a.team_leader_officer_id, a.created_at
+            FROM assignments a
+            {base_where}
+            {extra_filters}
+            {status_filter}
+            ORDER BY {order_col} {order_dir}
+            LIMIT 100
+        """, list(role_params) + extra_params_with_status)
+        rows = [dict(r) for r in cursor.fetchall()]
+
+        return {'sub_section': 'proposals', 'summary': summary, 'pipeline': pipeline, 'rows': rows}
+
+    else:
+        # Work in Hand = Active assignments
+        cursor.execute(f"""
+            SELECT a.id, a.assignment_no, a.title, a.office_id, a.client,
+                   a.gross_value, a.status, a.domain, a.physical_progress_percent,
+                   a.team_leader_officer_id, a.workflow_stage, a.target_date
+            FROM assignments a
+            {base_where}
+            AND a.status IN ('In Progress', 'Not Started', 'Ongoing')
+            {extra_filters}
+            ORDER BY a.gross_value DESC
+            LIMIT 100
+        """, list(role_params) + extra_params)
+        rows = [dict(r) for r in cursor.fetchall()]
+
+        # Summary
+        active_count = len(rows)
+        total_value = sum(r.get('gross_value', 0) or 0 for r in rows)
+
+        # Upcoming milestones (next 30 days)
+        cursor.execute(f"""
+            SELECT COUNT(*) as cnt
+            FROM milestones m
+            JOIN assignments a ON m.assignment_id = a.id
+            {base_where}
+            AND a.status IN ('In Progress', 'Not Started', 'Ongoing')
+            AND m.target_date BETWEEN DATE('now') AND DATE('now', '+30 days')
+            AND m.status NOT IN ('Completed', 'Cancelled')
+            {extra_filters}
+        """, list(role_params) + extra_params)
+        ms_row = cursor.fetchone()
+        upcoming_milestones = (ms_row['cnt'] or 0) if ms_row else 0
+
+        summary = {
+            'active_count': active_count,
+            'total_value': total_value,
+            'upcoming_milestones': upcoming_milestones,
+        }
+
+        return {'sub_section': 'work_in_hand', 'summary': summary, 'rows': rows}
+
+
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(
     request: Request,
-    active_tab: Optional[str] = Query("assignments"),
+    active_tab: Optional[str] = Query("default_mis"),
     fy: Optional[str] = Query(None),
     sub_view: Optional[str] = Query(None),
     sub_id: Optional[str] = Query(None),
     filter_office: Optional[str] = Query(None),
     filter_status: Optional[str] = Query(None),
+    filter_domain: Optional[str] = Query(None),
+    sub_section: Optional[str] = Query("proposals"),
+    sort_by: Optional[str] = Query(None),
+    sort_order: Optional[str] = Query("desc"),
     show_all: bool = Query(False)
 ):
-    """Display the main dashboard with role-based views, 3 tabs, and hierarchical sub-views."""
+    """Display the main dashboard with 4 MIS tabs and role-based views."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
-    if active_tab not in ('assignments', 'training', 'total_real_revenue', 'development', 'total_revenue'):
-        active_tab = 'assignments'
+    # Backward compatibility: old tab names map to default_mis
+    if active_tab not in VALID_TABS:
+        active_tab = TAB_MIGRATION.get(active_tab, 'default_mis')
 
     current_fy = fy or get_current_fy()
     fy_progress = calculate_fy_progress()
@@ -1206,85 +1666,55 @@ async def dashboard(
         if sub_view not in ('entities', 'team_leaders', 'officers', 'items'):
             sub_view = 'items'
 
-        # Tab counts (always at full role scope)
-        tab_counts = get_tab_counts(cursor, role_where, role_params, view_type, user)
-
-        # Summary cards: scoped if sub_id is set, else full role scope
-        if sub_id and sub_view != 'entities' and active_tab != 'development':
-            tab_summary = get_scoped_summary(cursor, sub_view, sub_id, active_tab, current_fy, user)
-            if not tab_summary:
-                tab_summary = get_tab_summary(cursor, active_tab, role_where, role_params, view_type, user, current_fy)
-        else:
-            tab_summary = get_tab_summary(cursor, active_tab, role_where, role_params, view_type, user, current_fy)
-
-        # Sub-view content
-        sub_rows = []
-        items = []
-
-        # Determine which type_filters to use for sub-view aggregation
-        if active_tab == 'assignments':
-            type_filters = ['ASSIGNMENT']
-        elif active_tab == 'training':
-            type_filters = ['TRAINING']
-        elif active_tab == 'total_real_revenue':
-            type_filters = ['ASSIGNMENT', 'TRAINING']
-        elif active_tab == 'total_revenue':
-            type_filters = ['ASSIGNMENT', 'TRAINING']  # dev handled separately
-        else:
-            type_filters = []
-
-        is_combined_tab = active_tab in ('total_real_revenue', 'total_revenue')
-
-        if sub_view == 'items' or (active_tab == 'development' and sub_view not in ('entities', 'team_leaders', 'officers')):
-            # Show item list for items sub_view, or development tab at default level
-            # For combined tabs at items level, show assignments tab items
-            item_tab = 'assignments' if is_combined_tab else active_tab
-            items = get_tab_items(cursor, item_tab, role_where, role_params, view_type, user,
-                                  sub_id if sub_view == 'items' else filter_office, filter_status)
-            # For items sub_view with sub_id, filter to that officer's items
-            if sub_view == 'items' and sub_id and item_tab != 'development':
-                items = get_tab_items(cursor, item_tab, "INDIVIDUAL", [sub_id], 'individual',
-                                      {'officer_id': sub_id}, None, filter_status)
-
-        elif sub_view == 'entities':
-            all_ids = role_offices + role_groups
-            if active_role in ('DG', 'ADMIN'):
-                cursor.execute("SELECT office_id FROM offices ORDER BY office_id")
-                all_ids = [row['office_id'] for row in cursor.fetchall()]
-            if is_combined_tab:
-                sub_rows = get_combined_entity_rows(cursor, all_ids, type_filters, current_fy)
-            else:
-                sub_rows = get_entity_rows(cursor, all_ids, type_filters[0], current_fy)
-
-        elif sub_view == 'team_leaders':
-            office_id = sub_id or scope_value
-            if office_id:
-                if is_combined_tab:
-                    sub_rows = get_combined_tl_rows(cursor, office_id, type_filters, current_fy)
-                else:
-                    sub_rows = get_team_leader_rows(cursor, office_id, type_filters[0], current_fy)
-
-        elif sub_view == 'officers':
-            tl_id = sub_id if sub_id else (user['officer_id'] if active_role == 'TEAM_LEADER' else None)
-            if tl_id:
-                if active_tab == 'development':
-                    sub_rows = get_development_officer_rows(cursor, tl_id, current_fy)
-                elif active_tab == 'total_revenue':
-                    sub_rows = get_combined_officer_rows(cursor, tl_id, type_filters, current_fy, include_dev=True)
-                elif is_combined_tab:
-                    sub_rows = get_combined_officer_rows(cursor, tl_id, type_filters, current_fy)
-                else:
-                    sub_rows = get_officer_rows(cursor, tl_id, type_filters[0], current_fy)
-
-        # Breadcrumbs
-        breadcrumbs = build_breadcrumbs(cursor, sub_view, sub_id, active_tab, current_fy, active_role, scope_value)
-
         # Available FYs
         financial_years = get_available_fys(cursor)
 
         # Statuses for filter
         cursor.execute("SELECT DISTINCT status FROM assignments WHERE status IS NOT NULL ORDER BY status")
         statuses = [row['status'] for row in cursor.fetchall()]
+
+        # Offices for filter dropdown
+        cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
+        offices_list = [dict(row) for row in cursor.fetchall()]
+
+        # Domains for filter dropdown
+        cursor.execute("SELECT DISTINCT domain FROM assignments WHERE domain IS NOT NULL AND domain != '' ORDER BY domain")
+        domains_list = [row['domain'] for row in cursor.fetchall()]
+
+        # ── Dispatch to tab-specific query functions ──
+        tab_data = {}
+        sub_rows = []
+        items = []
+        breadcrumbs = []
+
+        if active_tab == 'default_mis':
+            # Tab A: Default MIS with office drill-down
+            tab_data = get_default_mis_data(cursor, role_where, role_params, view_type, user, current_fy,
+                                            role_offices, role_groups, active_role, scope_value)
+
+            # Drill-down support: use existing entity/TL/officer hierarchy
+            if sub_view in ('team_leaders', 'officers', 'items') and sub_id:
+                type_filters = ['ASSIGNMENT', 'TRAINING']
+                if sub_view == 'team_leaders':
+                    sub_rows = get_combined_tl_rows(cursor, sub_id, type_filters, current_fy)
+                elif sub_view == 'officers':
+                    sub_rows = get_combined_officer_rows(cursor, sub_id, type_filters, current_fy, include_dev=True)
+                elif sub_view == 'items':
+                    items = get_tab_items(cursor, 'assignments', "INDIVIDUAL", [sub_id], 'individual',
+                                          {'officer_id': sub_id}, None, filter_status)
+
+            breadcrumbs = build_breadcrumbs(cursor, sub_view, sub_id, active_tab, current_fy, active_role, scope_value)
+
+        elif active_tab == 'physical_progress':
+            tab_data = get_physical_progress_data(cursor, role_where, role_params, view_type, user, current_fy, filter_office)
+
+        elif active_tab == 'financial_progress':
+            tab_data = get_financial_progress_data(cursor, role_where, role_params, view_type, user, current_fy, filter_office)
+
+        elif active_tab == 'business_mis':
+            tab_data = get_business_mis_data(cursor, role_where, role_params, view_type, user, current_fy,
+                                             sub_section, filter_office, filter_status, filter_domain,
+                                             sort_by, sort_order)
 
     return templates.TemplateResponse(
         "dashboard.html",
@@ -1298,21 +1728,65 @@ async def dashboard(
             "active_tab": active_tab,
             "current_fy": current_fy,
             "financial_years": financial_years,
-            "tab_counts": tab_counts,
-            "tab_summary": tab_summary,
+            "tab_data": tab_data,
             "items": items,
             "sub_view": sub_view,
             "sub_id": sub_id,
             "sub_rows": sub_rows,
             "breadcrumbs": breadcrumbs,
             "statuses": statuses,
+            "offices_list": offices_list,
+            "domains_list": domains_list,
+            "filter_office": filter_office,
             "filter_status": filter_status,
+            "filter_domain": filter_domain,
+            "sub_section": sub_section,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
             "show_all": show_all,
             "fy_progress": fy_progress,
             "role_offices": role_offices,
             "role_groups": role_groups,
         }
     )
+
+
+@router.get("/api/business-mis", response_class=JSONResponse)
+async def business_mis_api(
+    request: Request,
+    sub_section: str = Query("proposals"),
+    filter_office: Optional[str] = Query(None),
+    filter_domain: Optional[str] = Query(None),
+    filter_status: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None),
+    sort_order: Optional[str] = Query("desc"),
+    fy: Optional[str] = Query(None),
+):
+    """JSON API for Tab D (Business MIS) dynamic filtering."""
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "Not authenticated"}, status_code=401)
+
+    current_fy = fy or get_current_fy()
+    active_role, scope_type, scope_value = get_active_role_info(user)
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        role_offices = []
+        role_groups = []
+        if active_role in ('DDG-I', 'DDG-II'):
+            role_offices = get_offices_for_ddg(cursor, active_role)
+            role_groups = get_groups_for_ddg(cursor, active_role)
+
+        role_where, role_params, _, view_type = build_role_filter(
+            active_role, scope_value, user, role_offices, role_groups
+        )
+
+        data = get_business_mis_data(cursor, role_where, role_params, view_type, user, current_fy,
+                                     sub_section, filter_office, filter_status, filter_domain,
+                                     sort_by, sort_order)
+
+    return JSONResponse(data)
 
 
 @router.get("/api/monthly-breakdown", response_class=JSONResponse)

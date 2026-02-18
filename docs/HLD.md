@@ -146,10 +146,15 @@ graph TB
 - **Dependencies:** Database (officers, officer_roles, reporting_hierarchy).
 
 ### 8. Dashboard (`app/routes/dashboard_routes.py`)
-- **Responsibility:** Main landing page with assignment overview, monthly breakdowns.
-- **Inputs:** User session (role determines view).
-- **Outputs:** Dashboard HTML with metrics.
-- **Dependencies:** Assignments, milestones, revenue data.
+- **Responsibility:** 4-tab MIS dashboard with role-based views and hierarchical drill-down.
+  - **Default MIS:** Office-proportionate Target vs Revenue vs Expenditure vs Surplus for current FY.
+  - **Physical Progress:** Milestone delay tracking with traffic-light indicators and delay distribution.
+  - **Financial Progress:** Invoice and payment delay analysis with aging buckets (0-30, 30-60, 60-90, 90+ days).
+  - **Business MIS:** Report builder with Proposals pipeline (by workflow stage) and Work in Hand (active assignments).
+- **Inputs:** User session (role determines view), FY selector, office/domain/status filters.
+- **Outputs:** Dashboard HTML with 4 summary cards per tab, office drill-down tables, delay tables, aging analysis.
+- **Endpoints:** `GET /dashboard`, `GET /dashboard/api/monthly-breakdown`, `GET /dashboard/api/business-mis`.
+- **Dependencies:** Assignments, milestones, invoice_requests, payment_receipts, expenditure_entries, financial_year_targets.
 
 ### 9. Training Module (`app/routes/training_routes.py`)
 - **Responsibility:** Training programme lifecycle -- creation, coordinator allocation, budget/trainer/revenue approval.

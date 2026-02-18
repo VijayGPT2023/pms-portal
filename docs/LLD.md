@@ -19,7 +19,7 @@
 | File | Responsibility | Key Endpoints | Dependencies |
 |------|---------------|---------------|--------------|
 | `auth_routes.py` | Login/logout flow | `GET/POST /login`, `GET /logout` | `auth`, `dependencies` |
-| `dashboard_routes.py` | Main dashboard, monthly API | `GET /dashboard`, `GET /api/monthly-breakdown` | `database`, `dependencies`, `roles` |
+| `dashboard_routes.py` | 4-tab MIS dashboard (Default MIS, Physical Progress, Financial Progress, Business MIS) | `GET /dashboard`, `GET /api/monthly-breakdown`, `GET /api/business-mis` | `database`, `dependencies`, `roles` |
 | `assignment_routes.py` | Assignment CRUD, milestones, expenditure | 18 endpoints under `/assignment` | `database`, `dependencies`, `config` |
 | `approval_routes.py` | Multi-stage approval workflow | 22 endpoints under `/approvals` | `database`, `dependencies`, `roles` |
 | `finance_routes.py` | Invoice requests, payments, 80-20 revenue | 7 endpoints under `/finance` | `database`, revenue functions |
