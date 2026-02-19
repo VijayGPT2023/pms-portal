@@ -406,7 +406,7 @@
             <tfoot>
                 <tr style="font-weight: bold; background: #f7fafc;">
                     <td colspan="4">Total</td>
-                    <td class="text-right">{{ "%.1f"|format(milestones|map(attribute='revenue_percent')|select('ne', None)|sum) }}%</td>
+                    <td class="text-right">{{ "%.1f"|format(computed.total_revenue_pct) }}%</td>
                     <td class="text-center">{{ milestones|selectattr('invoice_raised')|list|length }}/{{ milestones|length }}</td>
                     <td class="text-center">{{ milestones|selectattr('payment_received')|list|length }}/{{ milestones|length }}</td>
                     <td></td>
@@ -457,8 +457,8 @@
 
     <!-- Summary Cards -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
-        {% set total_estimated = expenditure_items|map(attribute='estimated_amount')|select('ne', None)|sum %}
-        {% set total_actual = expenditure_items|map(attribute='actual_amount')|select('ne', None)|sum %}
+        {% set total_estimated = computed.total_estimated %}
+        {% set total_actual = computed.total_actual %}
         <div style="padding: 15px; background: #ebf8ff; border-radius: 8px; text-align: center;">
             <div style="font-size: 0.8rem; color: #718096;">Estimated Cost</div>
             <div style="font-size: 1.3em; font-weight: 600; color: #2b6cb0;">₹{{ "%.2f"|format(total_estimated) }}L</div>
@@ -572,7 +572,7 @@
                 <tfoot>
                     <tr style="font-weight: bold; background: #f7fafc;">
                         <td colspan="2">Total Entries</td>
-                        <td class="text-right">₹{{ "%.2f"|format(expenditure_entries|map(attribute='amount')|select('ne', None)|sum) }}L</td>
+                        <td class="text-right">₹{{ "%.2f"|format(computed.total_expense_entries) }}L</td>
                         <td colspan="4"></td>
                     </tr>
                 </tfoot>
@@ -638,8 +638,8 @@
             <tfoot>
                 <tr style="font-weight: bold; background: #f7fafc;">
                     <td colspan="3">Total</td>
-                    <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_percent')|select('ne', None)|sum) }}%</td>
-                    <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_amount')|select('ne', None)|sum) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(computed.total_share_pct) }}%</td>
+                    <td class="text-right">{{ "%.2f"|format(computed.total_share_amt) }}</td>
                 </tr>
             </tfoot>
         </table>

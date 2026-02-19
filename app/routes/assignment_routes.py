@@ -546,6 +546,51 @@ async def edit_assignment_submit(
     return RedirectResponse(url="/dashboard", status_code=302)
 
 
+@router.get("/debug/{assignment_id}")
+async def debug_assignment(request: Request, assignment_id: int):
+    """Debug endpoint: return raw assignment data as JSON."""
+    from fastapi.responses import JSONResponse
+    user = get_current_user(request)
+    if not user:
+        return JSONResponse({"error": "not authenticated"}, status_code=401)
+
+    PH = '%s' if USE_POSTGRES else '?'
+    result = {"assignment_id": assignment_id, "db": "postgres" if USE_POSTGRES else "sqlite"}
+
+    try:
+        assignment = get_assignment(assignment_id)
+        if not assignment:
+            result["error"] = "assignment not found"
+            return JSONResponse(result)
+
+        # Convert values to JSON-safe types
+        safe = {}
+        for k, v in assignment.items():
+            safe[k] = str(v) if v is not None else None
+        result["assignment"] = safe
+        result["workflow_stage"] = assignment.get("workflow_stage")
+        result["type"] = assignment.get("type")
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM milestones WHERE assignment_id = {PH}", (assignment_id,))
+            result["milestone_count"] = cursor.fetchone()['cnt']
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM revenue_shares WHERE assignment_id = {PH}", (assignment_id,))
+            result["revenue_share_count"] = cursor.fetchone()['cnt']
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM expenditure_items WHERE assignment_id = {PH}", (assignment_id,))
+            result["expenditure_item_count"] = cursor.fetchone()['cnt']
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM expenditure_entries WHERE assignment_id = {PH}", (assignment_id,))
+            result["expenditure_entry_count"] = cursor.fetchone()['cnt']
+
+        result["status"] = "ok"
+    except Exception as e:
+        import traceback
+        result["error"] = str(e)
+        result["traceback"] = traceback.format_exc()
+
+    return JSONResponse(result)
+
+
 @router.get("/view/{assignment_id}", response_class=HTMLResponse)
 async def view_assignment(request: Request, assignment_id: int):
     """View assignment details with tabbed interface."""
@@ -553,9 +598,34 @@ async def view_assignment(request: Request, assignment_id: int):
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
+    try:
+        return _render_assignment_view(request, user, assignment_id)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"ASSIGNMENT VIEW ERROR {assignment_id}: {e}\n{tb}", flush=True)
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(
+            f"Error viewing assignment {assignment_id}:\n{e}\n\nTraceback:\n{tb}",
+            status_code=500
+        )
+
+
+def _render_assignment_view(request: Request, user: dict, assignment_id: int):
+    """Internal: render assignment view (separated for error handling)."""
     assignment = get_assignment(assignment_id)
     if not assignment:
         return RedirectResponse(url="/dashboard", status_code=302)
+
+    # Convert Decimal values to float for Jinja2 format compatibility
+    numeric_fields = [
+        'total_value', 'gross_value', 'invoice_amount', 'amount_received',
+        'total_revenue', 'total_expenditure', 'surplus_deficit',
+        'physical_progress_percent', 'timeline_progress_percent',
+    ]
+    for field in numeric_fields:
+        if field in assignment and assignment[field] is not None:
+            assignment[field] = float(assignment[field])
 
     active_tab = request.query_params.get('tab', 'basic')
     if active_tab not in ('basic', 'milestones', 'cost', 'team'):
@@ -600,6 +670,11 @@ async def view_assignment(request: Request, assignment_id: int):
                 ORDER BY milestone_no
             """, (assignment_id,))
             milestones = [dict(row) for row in cursor.fetchall()]
+            # Convert Decimal to float for template formatting
+            for m in milestones:
+                for f in ('revenue_percent', 'invoice_percent', 'invoice_amount'):
+                    if m.get(f) is not None:
+                        m[f] = float(m[f])
 
         elif active_tab == 'cost':
             # Load expenditure heads and items (always till-date for estimates)
@@ -614,6 +689,10 @@ async def view_assignment(request: Request, assignment_id: int):
                 ORDER BY eh.category, eh.head_code
             """, (assignment_id,))
             expenditure_items = [dict(row) for row in cursor.fetchall()]
+            for item in expenditure_items:
+                for f in ('estimated_amount', 'actual_amount'):
+                    if item.get(f) is not None:
+                        item[f] = float(item[f])
 
             # Load date-wise expenditure entries (filtered by period)
             if cost_period and cost_period != 'all':
@@ -635,6 +714,9 @@ async def view_assignment(request: Request, assignment_id: int):
                     ORDER BY ee.entry_date DESC
                 """, (assignment_id,))
             expenditure_entries = [dict(row) for row in cursor.fetchall()]
+            for entry in expenditure_entries:
+                if entry.get('amount') is not None:
+                    entry['amount'] = float(entry['amount'])
 
             # Get available FY periods for this assignment's entries
             cursor.execute(f"""
@@ -653,6 +735,22 @@ async def view_assignment(request: Request, assignment_id: int):
                 ORDER BY rs.share_percent DESC
             """, (assignment_id,))
             revenue_shares = [dict(row) for row in cursor.fetchall()]
+            for share in revenue_shares:
+                for f in ('share_percent', 'share_amount'):
+                    if share.get(f) is not None:
+                        share[f] = float(share[f])
+
+    # Pre-compute sums in Python to avoid Jinja2 filter issues with NULL/Decimal
+    computed = {}
+    if active_tab == 'milestones':
+        computed['total_revenue_pct'] = sum(float(m.get('revenue_percent') or 0) for m in milestones)
+    elif active_tab == 'cost':
+        computed['total_estimated'] = sum(float(item.get('estimated_amount') or 0) for item in expenditure_items)
+        computed['total_actual'] = sum(float(item.get('actual_amount') or 0) for item in expenditure_items)
+        computed['total_expense_entries'] = sum(float(e.get('amount') or 0) for e in expenditure_entries)
+    elif active_tab == 'team':
+        computed['total_share_pct'] = sum(float(s.get('share_percent') or 0) for s in revenue_shares)
+        computed['total_share_amt'] = sum(float(s.get('share_amount') or 0) for s in revenue_shares)
 
     context = {
         "request": request,
@@ -666,6 +764,7 @@ async def view_assignment(request: Request, assignment_id: int):
         "expenditure_entries": expenditure_entries,
         "expenditure_heads": expenditure_heads,
         "training_mode": TRAINING_MODE,
+        "computed": computed,
     }
 
     if active_tab == 'basic':
@@ -675,7 +774,16 @@ async def view_assignment(request: Request, assignment_id: int):
         context["cost_period"] = cost_period
         context["available_fys"] = available_fys
 
-    return templates.TemplateResponse("assignment_view.html", context)
+    try:
+        return templates.TemplateResponse("assignment_view.html", context)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(
+            f"Template error for assignment {assignment_id}:\n{e}\n\n{tb}",
+            status_code=500
+        )
 
 
 @router.get("/milestones/{assignment_id}", response_class=HTMLResponse)
