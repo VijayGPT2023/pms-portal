@@ -406,7 +406,7 @@
             <tfoot>
                 <tr style="font-weight: bold; background: #f7fafc;">
                     <td colspan="4">Total</td>
-                    <td class="text-right">{{ "%.1f"|format(milestones|map(attribute='revenue_percent')|sum) }}%</td>
+                    <td class="text-right">{{ "%.1f"|format(milestones|map(attribute='revenue_percent')|select('ne', None)|sum) }}%</td>
                     <td class="text-center">{{ milestones|selectattr('invoice_raised')|list|length }}/{{ milestones|length }}</td>
                     <td class="text-center">{{ milestones|selectattr('payment_received')|list|length }}/{{ milestones|length }}</td>
                     <td></td>
@@ -457,8 +457,8 @@
 
     <!-- Summary Cards -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
-        {% set total_estimated = expenditure_items|map(attribute='estimated_amount')|sum %}
-        {% set total_actual = expenditure_items|map(attribute='actual_amount')|sum %}
+        {% set total_estimated = expenditure_items|map(attribute='estimated_amount')|select('ne', None)|sum %}
+        {% set total_actual = expenditure_items|map(attribute='actual_amount')|select('ne', None)|sum %}
         <div style="padding: 15px; background: #ebf8ff; border-radius: 8px; text-align: center;">
             <div style="font-size: 0.8rem; color: #718096;">Estimated Cost</div>
             <div style="font-size: 1.3em; font-weight: 600; color: #2b6cb0;">₹{{ "%.2f"|format(total_estimated) }}L</div>
@@ -561,7 +561,7 @@
                     <tr>
                         <td>{{ entry.entry_date }}</td>
                         <td><span class="badge badge-info">{{ entry.head_code }}</span> {{ entry.head_name }}</td>
-                        <td class="text-right"><strong>{{ "%.2f"|format(entry.amount) }}</strong></td>
+                        <td class="text-right"><strong>{{ "%.2f"|format(entry.amount or 0) }}</strong></td>
                         <td>{{ entry.fy_period }}</td>
                         <td>{{ entry.description or '-' }}</td>
                         <td>{{ entry.voucher_reference or '-' }}</td>
@@ -572,7 +572,7 @@
                 <tfoot>
                     <tr style="font-weight: bold; background: #f7fafc;">
                         <td colspan="2">Total Entries</td>
-                        <td class="text-right">₹{{ "%.2f"|format(expenditure_entries|map(attribute='amount')|sum) }}L</td>
+                        <td class="text-right">₹{{ "%.2f"|format(expenditure_entries|map(attribute='amount')|select('ne', None)|sum) }}L</td>
                         <td colspan="4"></td>
                     </tr>
                 </tfoot>
@@ -630,16 +630,16 @@
                     <td><strong>{{ share.officer_name }}</strong></td>
                     <td>{{ share.designation or '-' }}</td>
                     <td>{{ share.officer_office or '-' }}</td>
-                    <td class="text-right">{{ "%.2f"|format(share.share_percent) }}%</td>
-                    <td class="text-right"><strong>{{ "%.2f"|format(share.share_amount) }}</strong></td>
+                    <td class="text-right">{{ "%.2f"|format(share.share_percent or 0) }}%</td>
+                    <td class="text-right"><strong>{{ "%.2f"|format(share.share_amount or 0) }}</strong></td>
                 </tr>
                 {% endfor %}
             </tbody>
             <tfoot>
                 <tr style="font-weight: bold; background: #f7fafc;">
                     <td colspan="3">Total</td>
-                    <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_percent')|sum) }}%</td>
-                    <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_amount')|sum) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_percent')|select('ne', None)|sum) }}%</td>
+                    <td class="text-right">{{ "%.2f"|format(revenue_shares|map(attribute='share_amount')|select('ne', None)|sum) }}</td>
                 </tr>
             </tfoot>
         </table>
