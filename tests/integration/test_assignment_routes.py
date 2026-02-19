@@ -156,3 +156,66 @@ class TestAssignmentView:
     def test_view_nonexistent_assignment(self, client, auth_cookies):
         response = client.get("/assignment/view/999999", cookies=auth_cookies, follow_redirects=False)
         assert response.status_code in (302, 404)
+
+    def test_view_active_assignment(self, client, auth_cookies, test_db):
+        """View an ACTIVE assignment should return 200."""
+        from app.database import get_db
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO assignments (assignment_no, type, title, office_id, status, workflow_stage)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                ("NPC/HQ/ASG/TST/0001/2025-26", "ASSIGNMENT", "View Test Active", "HQ", "Ongoing", "ACTIVE"),
+            )
+            cursor.execute("SELECT id FROM assignments WHERE assignment_no = ?", ("NPC/HQ/ASG/TST/0001/2025-26",))
+            aid = cursor.fetchone()["id"]
+
+        response = client.get(f"/assignment/view/{aid}", cookies=auth_cookies)
+        assert response.status_code == 200
+        assert "View Test Active" in response.text
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM assignments WHERE id = ?", (aid,))
+
+    def test_view_completed_assignment(self, client, auth_cookies, test_db):
+        """View a COMPLETED assignment should not crash (bug: stages.index fails)."""
+        from app.database import get_db
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO assignments (assignment_no, type, title, office_id, status, workflow_stage)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                ("NPC/HQ/ASG/TST/0002/2025-26", "ASSIGNMENT", "View Test Completed", "HQ", "Completed", "COMPLETED"),
+            )
+            cursor.execute("SELECT id FROM assignments WHERE assignment_no = ?", ("NPC/HQ/ASG/TST/0002/2025-26",))
+            aid = cursor.fetchone()["id"]
+
+        response = client.get(f"/assignment/view/{aid}", cookies=auth_cookies)
+        assert response.status_code == 200
+        assert "View Test Completed" in response.text
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM assignments WHERE id = ?", (aid,))
+
+    def test_view_registration_stage_assignment(self, client, auth_cookies, test_db):
+        """View a REGISTRATION stage assignment should show workflow banner."""
+        from app.database import get_db
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """INSERT INTO assignments (assignment_no, type, title, office_id, status, workflow_stage, registration_status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                ("NPC/HQ/ASG/TST/0003/2025-26", "ASSIGNMENT", "View Test Registration", "HQ", "Not Started", "REGISTRATION", "PENDING_APPROVAL"),
+            )
+            cursor.execute("SELECT id FROM assignments WHERE assignment_no = ?", ("NPC/HQ/ASG/TST/0003/2025-26",))
+            aid = cursor.fetchone()["id"]
+
+        response = client.get(f"/assignment/view/{aid}", cookies=auth_cookies)
+        assert response.status_code == 200
+        assert "View Test Registration" in response.text
+
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM assignments WHERE id = ?", (aid,))

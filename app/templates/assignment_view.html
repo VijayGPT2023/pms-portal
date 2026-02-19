@@ -54,7 +54,7 @@
 {% endif %}
 
 <!-- Workflow Stage Banner -->
-{% if assignment.workflow_stage and assignment.workflow_stage != 'ACTIVE' %}
+{% if assignment.workflow_stage and assignment.workflow_stage not in ('ACTIVE', 'COMPLETED') %}
 <div style="margin-bottom: 20px; padding: 15px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;">
     <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
         <strong style="color: #92400e;">Workflow Stage:</strong>
