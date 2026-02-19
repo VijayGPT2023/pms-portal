@@ -1,220 +1,90 @@
 {% extends "base.html" %}
 
-{% block title %}MIS Analytics - PMS Portal{% endblock %}
+{% block title %}MIS Command Center - PMS Portal{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{% endblock %}
 
 {% block content %}
 <style>
-/* MIS Dashboard Specific Styles */
+/* MIS Dashboard Styles */
 .mis-grid { display: grid; gap: 16px; margin-bottom: 20px; }
 .mis-grid-2 { grid-template-columns: repeat(2, 1fr); }
 .mis-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.mis-grid-4 { grid-template-columns: repeat(4, 1fr); }
 
 .chart-card {
-    background: white;
-    border-radius: 12px;
-    padding: 16px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-    border: 1px solid #e2e8f0;
+    background: white; border-radius: 12px; padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;
 }
 .chart-card h3 {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: #334155;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
 }
-.chart-card h3 svg { color: #64748b; }
 
-/* Horizontal Bar Chart */
-.h-bar-chart { display: flex; flex-direction: column; gap: 8px; }
-.h-bar-item {
-    display: grid;
-    grid-template-columns: 70px 1fr 60px;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.75rem;
+/* KPI Cards */
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.kpi-card {
+    padding: 14px; border-radius: 10px; text-align: center;
 }
-.h-bar-item .label { font-weight: 500; color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.h-bar-item .bar-wrap { height: 20px; background: #f1f5f9; border-radius: 4px; overflow: hidden; position: relative; }
-.h-bar-item .bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; }
-.h-bar-item .bar span { font-size: 0.625rem; font-weight: 600; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-.h-bar-item .value { text-align: right; font-weight: 600; color: #475569; }
+.kpi-card.blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
+.kpi-card.green { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+.kpi-card.red { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+.kpi-card.amber { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+.kpi-card.purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; }
+.kpi-card.teal { background: linear-gradient(135deg, #14b8a6, #0d9488); color: white; }
+.kpi-card.slate { background: linear-gradient(135deg, #64748b, #475569); color: white; }
+.kpi-card .kpi-value { font-size: 1.25rem; font-weight: 700; }
+.kpi-card .kpi-label { font-size: 0.6875rem; opacity: 0.9; margin-top: 2px; }
 
-/* Officer Cards */
-.officer-list { display: flex; flex-direction: column; gap: 6px; }
-.officer-item {
-    display: grid;
-    grid-template-columns: 24px 1fr 55px;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    background: #f8fafc;
-    border-radius: 8px;
-    font-size: 0.75rem;
-}
-.officer-item.top { background: linear-gradient(90deg, #dcfce7, #f0fdf4); }
-.officer-item.bottom { background: linear-gradient(90deg, #fee2e2, #fef2f2); }
-.officer-item .rank {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.625rem;
-}
-.officer-item.top .rank { background: #10b981; color: white; }
-.officer-item.bottom .rank { background: #ef4444; color: white; }
-.officer-item .name { font-weight: 500; color: #334155; }
-.officer-item .office { font-size: 0.625rem; color: #64748b; }
-.officer-item .achievement { font-weight: 700; text-align: right; }
-.officer-item.top .achievement { color: #059669; }
-.officer-item.bottom .achievement { color: #dc2626; }
+/* Chart containers */
+.chart-wrap { position: relative; height: 280px; }
+.chart-wrap-sm { position: relative; height: 200px; }
 
-/* Donut Chart */
-.donut-container { display: flex; align-items: center; gap: 16px; }
-.donut-chart {
-    width: 100px;
-    height: 100px;
-    border-radius: 50%;
-    position: relative;
-    flex-shrink: 0;
+/* Tab navigation */
+.mis-tabs { display: flex; gap: 4px; margin-bottom: 16px; overflow-x: auto; }
+.mis-tab {
+    padding: 8px 16px; border-radius: 8px 8px 0 0; font-size: 0.8125rem; font-weight: 500;
+    border: 1px solid #e2e8f0; border-bottom: none; background: #f8fafc; color: #64748b;
+    cursor: pointer; white-space: nowrap; text-decoration: none; display: inline-block;
 }
-.donut-center {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-}
-.donut-center .value { font-size: 1.125rem; font-weight: 700; color: #1e293b; }
-.donut-center .label { font-size: 0.625rem; color: #64748b; }
-.donut-legend { display: flex; flex-direction: column; gap: 6px; }
-.legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }
-.legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
-.legend-item .count { font-weight: 600; color: #334155; }
-.legend-item .label { color: #64748b; }
+.mis-tab:hover { background: #f1f5f9; color: #334155; }
+.mis-tab.active { background: white; color: #1d4ed8; font-weight: 600; border-color: #3b82f6; }
 
-/* Quick Stats Grid */
-.quick-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 10px;
-    margin-bottom: 16px;
-}
-.quick-stat {
-    padding: 12px;
-    border-radius: 10px;
-    text-align: center;
-}
-.quick-stat.primary { background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; }
-.quick-stat.success { background: linear-gradient(135deg, #10b981, #059669); color: white; }
-.quick-stat.warning { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
-.quick-stat.info { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
-.quick-stat .value { font-size: 1.25rem; font-weight: 700; }
-.quick-stat .label { font-size: 0.6875rem; opacity: 0.9; }
+/* Heatmap table */
+.heatmap-cell { padding: 6px 10px; text-align: center; font-weight: 600; font-size: 0.8125rem; border-radius: 4px; }
+.heatmap-green { background: #dcfce7; color: #166534; }
+.heatmap-amber { background: #fef3c7; color: #92400e; }
+.heatmap-red { background: #fee2e2; color: #991b1b; }
 
-/* Gauge Chart */
-.gauge-wrap { text-align: center; padding: 10px; }
-.gauge {
-    width: 120px;
-    height: 60px;
-    margin: 0 auto;
-    position: relative;
-    overflow: hidden;
-}
-.gauge-bg {
-    width: 120px;
-    height: 60px;
-    border-radius: 120px 120px 0 0;
-    background: #e2e8f0;
-    position: absolute;
-    top: 0;
-}
-.gauge-fill {
-    width: 120px;
-    height: 60px;
-    border-radius: 120px 120px 0 0;
-    position: absolute;
-    top: 0;
-    transform-origin: center bottom;
-    transform: rotate(-90deg);
-    transition: transform 0.8s ease;
-}
-.gauge-mask {
-    width: 80px;
-    height: 40px;
-    background: white;
-    border-radius: 80px 80px 0 0;
-    position: absolute;
-    bottom: 0;
-    left: 20px;
-}
-.gauge-value {
-    position: absolute;
-    bottom: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1e293b;
-}
-.gauge-label { font-size: 0.75rem; color: #64748b; margin-top: 8px; }
+/* Officer ranking bars */
+.rank-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 0.8125rem; }
+.rank-bar .rank-num { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.625rem; flex-shrink: 0; }
+.rank-bar .bar-fill { height: 22px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; }
+.rank-bar .bar-fill span { font-size: 0.6875rem; font-weight: 600; color: white; white-space: nowrap; }
 
 /* Responsive */
-@media (max-width: 1024px) {
-    .mis-grid-3 { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 768px) {
-    .mis-grid-2, .mis-grid-3 { grid-template-columns: 1fr; }
-    .quick-stats { grid-template-columns: repeat(2, 1fr); }
-    .donut-container { flex-direction: column; }
-    .h-bar-item { grid-template-columns: 60px 1fr 50px; }
-}
-@media (max-width: 480px) {
-    .quick-stats { grid-template-columns: 1fr 1fr; }
-    .quick-stat { padding: 10px 8px; }
-    .quick-stat .value { font-size: 1rem; }
-}
+@media (max-width: 1024px) { .mis-grid-3 { grid-template-columns: 1fr 1fr; } .mis-grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 768px) { .mis-grid-2, .mis-grid-3, .mis-grid-4 { grid-template-columns: 1fr; } .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .kpi-grid { grid-template-columns: 1fr 1fr; } }
 </style>
 
 <div class="tab-container">
     <!-- Header -->
     <div class="tab-header">
-        <h1>MIS / Analytics</h1>
+        <h1>MIS Command Center</h1>
         <div class="tab-actions">
+            <a href="/mis/export/csv?tab={{ active_tab }}&financial_year={{ financial_year or '' }}&filter_office={{ filter_office or '' }}&filter_domain={{ filter_domain or '' }}" class="btn btn-secondary btn-sm" title="Export CSV">CSV Export</a>
             <a href="/mis/financial" class="btn btn-success btn-sm">Financial MIS</a>
-            <a href="/mis/officers" class="btn btn-primary btn-sm">All Officers</a>
-            <a href="/mis/pre-revenue" class="btn btn-info btn-sm">Pre-Revenue</a>
-            <a href="/mis/assignments" class="btn btn-secondary btn-sm">All Assignments</a>
+            <a href="/mis/assignments" class="btn btn-primary btn-sm">All Assignments</a>
         </div>
     </div>
 
-    <!-- Quick Stats Row -->
-    <div class="quick-stats">
-        <div class="quick-stat primary">
-            <div class="value">{{ "%.1f"|format(totals.total_target or 0) }}L</div>
-            <div class="label">Annual Target</div>
-        </div>
-        <div class="quick-stat warning">
-            <div class="value">{{ "%.1f"|format(totals.prorata_target or 0) }}L</div>
-            <div class="label">Pro-rata Target</div>
-        </div>
-        <div class="quick-stat success">
-            <div class="value">{{ "%.1f"|format(totals.total_revenue or 0) }}L</div>
-            <div class="label">Total Revenue</div>
-        </div>
-        <div class="quick-stat {% if (totals.achievement_pct or 0) >= 100 %}success{% else %}info{% endif %}">
-            <div class="value">{{ "%.0f"|format(totals.achievement_pct or 0) }}%</div>
-            <div class="label">Achievement</div>
-        </div>
-    </div>
-
-    <!-- Filters -->
+    <!-- Filter Bar -->
     <div class="filter-bar" style="margin-bottom: 16px;">
         <form method="GET" action="/mis" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%;">
+            <input type="hidden" name="active_tab" value="{{ active_tab }}">
             <select name="financial_year" class="form-control" style="width: auto; min-width: 90px; font-size: 0.8125rem; padding: 6px 8px;">
                 <option value="">All FY</option>
                 {% for fy in financial_years %}
@@ -229,12 +99,12 @@
             </select>
             <select name="filter_domain" class="form-control" style="width: auto; min-width: 100px; font-size: 0.8125rem; padding: 6px 8px;">
                 <option value="">All Domains</option>
-                {% for domain in domains %}
-                <option value="{{ domain }}" {% if filter_domain == domain %}selected{% endif %}>{{ domain }}</option>
+                {% for d in domains %}
+                <option value="{{ d }}" {% if filter_domain == d %}selected{% endif %}>{{ d }}</option>
                 {% endfor %}
             </select>
             <button type="submit" class="btn btn-primary btn-sm">Filter</button>
-            <a href="/mis" class="btn btn-secondary btn-sm">Reset</a>
+            <a href="/mis?active_tab={{ active_tab }}" class="btn btn-secondary btn-sm">Reset</a>
             {% if fy_progress %}
             <div style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #64748b;">
                 <span>FY {{ financial_year or 'Current' }}:</span>
@@ -247,441 +117,660 @@
         </form>
     </div>
 
-    <!-- Charts Row 1: Office Performance + Achievement Gauge + Status Distribution -->
-    <div class="mis-grid mis-grid-3">
-        <!-- Office Performance Chart -->
-        <div class="chart-card" style="grid-column: span 2;">
-            <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-                    <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
-                </svg>
-                Office-wise Performance (Target vs Revenue)
-            </h3>
-            {% if office_data %}
-            {% set max_target = office_data|map(attribute='target')|max or 1 %}
-            <div class="h-bar-chart">
-                {% for office in office_data[:8] %}
-                <div class="h-bar-item">
-                    <div class="label">{{ office.office_id }}</div>
-                    <div class="bar-wrap">
-                        <!-- Target bar (light) -->
-                        <div style="position: absolute; height: 100%; width: {{ ((office.target or 0) / max_target * 100)|round|int }}%; background: #e2e8f0; border-radius: 4px;"></div>
-                        <!-- Revenue bar -->
-                        <div class="bar" style="width: {{ ((office.total_revenue or 0) / max_target * 100)|round|int }}%; background: {% if (office.achievement_pct or 0) >= 100 %}linear-gradient(90deg, #10b981, #059669){% elif (office.achievement_pct or 0) >= 75 %}linear-gradient(90deg, #f59e0b, #d97706){% else %}linear-gradient(90deg, #ef4444, #dc2626){% endif %}; position: relative; z-index: 1;">
-                            <span>{{ "%.0f"|format(office.achievement_pct or 0) }}%</span>
-                        </div>
-                    </div>
-                    <div class="value">{{ "%.1f"|format(office.total_revenue or 0) }}L</div>
-                </div>
-                {% endfor %}
-            </div>
-            <div style="margin-top: 10px; display: flex; gap: 16px; font-size: 0.6875rem; color: #64748b;">
-                <span><span style="display: inline-block; width: 10px; height: 10px; background: #e2e8f0; border-radius: 2px; margin-right: 4px;"></span>Target</span>
-                <span><span style="display: inline-block; width: 10px; height: 10px; background: #10b981; border-radius: 2px; margin-right: 4px;"></span>≥100%</span>
-                <span><span style="display: inline-block; width: 10px; height: 10px; background: #f59e0b; border-radius: 2px; margin-right: 4px;"></span>75-99%</span>
-                <span><span style="display: inline-block; width: 10px; height: 10px; background: #ef4444; border-radius: 2px; margin-right: 4px;"></span>&lt;75%</span>
-            </div>
-            {% else %}
-            <div style="padding: 20px; text-align: center; color: #64748b;">No office data available</div>
-            {% endif %}
-        </div>
-
-        <!-- Status Distribution Donut -->
-        <div class="chart-card">
-            <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/>
-                </svg>
-                Status Distribution
-            </h3>
-            {% if progress_by_status %}
-            {% set total_count = progress_by_status|map(attribute='count')|sum or 1 %}
-            {% set colors = {'Completed': '#10b981', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Pipeline': '#8b5cf6', 'Cancelled': '#64748b'} %}
-            <div class="donut-container">
-                <div class="donut-chart" style="background: conic-gradient(
-                    {% set ns = namespace(angle=0) %}
-                    {% for status in progress_by_status %}
-                    {{ colors.get(status.status, '#94a3b8') }} {{ ns.angle }}deg {{ ns.angle + (status.count / total_count * 360) }}deg{% if not loop.last %},{% endif %}
-                    {% set ns.angle = ns.angle + (status.count / total_count * 360) %}
-                    {% endfor %}
-                );">
-                    <div class="donut-mask" style="width: 60px; height: 60px; background: white; border-radius: 50%; position: absolute; top: 20px; left: 20px;"></div>
-                    <div class="donut-center">
-                        <div class="value">{{ totals.total_assignments }}</div>
-                        <div class="label">Total</div>
-                    </div>
-                </div>
-                <div class="donut-legend">
-                    {% for status in progress_by_status %}
-                    <div class="legend-item">
-                        <div class="legend-dot" style="background: {{ colors.get(status.status, '#94a3b8') }};"></div>
-                        <span class="count">{{ status.count }}</span>
-                        <span class="label">{{ status.status }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% else %}
-            <div style="padding: 20px; text-align: center; color: #64748b;">No status data</div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Charts Row 2: Top 10 + Bottom 10 Officers -->
-    <div class="mis-grid mis-grid-2" style="margin-bottom: 20px;">
-        <!-- Top 10 Officers -->
-        <div class="chart-card">
-            <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2l3 7h7l-5.5 4.5 2 7L12 16l-6.5 4.5 2-7L2 9h7l3-7z"/>
-                </svg>
-                Top 10 Officers
-                <span style="margin-left: auto; font-size: 0.625rem; font-weight: 400; color: #10b981;">▲ Highest Revenue</span>
-            </h3>
-            {% if officer_data %}
-            <div class="officer-list">
-                {% for officer in officer_data[:10] %}
-                <div class="officer-item top">
-                    <div class="rank">{{ loop.index }}</div>
-                    <div>
-                        <div class="name">{{ officer.name[:20] }}{% if officer.name|length > 20 %}...{% endif %}</div>
-                        <div class="office">{{ officer.office_id }} • {{ "%.1f"|format(officer.total_share_amount or 0) }}L</div>
-                    </div>
-                    <div class="achievement">{{ "%.0f"|format(officer.achievement_pct or 0) }}%</div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div style="padding: 20px; text-align: center; color: #64748b;">No officer data</div>
-            {% endif %}
-        </div>
-
-        <!-- Bottom 10 Officers -->
-        <div class="chart-card">
-            <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                Bottom 10 Officers
-                <span style="margin-left: auto; font-size: 0.625rem; font-weight: 400; color: #ef4444;">▼ Needs Attention</span>
-            </h3>
-            {% if officer_data and officer_data|length > 10 %}
-            <div class="officer-list">
-                {% for officer in officer_data[-10:]|reverse %}
-                <div class="officer-item bottom">
-                    <div class="rank">{{ officer_data|length - loop.index + 1 }}</div>
-                    <div>
-                        <div class="name">{{ officer.name[:20] }}{% if officer.name|length > 20 %}...{% endif %}</div>
-                        <div class="office">{{ officer.office_id }} • {{ "%.1f"|format(officer.total_share_amount or 0) }}L</div>
-                    </div>
-                    <div class="achievement">{{ "%.0f"|format(officer.achievement_pct or 0) }}%</div>
-                </div>
-                {% endfor %}
-            </div>
-            {% elif officer_data %}
-            <div style="padding: 20px; text-align: center; color: #64748b;">Less than 10 officers - showing all in Top 10</div>
-            {% else %}
-            <div style="padding: 20px; text-align: center; color: #64748b;">No officer data</div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Charts Row 3: Domain Revenue + Key Metrics -->
-    <div class="mis-grid mis-grid-3">
-        <!-- Domain Revenue Chart -->
-        <div class="chart-card" style="grid-column: span 2;">
-            <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M21 21H4.6C4.03995 21 3.75992 21 3.54601 20.891C3.35785 20.7951 3.20487 20.6422 3.10899 20.454C3 20.2401 3 19.9601 3 19.4V3"/>
-                    <path d="M7 14l4-4 4 4 6-6"/>
-                </svg>
-                Domain-wise Revenue Distribution
-            </h3>
-            {% if domain_data %}
-            {% set max_domain_revenue = domain_data|map(attribute='total_revenue')|max or 1 %}
-            {% set domain_colors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16', '#f97316'] %}
-            <div class="h-bar-chart">
-                {% for domain in domain_data[:8] %}
-                <div class="h-bar-item">
-                    <a href="/mis/domain/{{ domain.domain }}" class="label" style="color: inherit; text-decoration: none;" title="View {{ domain.domain }} details">{{ domain.domain[:10] }}{% if domain.domain|length > 10 %}..{% endif %}</a>
-                    <div class="bar-wrap">
-                        <div class="bar" style="width: {{ ((domain.total_revenue or 0) / max_domain_revenue * 100)|round|int }}%; background: {{ domain_colors[loop.index0 % 8] }};">
-                            <span>{{ domain.assignment_count }}</span>
-                        </div>
-                    </div>
-                    <div class="value">{{ "%.1f"|format(domain.total_revenue or 0) }}L</div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div style="padding: 20px; text-align: center; color: #64748b;">No domain data available</div>
-            {% endif %}
-        </div>
-
-        <!-- Key Metrics Gauges -->
-        <div class="chart-card">
-            <h3>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
-                </svg>
-                Key Metrics
-            </h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                <!-- Achievement Gauge -->
-                <div class="gauge-wrap">
-                    {% set ach_pct = (totals.achievement_pct or 0)|int %}
-                    {% set ach_angle = -90 + (ach_pct * 1.8) %}
-                    <div class="gauge">
-                        <div class="gauge-bg"></div>
-                        <div class="gauge-fill" style="background: {% if ach_pct >= 100 %}#10b981{% elif ach_pct >= 75 %}#f59e0b{% else %}#ef4444{% endif %}; transform: rotate({{ ach_angle if ach_angle <= 90 else 90 }}deg);"></div>
-                        <div class="gauge-mask"></div>
-                        <div class="gauge-value">{{ ach_pct }}%</div>
-                    </div>
-                    <div class="gauge-label">Pro-rata Achievement</div>
-                </div>
-                <!-- Progress Gauge -->
-                <div class="gauge-wrap">
-                    {% set prog_pct = (totals.avg_physical_progress or 0)|int %}
-                    {% set prog_angle = -90 + (prog_pct * 1.8) %}
-                    <div class="gauge">
-                        <div class="gauge-bg"></div>
-                        <div class="gauge-fill" style="background: #3b82f6; transform: rotate({{ prog_angle if prog_angle <= 90 else 90 }}deg);"></div>
-                        <div class="gauge-mask"></div>
-                        <div class="gauge-value">{{ prog_pct }}%</div>
-                    </div>
-                    <div class="gauge-label">Avg Progress</div>
-                </div>
-            </div>
-            <!-- Mini Stats -->
-            <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                <div style="padding: 10px; background: #f0fdf4; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 1rem; font-weight: 700; color: #16a34a;">{{ "%.1f"|format(totals.surplus_deficit or 0) }}L</div>
-                    <div style="font-size: 0.625rem; color: #4ade80;">Surplus</div>
-                </div>
-                <div style="padding: 10px; background: #f8fafc; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 1rem; font-weight: 700; color: #334155;">{{ totals.total_offices or 0 }}</div>
-                    <div style="font-size: 0.625rem; color: #64748b;">Offices</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Tab Navigation -->
-    <div class="tab-nav" style="margin-top: 20px;">
-        <button class="tab-btn active" data-tab-btn="mis" onclick="switchTab('tab-office', 'mis')">
-            Office-wise
-        </button>
-        <button class="tab-btn" data-tab-btn="mis" onclick="switchTab('tab-status', 'mis')">
-            Status
-        </button>
-        <button class="tab-btn" data-tab-btn="mis" onclick="switchTab('tab-domain', 'mis')">
-            Domain-wise
-        </button>
-        <button class="tab-btn" data-tab-btn="mis" onclick="switchTab('tab-officer', 'mis')">
-            Officer-wise
-        </button>
+    <div class="mis-tabs">
+        <a href="/mis?active_tab=executive&financial_year={{ financial_year or '' }}&filter_office={{ filter_office or '' }}&filter_domain={{ filter_domain or '' }}" class="mis-tab {% if active_tab == 'executive' %}active{% endif %}">Executive Summary</a>
+        <a href="/mis?active_tab=office&financial_year={{ financial_year or '' }}&filter_office={{ filter_office or '' }}&filter_domain={{ filter_domain or '' }}" class="mis-tab {% if active_tab == 'office' %}active{% endif %}">Office Performance</a>
+        <a href="/mis?active_tab=activity&financial_year={{ financial_year or '' }}&filter_office={{ filter_office or '' }}&filter_domain={{ filter_domain or '' }}" class="mis-tab {% if active_tab == 'activity' %}active{% endif %}">Activity & Domain</a>
+        <a href="/mis?active_tab=financial&financial_year={{ financial_year or '' }}&filter_office={{ filter_office or '' }}&filter_domain={{ filter_domain or '' }}" class="mis-tab {% if active_tab == 'financial' %}active{% endif %}">Financial Deep-Dive</a>
+        <a href="/mis?active_tab=delays&financial_year={{ financial_year or '' }}&filter_office={{ filter_office or '' }}&filter_domain={{ filter_domain or '' }}" class="mis-tab {% if active_tab == 'delays' %}active{% endif %}">Delays & Alerts</a>
+        <a href="/mis?active_tab=officer_client&financial_year={{ financial_year or '' }}&filter_office={{ filter_office or '' }}&filter_domain={{ filter_domain or '' }}" class="mis-tab {% if active_tab == 'officer_client' %}active{% endif %}">Officer & Client</a>
     </div>
 
-    <!-- Tab Content: Office-wise -->
-    <div id="tab-office" class="tab-content active" data-tab-group="mis">
-        {% if office_data %}
-        <table class="compact-table">
-            <thead>
-                <tr>
-                    <th>Office</th>
-                    <th style="text-align: right;">Target <span class="info-tooltip" data-tooltip="Annual revenue target in Lakhs" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Pro-rata <span class="info-tooltip" data-tooltip="Target × FY elapsed % ({{ "%.0f"|format(fy_progress * 100) }}%)" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Assign. <span class="info-tooltip" data-tooltip="Revenue from Assignments (Real)" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Training <span class="info-tooltip" data-tooltip="Revenue from Training Programmes (Real)" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Notional <span class="info-tooltip" data-tooltip="Notional value from Development Work" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Total <span class="info-tooltip" data-tooltip="Real + Notional Revenue" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Ach% <span class="info-tooltip" data-tooltip="Total ÷ Pro-rata Target × 100" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Progress</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for office in office_data %}
-                <tr>
-                    <td>
-                        <a href="/mis/office/{{ office.office_id }}" class="link-primary">
-                            <strong>{{ office.office_id }}</strong>
-                        </a>
-                        {% if office.is_top %}<span class="badge badge-success" style="font-size: 0.625rem; margin-left: 4px;">Top</span>{% endif %}
-                        {% if office.is_bottom %}<span class="badge badge-danger" style="font-size: 0.625rem; margin-left: 4px;">Low</span>{% endif %}
-                    </td>
-                    <td style="text-align: right;">{{ "%.1f"|format(office.target or office.annual_revenue_target or 0) }}L</td>
-                    <td style="text-align: right;">{{ "%.1f"|format(office.prorata_target or 0) }}L</td>
-                    <td style="text-align: right; color: #2563eb;">{{ "%.1f"|format(office.assignment_revenue or 0) }}L</td>
-                    <td style="text-align: right; color: #7c3aed;">{{ "%.1f"|format(office.training_revenue or 0) }}L</td>
-                    <td style="text-align: right; color: #0891b2;">{{ "%.1f"|format(office.notional_revenue or 0) }}L</td>
-                    <td style="text-align: right; font-weight: 600;">{{ "%.1f"|format(office.total_contribution or office.total_revenue or 0) }}L</td>
-                    <td style="text-align: right;">
-                        <span class="{% if (office.achievement_pct or 0) >= 100 %}text-success{% elif (office.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 600;">
-                            {{ "%.0f"|format(office.achievement_pct or 0) }}%
-                        </span>
-                    </td>
-                    <td style="text-align: right;">
-                        <div style="display: inline-flex; align-items: center; gap: 6px;">
-                            <div style="width: 40px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden;">
-                                <div style="width: {{ (office.avg_physical_progress or 0)|round|int }}%; height: 100%; background: #3b82f6;"></div>
-                            </div>
-                            <span style="font-size: 0.7rem;">{{ "%.0f"|format(office.avg_physical_progress or 0) }}%</span>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot>
-                <tr style="background: #f8fafc; font-weight: 600;">
-                    <td>TOTAL</td>
-                    <td style="text-align: right;">{{ "%.1f"|format(totals.total_target or 0) }}L</td>
-                    <td style="text-align: right;">{{ "%.1f"|format(totals.prorata_target or 0) }}L</td>
-                    <td style="text-align: right; color: #2563eb;">{{ "%.1f"|format(totals.assignment_revenue or 0) }}L</td>
-                    <td style="text-align: right; color: #7c3aed;">{{ "%.1f"|format(totals.training_revenue or 0) }}L</td>
-                    <td style="text-align: right; color: #0891b2;">{{ "%.1f"|format(totals.notional_revenue or 0) }}L</td>
-                    <td style="text-align: right;">{{ "%.1f"|format(totals.total_contribution or totals.total_revenue or 0) }}L</td>
-                    <td style="text-align: right;">{{ "%.0f"|format(totals.achievement_pct or 0) }}%</td>
-                    <td style="text-align: right;">{{ "%.0f"|format(totals.avg_physical_progress or 0) }}%</td>
-                </tr>
-            </tfoot>
-        </table>
-        {% else %}
-        <div class="empty-state" style="padding: 40px; text-align: center;">
-            <h3>No office data available</h3>
-            <p>Apply different filters or add assignments to see office-wise data.</p>
+    <!-- ======================== TAB 1: EXECUTIVE SUMMARY ======================== -->
+    {% if active_tab == 'executive' %}
+    {% set td = tab_data %}
+    {% set totals = td.get('totals', {}) %}
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="kpi-card blue">
+            <div class="kpi-value">{{ "%.1f"|format(totals.total_target or 0) }}L</div>
+            <div class="kpi-label">FY Target</div>
         </div>
-        {% endif %}
+        <div class="kpi-card green">
+            <div class="kpi-value">{{ "%.1f"|format(totals.total_revenue or 0) }}L</div>
+            <div class="kpi-label">Total Revenue</div>
+        </div>
+        <div class="kpi-card red">
+            <div class="kpi-value">{{ "%.1f"|format(totals.total_expenditure or 0) }}L</div>
+            <div class="kpi-label">Expenditure</div>
+        </div>
+        <div class="kpi-card {% if (totals.surplus_deficit or 0) >= 0 %}green{% else %}red{% endif %}">
+            <div class="kpi-value">{{ "%.1f"|format(totals.surplus_deficit or 0) }}L</div>
+            <div class="kpi-label">Surplus/Deficit</div>
+        </div>
+    </div>
+    <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="kpi-card {% if (totals.achievement_pct or 0) >= 100 %}green{% elif (totals.achievement_pct or 0) >= 75 %}amber{% else %}red{% endif %}">
+            <div class="kpi-value">{{ "%.0f"|format(totals.achievement_pct or 0) }}%</div>
+            <div class="kpi-label">Pro-rata Achievement</div>
+        </div>
+        <div class="kpi-card teal">
+            <div class="kpi-value">{{ td.active_assignments or 0 }}</div>
+            <div class="kpi-label">Active Assignments</div>
+        </div>
+        <div class="kpi-card amber">
+            <div class="kpi-value">{{ td.overdue_milestones or 0 }}</div>
+            <div class="kpi-label">Overdue Milestones</div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kpi-value">{{ td.pending_invoices_count or 0 }}</div>
+            <div class="kpi-label">Pending Invoices ({{ "%.1f"|format(td.pending_invoices_value or 0) }}L)</div>
+        </div>
     </div>
 
-    <!-- Tab Content: Status Overview -->
-    <div id="tab-status" class="tab-content" data-tab-group="mis">
-        {% if progress_by_status %}
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px;">
-            {% for status in progress_by_status %}
-            <div style="padding: 20px; border-radius: 10px; text-align: center;
-                {% if status.status == 'Completed' %}background: linear-gradient(135deg, #dcfce7, #bbf7d0);
-                {% elif status.status == 'In Progress' %}background: linear-gradient(135deg, #dbeafe, #bfdbfe);
-                {% elif status.status == 'On Hold' %}background: linear-gradient(135deg, #fef3c7, #fde68a);
-                {% elif status.status == 'Pipeline' %}background: linear-gradient(135deg, #f3e8ff, #e9d5ff);
-                {% else %}background: #f8fafc;{% endif %}">
-                <div style="font-size: 1.75rem; font-weight: 700;
-                    {% if status.status == 'Completed' %}color: #16a34a;
-                    {% elif status.status == 'In Progress' %}color: #2563eb;
-                    {% elif status.status == 'On Hold' %}color: #d97706;
-                    {% elif status.status == 'Pipeline' %}color: #7c3aed;
-                    {% else %}color: #64748b;{% endif %}">
-                    {{ status.count }}
+    <!-- Charts Row -->
+    <div class="mis-grid mis-grid-3">
+        <!-- Revenue Split Donut -->
+        <div class="chart-card">
+            <h3>Revenue Split</h3>
+            <div class="chart-wrap-sm">
+                <canvas id="revenueDonut"></canvas>
+            </div>
+        </div>
+        <!-- Office Performance Bar -->
+        <div class="chart-card" style="grid-column: span 2;">
+            <h3>Top Offices by Achievement %</h3>
+            <div class="chart-wrap">
+                <canvas id="officeBar"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Officer Top/Bottom -->
+    <div class="mis-grid mis-grid-2">
+        <div class="chart-card">
+            <h3>Top 10 Officers</h3>
+            {% set officers = td.get('officer_data', []) %}
+            {% for o in officers[:10] %}
+            <div class="rank-bar">
+                <div class="rank-num" style="background: #10b981; color: white;">{{ loop.index }}</div>
+                <div style="flex: 1;">
+                    <div style="font-weight: 500; color: #334155;">{{ o.name[:25] }}</div>
+                    <div style="font-size: 0.6875rem; color: #64748b;">{{ o.office_id }} &bull; {{ "%.1f"|format(o.total_contribution or 0) }}L</div>
                 </div>
-                <div style="font-size: 0.8125rem; font-weight: 500; color: #475569; margin-bottom: 8px;">{{ status.status }}</div>
-                <div style="font-size: 0.75rem; color: #64748b;">
-                    Avg: {{ "%.0f"|format(status.avg_progress or 0) }}%
-                </div>
+                <div style="font-weight: 700; color: #059669;">{{ "%.0f"|format(o.achievement_pct or 0) }}%</div>
             </div>
             {% endfor %}
         </div>
-        {% else %}
-        <div class="empty-state" style="padding: 40px; text-align: center;">
-            <h3>No status data available</h3>
+        <div class="chart-card">
+            <h3>Status Distribution</h3>
+            <div class="chart-wrap-sm">
+                <canvas id="statusDonut"></canvas>
+            </div>
         </div>
-        {% endif %}
     </div>
 
-    <!-- Tab Content: Domain-wise -->
-    <div id="tab-domain" class="tab-content" data-tab-group="mis">
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Revenue Split Donut
+        new Chart(document.getElementById('revenueDonut'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Assignment Revenue', 'Training Revenue', 'Notional Value'],
+                datasets: [{
+                    data: [{{ totals.assignment_revenue or 0 }}, {{ totals.training_revenue or 0 }}, {{ totals.notional_revenue or 0 }}],
+                    backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+        });
+
+        // Office Bar Chart
+        {% set offices_chart = td.get('office_data', [])[:10] %}
+        new Chart(document.getElementById('officeBar'), {
+            type: 'bar',
+            data: {
+                labels: [{% for o in offices_chart %}'{{ o.office_id }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [
+                    { label: 'Target', data: [{% for o in offices_chart %}{{ o.target or 0 }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#e2e8f0' },
+                    { label: 'Revenue', data: [{% for o in offices_chart %}{{ "%.1f"|format(o.total_revenue or 0) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#3b82f6' },
+                    { label: 'Expenditure', data: [{% for o in offices_chart %}{{ "%.1f"|format(o.total_expenditure or 0) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#ef4444' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Lakhs' } } }
+            }
+        });
+
+        // Status Donut
+        {% set statuses = td.get('progress_by_status', []) %}
+        {% set status_colors = {'Completed': '#10b981', 'In Progress': '#3b82f6', 'On Hold': '#f59e0b', 'Pipeline': '#8b5cf6', 'Cancelled': '#64748b', 'Not Started': '#94a3b8', 'Delayed': '#ef4444'} %}
+        new Chart(document.getElementById('statusDonut'), {
+            type: 'doughnut',
+            data: {
+                labels: [{% for s in statuses %}'{{ s.status }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{
+                    data: [{% for s in statuses %}{{ s.count }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    backgroundColor: [{% for s in statuses %}'{{ status_colors.get(s.status, "#94a3b8") }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                    borderWidth: 0
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+        });
+    });
+    </script>
+
+    <!-- ======================== TAB 2: OFFICE PERFORMANCE ======================== -->
+    {% elif active_tab == 'office' %}
+    {% set td = tab_data %}
+    {% set totals = td.get('totals', {}) %}
+    {% set odata = td.get('office_data', []) %}
+
+    <div class="kpi-grid">
+        <div class="kpi-card blue"><div class="kpi-value">{{ totals.total_offices or 0 }}</div><div class="kpi-label">Total Offices</div></div>
+        <div class="kpi-card {% if (totals.achievement_pct or 0) >= 100 %}green{% else %}amber{% endif %}"><div class="kpi-value">{{ "%.0f"|format(totals.achievement_pct or 0) }}%</div><div class="kpi-label">Avg Achievement</div></div>
+        <div class="kpi-card green"><div class="kpi-value">{% if odata %}{{ odata[0].office_id }}{% else %}-{% endif %}</div><div class="kpi-label">Best Office</div></div>
+        <div class="kpi-card red"><div class="kpi-value">{{ odata|selectattr('prorata_achievement_pct', 'lt', 100)|list|length }}</div><div class="kpi-label">Below Target</div></div>
+    </div>
+
+    <!-- Grouped Bar Chart -->
+    <div class="chart-card" style="margin-bottom: 16px;">
+        <h3>Office Target vs Revenue vs Expenditure</h3>
+        <div class="chart-wrap"><canvas id="officeGroupedBar"></canvas></div>
+    </div>
+
+    <!-- Office Table -->
+    {% if odata %}
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>Office</th>
+                <th style="text-align:right;">Target</th>
+                <th style="text-align:right;">Pro-rata</th>
+                <th style="text-align:right;">Assign. Rev</th>
+                <th style="text-align:right;">Training Rev</th>
+                <th style="text-align:right;">Notional</th>
+                <th style="text-align:right;">Total</th>
+                <th style="text-align:right;">Ach%</th>
+                <th style="text-align:right;">Progress</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in odata %}
+            <tr>
+                <td><a href="/mis/office/{{ o.office_id }}" class="link-primary"><strong>{{ o.office_id }}</strong></a>
+                    {% if o.is_top %}<span class="badge badge-success" style="font-size:0.625rem;margin-left:4px;">Top</span>{% endif %}
+                    {% if o.is_bottom %}<span class="badge badge-danger" style="font-size:0.625rem;margin-left:4px;">Low</span>{% endif %}
+                </td>
+                <td style="text-align:right;">{{ "%.1f"|format(o.target or 0) }}L</td>
+                <td style="text-align:right;">{{ "%.1f"|format(o.prorata_target or 0) }}L</td>
+                <td style="text-align:right;color:#2563eb;">{{ "%.1f"|format(o.assignment_revenue or 0) }}L</td>
+                <td style="text-align:right;color:#7c3aed;">{{ "%.1f"|format(o.training_revenue or 0) }}L</td>
+                <td style="text-align:right;color:#0891b2;">{{ "%.1f"|format(o.notional_revenue or 0) }}L</td>
+                <td style="text-align:right;font-weight:600;">{{ "%.1f"|format(o.total_contribution or 0) }}L</td>
+                <td style="text-align:right;"><span class="{% if (o.achievement_pct or 0) >= 100 %}text-success{% elif (o.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}" style="font-weight:600;">{{ "%.0f"|format(o.achievement_pct or 0) }}%</span></td>
+                <td style="text-align:right;">
+                    <div style="display:inline-flex;align-items:center;gap:6px;">
+                        <div style="width:40px;height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;"><div style="width:{{ (o.avg_physical_progress or 0)|round|int }}%;height:100%;background:#3b82f6;"></div></div>
+                        <span style="font-size:0.7rem;">{{ "%.0f"|format(o.avg_physical_progress or 0) }}%</span>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr style="background:#f8fafc;font-weight:600;">
+                <td>TOTAL</td>
+                <td style="text-align:right;">{{ "%.1f"|format(totals.total_target or 0) }}L</td>
+                <td style="text-align:right;">{{ "%.1f"|format(totals.prorata_target or 0) }}L</td>
+                <td style="text-align:right;color:#2563eb;">{{ "%.1f"|format(totals.assignment_revenue or 0) }}L</td>
+                <td style="text-align:right;color:#7c3aed;">{{ "%.1f"|format(totals.training_revenue or 0) }}L</td>
+                <td style="text-align:right;color:#0891b2;">{{ "%.1f"|format(totals.notional_revenue or 0) }}L</td>
+                <td style="text-align:right;">{{ "%.1f"|format(totals.total_contribution or 0) }}L</td>
+                <td style="text-align:right;">{{ "%.0f"|format(totals.achievement_pct or 0) }}%</td>
+                <td style="text-align:right;">{{ "%.0f"|format(totals.avg_physical_progress or 0) }}%</td>
+            </tr>
+        </tfoot>
+    </table>
+    {% else %}
+    <div class="empty-state" style="padding:40px;text-align:center;"><h3>No office data available</h3></div>
+    {% endif %}
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        new Chart(document.getElementById('officeGroupedBar'), {
+            type: 'bar',
+            data: {
+                labels: [{% for o in odata %}'{{ o.office_id }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [
+                    { label: 'Target', data: [{% for o in odata %}{{ o.target or 0 }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#e2e8f0' },
+                    { label: 'Revenue', data: [{% for o in odata %}{{ "%.1f"|format(o.total_contribution or 0) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#3b82f6' },
+                    { label: 'Expenditure', data: [{% for o in odata %}{{ "%.1f"|format(o.total_expenditure or 0) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#ef4444' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Lakhs' } } } }
+        });
+    });
+    </script>
+
+    <!-- ======================== TAB 3: ACTIVITY & DOMAIN ======================== -->
+    {% elif active_tab == 'activity' %}
+    {% set td = tab_data %}
+    {% set type_data = td.get('type_data', []) %}
+    {% set domain_data = td.get('domain_data', []) %}
+    {% set totals = td.get('totals', {}) %}
+
+    <div class="kpi-grid">
+        {% for t in type_data %}
+        <div class="kpi-card {% if t.type == 'ASSIGNMENT' %}blue{% elif t.type == 'TRAINING' %}purple{% else %}teal{% endif %}">
+            <div class="kpi-value">{{ t.count }}</div>
+            <div class="kpi-label">{{ t.type|title }} ({{ "%.1f"|format(t.total_revenue or 0) }}L)</div>
+        </div>
+        {% endfor %}
+        <div class="kpi-card slate">
+            <div class="kpi-value">{{ domain_data|length }}</div>
+            <div class="kpi-label">Domains</div>
+        </div>
+    </div>
+
+    <div class="mis-grid mis-grid-2">
+        <!-- Type Breakdown Chart -->
+        <div class="chart-card">
+            <h3>Revenue by Activity Type</h3>
+            <div class="chart-wrap-sm"><canvas id="typeChart"></canvas></div>
+        </div>
+        <!-- Stacked by Office -->
+        <div class="chart-card">
+            <h3>Type Revenue by Office</h3>
+            <div class="chart-wrap-sm"><canvas id="typeOfficeChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Domain Table -->
+    <div class="chart-card" style="margin-top: 16px;">
+        <h3>Domain-wise Breakdown</h3>
         {% if domain_data %}
-        {% set max_domain_revenue = domain_data|map(attribute='total_revenue')|max or 1 %}
+        {% set max_rev = domain_data|map(attribute='total_revenue')|max or 1 %}
         <table class="compact-table">
-            <thead>
-                <tr>
-                    <th>Domain</th>
-                    <th style="text-align: right;">Assignments</th>
-                    <th style="text-align: right;">Revenue <span class="info-tooltip" data-tooltip="Total revenue from all assignments in this domain" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Expenditure <span class="info-tooltip" data-tooltip="Total expenditure incurred" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Surplus/Deficit <span class="info-tooltip" data-tooltip="Revenue minus Expenditure" tabindex="0">i</span></th>
-                    <th style="width: 150px;">Chart</th>
-                </tr>
-            </thead>
+            <thead><tr><th>Domain</th><th style="text-align:right;">Count</th><th style="text-align:right;">Revenue</th><th style="text-align:right;">Expenditure</th><th style="text-align:right;">Surplus</th><th style="width:120px;">Chart</th></tr></thead>
             <tbody>
-                {% for domain in domain_data %}
+                {% for d in domain_data %}
                 <tr>
-                    <td><a href="/mis/domain/{{ domain.domain }}" class="text-primary" style="font-weight: 600;">{{ domain.domain }}</a></td>
-                    <td style="text-align: right;">{{ domain.assignment_count }}</td>
-                    <td style="text-align: right; font-weight: 600;">{{ "%.1f"|format(domain.total_revenue or 0) }}L</td>
-                    <td style="text-align: right;">{{ "%.1f"|format(domain.total_expenditure or 0) }}L</td>
-                    <td style="text-align: right;">
-                        <span class="{% if (domain.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            {{ "%.1f"|format(domain.surplus_deficit or 0) }}L
-                        </span>
-                    </td>
-                    <td>
-                        <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
-                            <div style="width: {{ ((domain.total_revenue or 0) / max_domain_revenue * 100)|round|int }}%; height: 100%; background: linear-gradient(90deg, #3b82f6, #1d4ed8);"></div>
-                        </div>
-                    </td>
+                    <td><a href="/mis/domain/{{ d.domain }}" class="text-primary" style="font-weight:600;">{{ d.domain }}</a></td>
+                    <td style="text-align:right;">{{ d.assignment_count }}</td>
+                    <td style="text-align:right;font-weight:600;">{{ "%.1f"|format(d.total_revenue or 0) }}L</td>
+                    <td style="text-align:right;">{{ "%.1f"|format(d.total_expenditure or 0) }}L</td>
+                    <td style="text-align:right;"><span class="{% if (d.surplus_deficit or 0) >= 0 %}text-success{% else %}text-danger{% endif %}">{{ "%.1f"|format(d.surplus_deficit or 0) }}L</span></td>
+                    <td><div style="width:100%;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;"><div style="width:{{ ((d.total_revenue or 0) / max_rev * 100)|round|int }}%;height:100%;background:#3b82f6;"></div></div></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% else %}
-        <div class="empty-state" style="padding: 40px; text-align: center;">
-            <h3>No domain data available</h3>
-        </div>
         {% endif %}
     </div>
 
-    <!-- Tab Content: Officer-wise -->
-    <div id="tab-officer" class="tab-content" data-tab-group="mis">
-        {% if officer_data %}
-        <p style="color: #64748b; font-size: 0.8125rem; margin-bottom: 12px;">
-            Showing {{ officer_data|length }} officers ranked by achievement %
-        </p>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        new Chart(document.getElementById('typeChart'), {
+            type: 'doughnut',
+            data: {
+                labels: [{% for t in type_data %}'{{ t.type }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for t in type_data %}{{ "%.1f"|format(t.total_revenue or 0) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: ['#3b82f6','#8b5cf6','#14b8a6','#f59e0b'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        {% set tbo = td.get('type_by_office', [])[:12] %}
+        new Chart(document.getElementById('typeOfficeChart'), {
+            type: 'bar',
+            data: {
+                labels: [{% for o in tbo %}'{{ o.office_id }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [
+                    { label: 'Assignment', data: [{% for o in tbo %}{{ "%.1f"|format(o.get('ASSIGNMENT', 0)) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#3b82f6' },
+                    { label: 'Training', data: [{% for o in tbo %}{{ "%.1f"|format(o.get('TRAINING', 0)) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: '#8b5cf6' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
+        });
+    });
+    </script>
+
+    <!-- ======================== TAB 4: FINANCIAL DEEP-DIVE ======================== -->
+    {% elif active_tab == 'financial' %}
+    {% set fin = tab_data.get('financial', {}) %}
+    {% set pipeline = fin.get('pipeline', {}) %}
+
+    <div class="kpi-grid">
+        <div class="kpi-card blue"><div class="kpi-value">{{ "%.1f"|format(pipeline.gross_value or 0) }}L</div><div class="kpi-label">Gross Value</div></div>
+        <div class="kpi-card purple"><div class="kpi-value">{{ "%.1f"|format(pipeline.total_invoiced or 0) }}L</div><div class="kpi-label">Total Invoiced</div></div>
+        <div class="kpi-card green"><div class="kpi-value">{{ "%.1f"|format(pipeline.total_received or 0) }}L</div><div class="kpi-label">Total Received</div></div>
+        <div class="kpi-card {% if (pipeline.collection_rate or 0) >= 80 %}green{% elif (pipeline.collection_rate or 0) >= 50 %}amber{% else %}red{% endif %}"><div class="kpi-value">{{ "%.0f"|format(pipeline.collection_rate or 0) }}%</div><div class="kpi-label">Collection Rate</div></div>
+    </div>
+
+    <div class="mis-grid mis-grid-3">
+        <!-- Revenue Pipeline -->
+        <div class="chart-card" style="grid-column: span 2;">
+            <h3>Revenue Pipeline (Lakhs)</h3>
+            <div class="chart-wrap"><canvas id="pipelineChart"></canvas></div>
+        </div>
+        <!-- Expenditure by Category -->
+        <div class="chart-card">
+            <h3>Expenditure by Category</h3>
+            <div class="chart-wrap"><canvas id="expenditureChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Aging Analysis -->
+    <div class="mis-grid mis-grid-2" style="margin-top: 16px;">
+        <!-- Invoice Aging -->
+        <div class="chart-card">
+            <h3>Invoice Aging (Outstanding)</h3>
+            {% set inv_b = fin.get('invoice_buckets', {}) %}
+            <table class="compact-table">
+                <thead><tr><th>Bucket</th><th style="text-align:right;">Count</th><th style="text-align:right;">Value (L)</th></tr></thead>
+                <tbody>
+                    {% for bucket in ['0-30', '30-60', '60-90', '90+'] %}
+                    {% set b = inv_b.get(bucket, {}) %}
+                    <tr>
+                        <td><span class="heatmap-cell {% if bucket == '0-30' %}heatmap-green{% elif bucket in ('30-60', '60-90') %}heatmap-amber{% else %}heatmap-red{% endif %}">{{ bucket }} days</span></td>
+                        <td style="text-align:right;font-weight:600;">{{ b.get('count', 0) }}</td>
+                        <td style="text-align:right;">{{ "%.1f"|format(b.get('value', 0)) }}L</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Payment Aging -->
+        <div class="chart-card">
+            <h3>Payment Turnaround (Approval → Receipt)</h3>
+            {% set pay_b = fin.get('payment_buckets', {}) %}
+            <table class="compact-table">
+                <thead><tr><th>Bucket</th><th style="text-align:right;">Count</th><th style="text-align:right;">Value (L)</th></tr></thead>
+                <tbody>
+                    {% for bucket in ['0-30', '30-60', '60-90', '90+'] %}
+                    {% set b = pay_b.get(bucket, {}) %}
+                    <tr>
+                        <td><span class="heatmap-cell {% if bucket == '0-30' %}heatmap-green{% elif bucket in ('30-60', '60-90') %}heatmap-amber{% else %}heatmap-red{% endif %}">{{ bucket }} days</span></td>
+                        <td style="text-align:right;font-weight:600;">{{ b.get('count', 0) }}</td>
+                        <td style="text-align:right;">{{ "%.1f"|format(b.get('value', 0)) }}L</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Expenditure Detail Table -->
+    {% set exp_data = fin.get('expenditure_data', []) %}
+    {% if exp_data %}
+    <div class="chart-card" style="margin-top: 16px;">
+        <h3>Budget vs Actual by Expenditure Head</h3>
         <table class="compact-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Officer</th>
-                    <th>Office</th>
-                    <th style="text-align: right;">Target <span class="info-tooltip" data-tooltip="Annual target in Lakhs" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Pro-rata <span class="info-tooltip" data-tooltip="Target × FY elapsed %" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Real <span class="info-tooltip" data-tooltip="Revenue share from Assignments & Training" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Notional <span class="info-tooltip" data-tooltip="Notional value from Development Work" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Total <span class="info-tooltip" data-tooltip="Real + Notional Revenue" tabindex="0">i</span></th>
-                    <th style="text-align: right;">Ach% <span class="info-tooltip" data-tooltip="Total ÷ Pro-rata Target (Ranked by this)" tabindex="0">i</span></th>
-                </tr>
-            </thead>
+            <thead><tr><th>Category</th><th>Head</th><th style="text-align:right;">Budgeted (L)</th><th style="text-align:right;">Actual (L)</th><th style="text-align:right;">Variance</th></tr></thead>
             <tbody>
-                {% for officer in officer_data %}
+                {% for e in exp_data %}
+                {% set variance = (e.budgeted or 0) - (e.actual_spent or 0) %}
+                <tr>
+                    <td>{{ e.category }}</td>
+                    <td>{{ e.head_name }}</td>
+                    <td style="text-align:right;">{{ "%.1f"|format(e.budgeted or 0) }}</td>
+                    <td style="text-align:right;">{{ "%.1f"|format(e.actual_spent or 0) }}</td>
+                    <td style="text-align:right;"><span class="{% if variance >= 0 %}text-success{% else %}text-danger{% endif %}">{{ "%.1f"|format(variance) }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Revenue Pipeline Bar
+        new Chart(document.getElementById('pipelineChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Gross Value', 'Invoiced', 'Received', 'Expenditure', 'Net Revenue'],
+                datasets: [{
+                    data: [{{ "%.1f"|format(pipeline.gross_value or 0) }}, {{ "%.1f"|format(pipeline.total_invoiced or 0) }}, {{ "%.1f"|format(pipeline.total_received or 0) }}, {{ "%.1f"|format(pipeline.total_expenditure or 0) }}, {{ "%.1f"|format(pipeline.net_revenue or 0) }}],
+                    backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#ef4444', {% if (pipeline.net_revenue or 0) >= 0 %}'#059669'{% else %}'#dc2626'{% endif %}],
+                    borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Lakhs' } } } }
+        });
+
+        // Expenditure Pie
+        {% set exp_cats = {} %}
+        {% for e in exp_data %}{% if e.category in exp_cats %}{% else %}{% set _ = exp_cats.update({e.category: 0}) %}{% endif %}{% endfor %}
+        new Chart(document.getElementById('expenditureChart'), {
+            type: 'pie',
+            data: {
+                labels: [{% for e in exp_data[:8] %}'{{ e.head_name[:15] }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{ data: [{% for e in exp_data[:8] %}{{ "%.1f"|format(e.actual_spent or 0) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#84cc16','#f97316'], borderWidth: 0 }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 10 } } } } }
+        });
+    });
+    </script>
+
+    <!-- ======================== TAB 5: DELAYS & ALERTS ======================== -->
+    {% elif active_tab == 'delays' %}
+    {% set dl = tab_data.get('delays', {}) %}
+    {% set ds = dl.get('summary', {}) %}
+
+    <div class="kpi-grid">
+        <div class="kpi-card amber"><div class="kpi-value">{{ ds.milestone_count or 0 }}</div><div class="kpi-label">Milestone Delays</div></div>
+        <div class="kpi-card red"><div class="kpi-value">{{ ds.payment_count or 0 }}</div><div class="kpi-label">Payment Delays ({{ "%.1f"|format(ds.payment_value or 0) }}L)</div></div>
+        <div class="kpi-card purple"><div class="kpi-value">{{ ds.invoice_count or 0 }}</div><div class="kpi-label">Invoice Delays</div></div>
+        <div class="kpi-card slate"><div class="kpi-value">{{ ds.activation_count or 0 }}</div><div class="kpi-label">Activation Delays (&gt;30d)</div></div>
+    </div>
+
+    <!-- Delay Heatmap Chart -->
+    <div class="mis-grid mis-grid-2">
+        <div class="chart-card" style="grid-column: span 2;">
+            <h3>Delay Distribution by Type</h3>
+            <div class="chart-wrap-sm"><canvas id="delayBarChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Office Heatmap Table -->
+    {% set heatmap = dl.get('heatmap', []) %}
+    {% if heatmap %}
+    <div class="chart-card" style="margin-top: 16px;">
+        <h3>Office-wise Delay Heatmap</h3>
+        <table class="compact-table">
+            <thead><tr><th>Office</th><th style="text-align:center;">Milestone</th><th style="text-align:center;">Payment</th><th style="text-align:center;">Invoice</th><th style="text-align:center;">Activation</th><th style="text-align:center;">Total</th></tr></thead>
+            <tbody>
+                {% for h in heatmap %}
+                <tr>
+                    <td><strong>{{ h.office_id }}</strong></td>
+                    {% for dtype in ['milestone', 'payment', 'invoice', 'activation'] %}
+                    {% set val = h.get(dtype, 0) %}
+                    <td style="text-align:center;"><span class="heatmap-cell {% if val == 0 %}heatmap-green{% elif val <= 3 %}heatmap-amber{% else %}heatmap-red{% endif %}">{{ val }}</span></td>
+                    {% endfor %}
+                    <td style="text-align:center;font-weight:700;">{{ h.total }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- Delay Detail Tables -->
+    {% set m_delays = dl.get('milestone_delays', []) %}
+    {% if m_delays %}
+    <div class="chart-card" style="margin-top: 16px;">
+        <h3>Milestone Delays (Top {{ m_delays|length }})</h3>
+        <table class="compact-table">
+            <thead><tr><th>Assignment</th><th>Milestone</th><th>Office</th><th>Target Date</th><th style="text-align:right;">Delay Days</th></tr></thead>
+            <tbody>
+                {% for d in m_delays[:15] %}
+                <tr>
+                    <td><a href="/assignment/view/{{ d.id }}" class="link-primary">{{ d.assignment_no }}</a></td>
+                    <td>{{ d.milestone_title or ('M' ~ d.milestone_no) }}</td>
+                    <td>{{ d.office_id }}</td>
+                    <td>{{ d.target_date }}</td>
+                    <td style="text-align:right;"><span class="{% if (d.delay_days or 0) > 60 %}text-danger{% elif (d.delay_days or 0) > 30 %}text-warning{% else %}text-success{% endif %}" style="font-weight:600;">{{ d.delay_days }} days</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% set p_delays = dl.get('payment_delays', []) %}
+    {% if p_delays %}
+    <div class="chart-card" style="margin-top: 16px;">
+        <h3>Payment Delays (Top {{ p_delays|length }})</h3>
+        <table class="compact-table">
+            <thead><tr><th>Assignment</th><th>Title</th><th>Office</th><th>Invoice Amt (L)</th><th style="text-align:right;">Delay Days</th></tr></thead>
+            <tbody>
+                {% for d in p_delays[:15] %}
+                <tr>
+                    <td><strong>{{ d.assignment_no }}</strong></td>
+                    <td>{{ (d.title or '')[:30] }}</td>
+                    <td>{{ d.office_id }}</td>
+                    <td>{{ "%.1f"|format(d.invoice_amount or 0) }}</td>
+                    <td style="text-align:right;"><span class="{% if (d.delay_days or 0) > 60 %}text-danger{% elif (d.delay_days or 0) > 30 %}text-warning{% else %}text-success{% endif %}" style="font-weight:600;">{{ d.delay_days }} days</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        new Chart(document.getElementById('delayBarChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Milestone Delays', 'Payment Delays', 'Invoice Delays', 'Activation Delays'],
+                datasets: [{
+                    data: [{{ ds.milestone_count or 0 }}, {{ ds.payment_count or 0 }}, {{ ds.invoice_count or 0 }}, {{ ds.activation_count or 0 }}],
+                    backgroundColor: ['#f59e0b', '#ef4444', '#8b5cf6', '#64748b'],
+                    borderRadius: 6
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true } } }
+        });
+    });
+    </script>
+
+    <!-- ======================== TAB 6: OFFICER & CLIENT ======================== -->
+    {% elif active_tab == 'officer_client' %}
+    {% set td = tab_data %}
+    {% set officers = td.get('officer_data', []) %}
+    {% set clients = td.get('client_data', []) %}
+    {% set os = td.get('officer_summary', {}) %}
+    {% set cs = td.get('client_summary', {}) %}
+
+    <div class="kpi-grid">
+        <div class="kpi-card blue"><div class="kpi-value">{{ os.total_officers or 0 }}</div><div class="kpi-label">Total Officers</div></div>
+        <div class="kpi-card {% if (os.avg_achievement or 0) >= 100 %}green{% else %}amber{% endif %}"><div class="kpi-value">{{ "%.0f"|format(os.avg_achievement or 0) }}%</div><div class="kpi-label">Avg Achievement</div></div>
+        <div class="kpi-card green"><div class="kpi-value">{{ os.above_target or 0 }}</div><div class="kpi-label">Above Target</div></div>
+        <div class="kpi-card teal"><div class="kpi-value">{{ cs.total_clients or 0 }}</div><div class="kpi-label">Total Clients</div></div>
+    </div>
+
+    <div class="mis-grid mis-grid-2">
+        <!-- Officer Chart -->
+        <div class="chart-card">
+            <h3>Top 10 Officers by Achievement %</h3>
+            <div class="chart-wrap"><canvas id="officerChart"></canvas></div>
+        </div>
+        <!-- Client Chart -->
+        <div class="chart-card">
+            <h3>Top 10 Clients by Value</h3>
+            <div class="chart-wrap"><canvas id="clientChart"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Officer Table -->
+    {% if officers %}
+    <div class="chart-card" style="margin-top: 16px;">
+        <h3>Officer Rankings ({{ officers|length }} officers)</h3>
+        <table class="compact-table">
+            <thead><tr><th>#</th><th>Officer</th><th>Office</th><th style="text-align:right;">Target</th><th style="text-align:right;">Real Rev</th><th style="text-align:right;">Notional</th><th style="text-align:right;">Total</th><th style="text-align:right;">Ach%</th></tr></thead>
+            <tbody>
+                {% for o in officers %}
                 <tr>
                     <td>{{ loop.index }}</td>
-                    <td>
-                        <a href="/mis/officer/{{ officer.officer_id }}" class="link-primary">
-                            <strong>{{ officer.name }}</strong>
-                        </a>
-                        {% if officer.is_top and loop.index <= 10 %}<span class="badge badge-success" style="font-size: 0.625rem; margin-left: 4px;">Top 10</span>{% endif %}
-                        {% if officer.is_bottom %}<span class="badge badge-danger" style="font-size: 0.625rem; margin-left: 4px;">Low</span>{% endif %}
+                    <td><a href="/mis/officer/{{ o.officer_id }}" class="link-primary"><strong>{{ o.name }}</strong></a>
+                        {% if o.is_top and loop.index <= 10 %}<span class="badge badge-success" style="font-size:0.625rem;margin-left:4px;">Top</span>{% endif %}
+                        {% if o.is_bottom %}<span class="badge badge-danger" style="font-size:0.625rem;margin-left:4px;">Low</span>{% endif %}
                     </td>
-                    <td>{{ officer.office_id }}</td>
-                    <td style="text-align: right;">{{ "%.1f"|format(officer.annual_target or 60) }}L</td>
-                    <td style="text-align: right;">{{ "%.1f"|format(officer.prorata_target or 0) }}L</td>
-                    <td style="text-align: right; color: #2563eb;">{{ "%.1f"|format(officer.real_revenue or officer.total_share_amount or 0) }}L</td>
-                    <td style="text-align: right; color: #0891b2;">{{ "%.1f"|format(officer.notional_revenue or 0) }}L</td>
-                    <td style="text-align: right; font-weight: 600;">{{ "%.1f"|format(officer.total_contribution or officer.total_share_amount or 0) }}L</td>
-                    <td style="text-align: right;">
-                        <span class="{% if (officer.achievement_pct or 0) >= 100 %}text-success{% elif (officer.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}" style="font-weight: 600;">
-                            {{ "%.0f"|format(officer.achievement_pct or 0) }}%
-                        </span>
-                    </td>
+                    <td>{{ o.office_id }}</td>
+                    <td style="text-align:right;">{{ "%.1f"|format(o.annual_target or 60) }}L</td>
+                    <td style="text-align:right;color:#2563eb;">{{ "%.1f"|format(o.real_revenue or 0) }}L</td>
+                    <td style="text-align:right;color:#0891b2;">{{ "%.1f"|format(o.notional_revenue or 0) }}L</td>
+                    <td style="text-align:right;font-weight:600;">{{ "%.1f"|format(o.total_contribution or 0) }}L</td>
+                    <td style="text-align:right;"><span class="{% if (o.achievement_pct or 0) >= 100 %}text-success{% elif (o.achievement_pct or 0) >= 75 %}text-warning{% else %}text-danger{% endif %}" style="font-weight:600;">{{ "%.0f"|format(o.achievement_pct or 0) }}%</span></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% else %}
-        <div class="empty-state" style="padding: 40px; text-align: center;">
-            <h3>No revenue shares allocated yet</h3>
-            <p>Officer data will appear once revenue shares are allocated to assignments.</p>
-        </div>
-        {% endif %}
     </div>
+    {% endif %}
+
+    <!-- Client Table -->
+    {% if clients %}
+    <div class="chart-card" style="margin-top: 16px;">
+        <h3>Client-wise Revenue ({{ clients|length }} clients)</h3>
+        <table class="compact-table">
+            <thead><tr><th>Client</th><th>Type</th><th style="text-align:right;">Assignments</th><th style="text-align:right;">Total Value (L)</th><th style="text-align:right;">Invoiced (L)</th><th style="text-align:right;">Received (L)</th></tr></thead>
+            <tbody>
+                {% for c in clients %}
+                <tr>
+                    <td><strong>{{ c.client_name[:30] }}</strong></td>
+                    <td><span class="badge badge-secondary">{{ c.client_type or 'N/A' }}</span></td>
+                    <td style="text-align:right;">{{ c.assignment_count }}</td>
+                    <td style="text-align:right;font-weight:600;">{{ "%.1f"|format(c.total_value or 0) }}</td>
+                    <td style="text-align:right;">{{ "%.1f"|format(c.invoiced or 0) }}</td>
+                    <td style="text-align:right;color:#059669;">{{ "%.1f"|format(c.received or 0) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Officer horizontal bar
+        new Chart(document.getElementById('officerChart'), {
+            type: 'bar',
+            data: {
+                labels: [{% for o in officers[:10] %}'{{ o.name[:15] }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{
+                    label: 'Achievement %',
+                    data: [{% for o in officers[:10] %}{{ "%.0f"|format(o.achievement_pct or 0) }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    backgroundColor: [{% for o in officers[:10] %}{% if (o.achievement_pct or 0) >= 100 %}'#10b981'{% elif (o.achievement_pct or 0) >= 75 %}'#f59e0b'{% else %}'#ef4444'{% endif %}{% if not loop.last %},{% endif %}{% endfor %}],
+                    borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, title: { display: true, text: '%' } } } }
+        });
+
+        // Client horizontal bar
+        new Chart(document.getElementById('clientChart'), {
+            type: 'bar',
+            data: {
+                labels: [{% for c in clients[:10] %}'{{ c.client_name[:15] }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{
+                    label: 'Total Value (L)',
+                    data: [{% for c in clients[:10] %}{{ "%.1f"|format(c.total_value or 0) }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, title: { display: true, text: 'Lakhs' } } } }
+        });
+    });
+    </script>
+    {% endif %}
 </div>
 {% endblock %}

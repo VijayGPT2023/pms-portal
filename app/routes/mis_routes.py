@@ -1,11 +1,14 @@
 """
-MIS Analytics routes: office-wise, domain-wise, and officer-wise revenue analytics.
-Includes target vs achievement comparison and physical progress tracking.
+MIS Analytics Command Center: 6-tab dashboard with interactive Chart.js visualizations.
+Tabs: Executive Summary, Office Performance, Activity & Domain, Financial Deep-Dive,
+      Delays & Alerts, Officer & Client.
 """
+import csv
+import io
 from typing import Optional
 from datetime import datetime, date
 from fastapi import APIRouter, Request, Query
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse, StreamingResponse
 
 from app.database import get_db, USE_POSTGRES
 from app.dependencies import get_current_user
@@ -14,6 +17,8 @@ from app.config import SHOW_RANKINGS, REVENUE_WEIGHTAGE_REAL, REVENUE_WEIGHTAGE_
 from app.roles import get_user_role, ROLE_DG, ROLE_DDG_I, ROLE_DDG_II, ROLE_ADMIN
 
 router = APIRouter()
+
+VALID_TABS = {'executive', 'office', 'activity', 'financial', 'delays', 'officer_client'}
 
 
 def get_financial_years():
@@ -50,24 +55,492 @@ def calculate_fy_progress():
     return min(elapsed_days / total_days, 1.0)
 
 
+def _date_diff_sql(column):
+    """SQL expression for days since a date column (dual DB compatible)."""
+    if USE_POSTGRES:
+        return f"(CURRENT_DATE - {column}::date)"
+    return f"CAST(julianday('now') - julianday({column}) AS INTEGER)"
+
+
+def _build_base_filters(ph, financial_year, filter_office, filter_domain, filter_type, date_from, date_to):
+    """Build shared WHERE clause and params from filter inputs."""
+    conditions = "WHERE 1=1"
+    params = []
+    fy_start, fy_end = parse_financial_year(financial_year)
+    if fy_start and fy_end:
+        conditions += f" AND (a.start_date BETWEEN {ph} AND {ph} OR a.work_order_date BETWEEN {ph} AND {ph})"
+        params.extend([fy_start.isoformat(), fy_end.isoformat(), fy_start.isoformat(), fy_end.isoformat()])
+    if date_from:
+        conditions += f" AND (a.start_date >= {ph} OR a.work_order_date >= {ph})"
+        params.extend([date_from, date_from])
+    if date_to:
+        conditions += f" AND (a.start_date <= {ph} OR a.work_order_date <= {ph})"
+        params.extend([date_to, date_to])
+    if filter_office:
+        conditions += f" AND a.office_id = {ph}"
+        params.append(filter_office)
+    if filter_domain:
+        conditions += f" AND a.domain = {ph}"
+        params.append(filter_domain)
+    if filter_type:
+        conditions += f" AND a.type = {ph}"
+        params.append(filter_type)
+    return conditions, params, fy_start, fy_end
+
+
+# ---------------------------------------------------------------------------
+# Tab data loaders
+# ---------------------------------------------------------------------------
+
+def _load_office_data(cursor, ph, financial_year, base_conditions, params, fy_progress, can_see_rankings):
+    """Load office-wise target vs achievement data (used by Executive & Office tabs)."""
+    office_query = f"""
+        SELECT a.office_id, o.office_name, o.officer_count, o.annual_revenue_target,
+            COALESCE(fyt.annual_target, o.annual_revenue_target) as target,
+            COALESCE(fyt.training_target, 0) as training_target,
+            COALESCE(fyt.lecture_target, 0) as lecture_target,
+            COUNT(*) as assignment_count,
+            SUM(COALESCE(a.total_revenue, 0)) as total_revenue,
+            SUM(CASE WHEN a.type = 'ASSIGNMENT' THEN COALESCE(a.total_revenue, 0) ELSE 0 END) as assignment_revenue,
+            SUM(CASE WHEN a.type = 'TRAINING' THEN COALESCE(a.total_revenue, 0) ELSE 0 END) as training_revenue,
+            SUM(COALESCE(a.amount_received, 0)) as deposits,
+            SUM(COALESCE(a.total_expenditure, 0)) as total_expenditure,
+            SUM(COALESCE(a.surplus_deficit, 0)) as surplus_deficit,
+            SUM(CASE WHEN a.type = 'ASSIGNMENT' THEN 1 ELSE 0 END) as project_count,
+            SUM(CASE WHEN a.type = 'TRAINING' THEN 1 ELSE 0 END) as training_count,
+            AVG(COALESCE(a.physical_progress_percent, 0)) as avg_physical_progress
+        FROM assignments a
+        LEFT JOIN offices o ON a.office_id = o.office_id
+        LEFT JOIN financial_year_targets fyt ON a.office_id = fyt.office_id AND fyt.financial_year = {ph}
+        {base_conditions}
+        GROUP BY a.office_id, o.office_name, o.officer_count, o.annual_revenue_target,
+                 fyt.annual_target, fyt.training_target, fyt.lecture_target
+        ORDER BY total_revenue DESC
+    """
+    cursor.execute(office_query, [financial_year] + params)
+    office_data = [dict(row) for row in cursor.fetchall()]
+
+    # Notional revenue
+    cursor.execute("""SELECT office_id, COALESCE(SUM(notional_value), 0) as notional_revenue
+        FROM non_revenue_suggestions WHERE status = 'COMPLETED' GROUP BY office_id""")
+    notional_by_office = {row['office_id']: row['notional_revenue'] for row in cursor.fetchall()}
+
+    for o in office_data:
+        o['notional_revenue'] = notional_by_office.get(o['office_id'], 0)
+        o['total_contribution'] = ((o['total_revenue'] or 0) * REVENUE_WEIGHTAGE_REAL) + (o['notional_revenue'] * REVENUE_WEIGHTAGE_NOTIONAL)
+        target = o['target'] or 0
+        o['prorata_target'] = round(target * fy_progress, 2)
+        o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
+        o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
+        o['surplus_deficit_pct'] = round((o['surplus_deficit'] / o['total_revenue'] * 100), 1) if o['total_revenue'] > 0 else 0
+
+    # Rankings
+    if can_see_rankings:
+        sorted_offices = sorted([o for o in office_data if o['achievement_pct'] > 0],
+                                key=lambda x: x['achievement_pct'], reverse=True)
+        top_3 = set(o['office_id'] for o in sorted_offices[:3])
+        bottom_3 = set(o['office_id'] for o in sorted_offices[-3:]) if len(sorted_offices) > 3 else set()
+    else:
+        top_3, bottom_3 = set(), set()
+    for o in office_data:
+        o['is_top'] = o['office_id'] in top_3
+        o['is_bottom'] = o['office_id'] in bottom_3 and o['office_id'] not in top_3
+
+    office_data = sorted(office_data, key=lambda x: x['achievement_pct'] or 0, reverse=True)
+    return office_data, notional_by_office
+
+
+def _compute_totals(office_data, domain_data, fy_progress):
+    """Compute summary totals from office data."""
+    total_target = sum(o['target'] or 0 for o in office_data)
+    total_revenue = sum(o['total_revenue'] or 0 for o in office_data)
+    total_contribution = sum(o.get('total_contribution', o['total_revenue'] or 0) or 0 for o in office_data)
+    total_expenditure = sum(o['total_expenditure'] or 0 for o in office_data)
+    prorata_target = round(total_target * fy_progress, 2)
+    avg_phys = sum(o['avg_physical_progress'] or 0 for o in office_data) / len(office_data) if office_data else 0
+    return {
+        'total_assignments': sum(o['assignment_count'] for o in office_data),
+        'total_target': total_target,
+        'prorata_target': prorata_target,
+        'total_revenue': total_revenue,
+        'assignment_revenue': sum(o.get('assignment_revenue', 0) or 0 for o in office_data),
+        'training_revenue': sum(o.get('training_revenue', 0) or 0 for o in office_data),
+        'notional_revenue': sum(o.get('notional_revenue', 0) or 0 for o in office_data),
+        'total_contribution': total_contribution,
+        'total_expenditure': total_expenditure,
+        'surplus_deficit': total_revenue - total_expenditure,
+        'achievement_pct': round((total_contribution / prorata_target * 100), 1) if prorata_target > 0 else 0,
+        'overall_achievement_pct': round((total_contribution / total_target * 100), 1) if total_target > 0 else 0,
+        'total_offices': len(office_data),
+        'total_officers': sum(o['officer_count'] or 0 for o in office_data),
+        'total_domains': len(domain_data) if domain_data else 0,
+        'avg_physical_progress': round(avg_phys, 1),
+        'fy_progress_pct': round(fy_progress * 100, 1),
+    }
+
+
+def _load_officer_data(cursor, ph, fy_start, fy_end, filter_office, date_from, date_to, fy_progress, can_see_rankings):
+    """Load officer-wise target vs achievement."""
+    officer_conditions = "WHERE 1=1"
+    officer_params = []
+    if fy_start and fy_end:
+        officer_conditions += f" AND (a.start_date BETWEEN {ph} AND {ph} OR a.work_order_date BETWEEN {ph} AND {ph})"
+        officer_params.extend([fy_start.isoformat(), fy_end.isoformat(), fy_start.isoformat(), fy_end.isoformat()])
+    if date_from:
+        officer_conditions += f" AND (a.start_date >= {ph} OR a.work_order_date >= {ph})"
+        officer_params.extend([date_from, date_from])
+    if date_to:
+        officer_conditions += f" AND (a.start_date <= {ph} OR a.work_order_date <= {ph})"
+        officer_params.extend([date_to, date_to])
+    if filter_office:
+        officer_conditions += f" AND a.office_id = {ph}"
+        officer_params.append(filter_office)
+
+    officer_query = f"""
+        SELECT off.officer_id, off.name, off.office_id, off.designation, off.annual_target,
+            COALESCE(rd.assignment_count, 0) as assignment_count,
+            COALESCE(rd.total_share_amount, 0) as total_share_amount,
+            COALESCE(rd.avg_share_percent, 0) as avg_share_percent
+        FROM officers off
+        LEFT JOIN (
+            SELECT rs.officer_id, COUNT(DISTINCT rs.assignment_id) as assignment_count,
+                SUM(rs.share_amount) as total_share_amount, AVG(rs.share_percent) as avg_share_percent
+            FROM revenue_shares rs JOIN assignments a ON rs.assignment_id = a.id
+            {officer_conditions} GROUP BY rs.officer_id
+        ) rd ON off.officer_id = rd.officer_id
+        WHERE off.is_active = 1
+        {f"AND off.office_id = {ph}" if filter_office else ""}
+        ORDER BY total_share_amount DESC
+    """
+    cursor.execute(officer_query, officer_params + ([filter_office] if filter_office else []))
+    officer_data = [dict(row) for row in cursor.fetchall()]
+
+    cursor.execute("""SELECT officer_id, COALESCE(SUM(notional_value), 0) as notional_revenue
+        FROM non_revenue_suggestions WHERE status = 'COMPLETED' AND officer_id IS NOT NULL GROUP BY officer_id""")
+    notional_by_officer = {row['officer_id']: row['notional_revenue'] for row in cursor.fetchall()}
+
+    for o in officer_data:
+        target = o['annual_target'] or 60.0
+        o['prorata_target'] = round(target * fy_progress, 2)
+        o['real_revenue'] = o['total_share_amount'] or 0
+        o['notional_revenue'] = notional_by_officer.get(o['officer_id'], 0)
+        o['total_contribution'] = (o['real_revenue'] * REVENUE_WEIGHTAGE_REAL) + (o['notional_revenue'] * REVENUE_WEIGHTAGE_NOTIONAL)
+        o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
+        o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
+
+    if can_see_rankings:
+        sorted_off = sorted([o for o in officer_data if o['achievement_pct'] > 0],
+                            key=lambda x: x['achievement_pct'], reverse=True)
+        top_10 = set(o['officer_id'] for o in sorted_off[:10])
+        bottom_10 = set(o['officer_id'] for o in sorted_off[-10:]) if len(sorted_off) > 10 else set()
+    else:
+        top_10, bottom_10 = set(), set()
+    for o in officer_data:
+        o['is_top'] = o['officer_id'] in top_10
+        o['is_bottom'] = o['officer_id'] in bottom_10 and o['officer_id'] not in top_10
+
+    return sorted(officer_data, key=lambda x: x['achievement_pct'] or 0, reverse=True)
+
+
+def _load_domain_data(cursor, ph, base_conditions, params):
+    """Load domain-wise revenue aggregation."""
+    cursor.execute(f"""
+        SELECT COALESCE(a.domain, 'Unspecified') as domain, COUNT(*) as assignment_count,
+            SUM(COALESCE(a.total_revenue, 0)) as total_revenue,
+            SUM(COALESCE(a.total_expenditure, 0)) as total_expenditure,
+            SUM(COALESCE(a.surplus_deficit, 0)) as surplus_deficit,
+            AVG(COALESCE(a.physical_progress_percent, 0)) as avg_physical_progress
+        FROM assignments a {base_conditions}
+        GROUP BY COALESCE(a.domain, 'Unspecified') ORDER BY total_revenue DESC
+    """, params)
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def _load_progress_by_status(cursor, ph, base_conditions, params):
+    """Load status distribution."""
+    cursor.execute(f"""
+        SELECT a.status, COUNT(*) as count,
+            AVG(COALESCE(a.physical_progress_percent, 0)) as avg_progress,
+            SUM(COALESCE(a.total_revenue, 0)) as total_revenue
+        FROM assignments a {base_conditions} GROUP BY a.status ORDER BY count DESC
+    """, params)
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def _load_activity_data(cursor, ph, base_conditions, params):
+    """Load activity type breakdown + type-by-office cross-tab."""
+    # Type breakdown
+    cursor.execute(f"""
+        SELECT COALESCE(a.type, 'ASSIGNMENT') as type, COUNT(*) as count,
+            SUM(COALESCE(a.gross_value, 0)) as gross_value,
+            SUM(COALESCE(a.total_revenue, 0)) as total_revenue,
+            SUM(COALESCE(a.total_expenditure, 0)) as total_expenditure,
+            AVG(COALESCE(a.physical_progress_percent, 0)) as avg_progress
+        FROM assignments a {base_conditions} GROUP BY COALESCE(a.type, 'ASSIGNMENT') ORDER BY total_revenue DESC
+    """, params)
+    type_data = [dict(row) for row in cursor.fetchall()]
+
+    # Type-by-office cross-tab
+    cursor.execute(f"""
+        SELECT a.office_id, COALESCE(a.type, 'ASSIGNMENT') as type, COUNT(*) as count,
+            SUM(COALESCE(a.total_revenue, 0)) as total_revenue
+        FROM assignments a {base_conditions}
+        GROUP BY a.office_id, COALESCE(a.type, 'ASSIGNMENT') ORDER BY a.office_id
+    """, params)
+    type_by_office_raw = [dict(row) for row in cursor.fetchall()]
+
+    # Pivot: {office_id: {type: revenue}}
+    type_by_office = {}
+    for row in type_by_office_raw:
+        oid = row['office_id']
+        if oid not in type_by_office:
+            type_by_office[oid] = {'office_id': oid, 'ASSIGNMENT': 0, 'TRAINING': 0}
+        type_by_office[oid][row['type']] = float(row['total_revenue'] or 0)
+    type_by_office = sorted(type_by_office.values(),
+                            key=lambda x: x.get('ASSIGNMENT', 0) + x.get('TRAINING', 0), reverse=True)
+
+    return type_data, type_by_office
+
+
+def _load_financial_data(cursor, ph, filter_office):
+    """Load financial deep-dive: revenue pipeline, invoice/payment aging, expenditure by category."""
+    office_filter = ""
+    oparams = []
+    if filter_office:
+        office_filter = f"AND a.office_id = {ph}"
+        oparams = [filter_office]
+
+    # Revenue pipeline: gross → invoiced → received
+    cursor.execute(f"""
+        SELECT COALESCE(SUM(a.gross_value), 0) as gross_value,
+            COALESCE(SUM(a.invoice_amount), 0) as total_invoiced,
+            COALESCE(SUM(a.amount_received), 0) as total_received,
+            COALESCE(SUM(a.total_revenue), 0) as total_revenue,
+            COALESCE(SUM(a.total_expenditure), 0) as total_expenditure
+        FROM assignments a WHERE 1=1 {office_filter}
+    """, oparams)
+    row = cursor.fetchone()
+    pipeline = dict(row) if row else {}
+    pipeline['net_revenue'] = (pipeline.get('total_received') or 0) - (pipeline.get('total_expenditure') or 0)
+    pipeline['collection_rate'] = round(
+        (pipeline['total_received'] / pipeline['total_invoiced'] * 100), 1
+    ) if pipeline.get('total_invoiced') else 0
+
+    # Invoice aging: approved invoices without full payment
+    date_diff = _date_diff_sql('ir.approved_at')
+    cursor.execute(f"""
+        SELECT ir.id, ir.request_number, ir.invoice_amount, ir.approved_at,
+            a.assignment_no, a.title, a.office_id, {date_diff} as days_since
+        FROM invoice_requests ir
+        JOIN assignments a ON ir.assignment_id = a.id
+        LEFT JOIN payment_receipts pr ON ir.id = pr.invoice_request_id
+        WHERE ir.status IN ('APPROVED', 'INVOICED') AND pr.id IS NULL
+        AND ir.approved_at IS NOT NULL {office_filter}
+        ORDER BY days_since DESC
+    """, oparams)
+    invoice_aging_rows = [dict(row) for row in cursor.fetchall()]
+    # Bucket them
+    invoice_buckets = {'0-30': {'count': 0, 'value': 0}, '30-60': {'count': 0, 'value': 0},
+                       '60-90': {'count': 0, 'value': 0}, '90+': {'count': 0, 'value': 0}}
+    for r in invoice_aging_rows:
+        d = r.get('days_since') or 0
+        bucket = '0-30' if d <= 30 else '30-60' if d <= 60 else '60-90' if d <= 90 else '90+'
+        invoice_buckets[bucket]['count'] += 1
+        invoice_buckets[bucket]['value'] += float(r.get('invoice_amount') or 0)
+
+    # Payment aging: invoices paid but time since approval to first payment
+    date_diff_pay = _date_diff_sql('pr.receipt_date') if USE_POSTGRES else _date_diff_sql('pr.created_at')
+    cursor.execute(f"""
+        SELECT pr.id, pr.amount_received, pr.receipt_date, pr.created_at,
+            ir.request_number, ir.invoice_amount, a.assignment_no, a.office_id,
+            {_date_diff_sql('ir.approved_at')} as days_since_approval
+        FROM payment_receipts pr
+        JOIN invoice_requests ir ON pr.invoice_request_id = ir.id
+        JOIN assignments a ON ir.assignment_id = a.id
+        WHERE ir.approved_at IS NOT NULL {office_filter}
+        ORDER BY days_since_approval DESC
+    """, oparams)
+    payment_rows = [dict(row) for row in cursor.fetchall()]
+    payment_buckets = {'0-30': {'count': 0, 'value': 0}, '30-60': {'count': 0, 'value': 0},
+                       '60-90': {'count': 0, 'value': 0}, '90+': {'count': 0, 'value': 0}}
+    for r in payment_rows:
+        d = r.get('days_since_approval') or 0
+        bucket = '0-30' if d <= 30 else '30-60' if d <= 60 else '60-90' if d <= 90 else '90+'
+        payment_buckets[bucket]['count'] += 1
+        payment_buckets[bucket]['value'] += float(r.get('amount_received') or 0)
+
+    # Expenditure by category
+    cursor.execute(f"""
+        SELECT eh.category, eh.head_name,
+            COALESCE(SUM(ei.estimated_amount), 0) as budgeted,
+            COALESCE(SUM(ei.actual_amount), 0) as actual_spent
+        FROM expenditure_heads eh
+        LEFT JOIN expenditure_items ei ON eh.id = ei.head_id
+        LEFT JOIN assignments a ON ei.assignment_id = a.id
+        WHERE 1=1 {office_filter if filter_office else ""}
+        GROUP BY eh.category, eh.head_name
+        HAVING budgeted > 0 OR actual_spent > 0
+        ORDER BY actual_spent DESC
+    """, oparams if filter_office else [])
+    expenditure_data = [dict(row) for row in cursor.fetchall()]
+
+    return {
+        'pipeline': pipeline,
+        'invoice_buckets': invoice_buckets,
+        'invoice_aging_rows': invoice_aging_rows[:20],
+        'payment_buckets': payment_buckets,
+        'expenditure_data': expenditure_data,
+    }
+
+
+def _load_delays_data(cursor, ph, filter_office):
+    """Load delay data for all 4 delay types + office heatmap."""
+    office_filter = ""
+    oparams = []
+    if filter_office:
+        office_filter = f"AND a.office_id = {ph}"
+        oparams = [filter_office]
+
+    # Payment delays
+    cursor.execute(f"""
+        SELECT ir.id, ir.invoice_amount, ir.approved_at,
+            a.assignment_no, a.title, a.office_id,
+            {_date_diff_sql('ir.approved_at')} as delay_days
+        FROM invoice_requests ir
+        JOIN assignments a ON ir.assignment_id = a.id
+        LEFT JOIN payment_receipts pr ON ir.id = pr.invoice_request_id
+        WHERE ir.status IN ('APPROVED', 'INVOICED') AND pr.id IS NULL
+        AND ir.approved_at IS NOT NULL {office_filter}
+        ORDER BY delay_days DESC
+    """, oparams)
+    payment_delays = [dict(row) for row in cursor.fetchall()]
+
+    # Invoice delays
+    cursor.execute(f"""
+        SELECT m.id, m.milestone_no, m.title as milestone_title, m.target_date,
+            a.assignment_no, a.title, a.office_id,
+            {_date_diff_sql('m.target_date')} as delay_days
+        FROM milestones m JOIN assignments a ON m.assignment_id = a.id
+        WHERE m.target_date < {'CURRENT_DATE' if USE_POSTGRES else "DATE('now')"}
+        AND m.invoice_raised = 0 AND m.status != 'Cancelled' {office_filter}
+        ORDER BY delay_days DESC
+    """, oparams)
+    invoice_delays = [dict(row) for row in cursor.fetchall()]
+
+    # Milestone delays
+    cursor.execute(f"""
+        SELECT m.id, m.milestone_no, m.title as milestone_title, m.target_date, m.status,
+            a.assignment_no, a.title, a.office_id,
+            {_date_diff_sql('m.target_date')} as delay_days
+        FROM milestones m JOIN assignments a ON m.assignment_id = a.id
+        WHERE m.target_date < {'CURRENT_DATE' if USE_POSTGRES else "DATE('now')"}
+        AND m.status NOT IN ('Completed', 'Cancelled') {office_filter}
+        ORDER BY delay_days DESC
+    """, oparams)
+    milestone_delays = [dict(row) for row in cursor.fetchall()]
+
+    # Activation delays
+    cursor.execute(f"""
+        SELECT a.id, a.assignment_no, a.title, a.office_id, a.workflow_stage,
+            {_date_diff_sql('a.created_at')} as delay_days
+        FROM assignments a
+        WHERE a.workflow_stage IN ('REGISTRATION', 'TL_ASSIGNMENT', 'DETAIL_ENTRY')
+        AND {_date_diff_sql('a.created_at')} > 30 {office_filter}
+        ORDER BY delay_days DESC
+    """, oparams)
+    activation_delays = [dict(row) for row in cursor.fetchall()]
+
+    # Build office heatmap: office × delay_type → count
+    heatmap = {}
+    for item in payment_delays:
+        oid = item['office_id']
+        heatmap.setdefault(oid, {'payment': 0, 'invoice': 0, 'milestone': 0, 'activation': 0})
+        heatmap[oid]['payment'] += 1
+    for item in invoice_delays:
+        oid = item['office_id']
+        heatmap.setdefault(oid, {'payment': 0, 'invoice': 0, 'milestone': 0, 'activation': 0})
+        heatmap[oid]['invoice'] += 1
+    for item in milestone_delays:
+        oid = item['office_id']
+        heatmap.setdefault(oid, {'payment': 0, 'invoice': 0, 'milestone': 0, 'activation': 0})
+        heatmap[oid]['milestone'] += 1
+    for item in activation_delays:
+        oid = item['office_id']
+        heatmap.setdefault(oid, {'payment': 0, 'invoice': 0, 'milestone': 0, 'activation': 0})
+        heatmap[oid]['activation'] += 1
+    # Sort by total delays
+    heatmap_list = [{'office_id': k, **v, 'total': v['payment'] + v['invoice'] + v['milestone'] + v['activation']}
+                    for k, v in heatmap.items()]
+    heatmap_list.sort(key=lambda x: x['total'], reverse=True)
+
+    return {
+        'payment_delays': payment_delays[:30],
+        'invoice_delays': invoice_delays[:30],
+        'milestone_delays': milestone_delays[:30],
+        'activation_delays': activation_delays[:30],
+        'heatmap': heatmap_list,
+        'summary': {
+            'payment_count': len(payment_delays),
+            'invoice_count': len(invoice_delays),
+            'milestone_count': len(milestone_delays),
+            'activation_count': len(activation_delays),
+            'payment_value': sum(float(r.get('invoice_amount') or 0) for r in payment_delays),
+        }
+    }
+
+
+def _load_client_data(cursor, ph, filter_office):
+    """Load client-wise revenue contribution."""
+    office_filter = ""
+    oparams = []
+    if filter_office:
+        office_filter = f"AND a.office_id = {ph}"
+        oparams = [filter_office]
+
+    cursor.execute(f"""
+        SELECT c.id, c.client_name, c.client_type,
+            COUNT(DISTINCT ac.assignment_id) as assignment_count,
+            COALESCE(SUM(a.gross_value), 0) as total_value,
+            COALESCE(SUM(a.invoice_amount), 0) as invoiced,
+            COALESCE(SUM(a.amount_received), 0) as received
+        FROM clients c
+        JOIN assignment_clients ac ON c.id = ac.client_id
+        JOIN assignments a ON ac.assignment_id = a.id
+        WHERE 1=1 {office_filter}
+        GROUP BY c.id, c.client_name, c.client_type
+        ORDER BY total_value DESC
+    """, oparams)
+    client_data = [dict(row) for row in cursor.fetchall()]
+    return client_data
+
+
+# ---------------------------------------------------------------------------
+# Main MIS Dashboard route (6-tab Command Center)
+# ---------------------------------------------------------------------------
+
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 async def mis_dashboard(
     request: Request,
+    active_tab: Optional[str] = Query("executive"),
     financial_year: Optional[str] = Query(None),
     filter_office: Optional[str] = Query(None),
     filter_domain: Optional[str] = Query(None),
+    filter_type: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     sort_by: Optional[str] = Query(None),
     sort_order: Optional[str] = Query("desc")
 ):
-    """Display MIS Analytics dashboard with target vs achievement comparison."""
+    """6-tab MIS Command Center with interactive Chart.js visualizations."""
     user = get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=302)
 
-    # Default to current FY if not specified
+    if active_tab not in VALID_TABS:
+        active_tab = 'executive'
+
+    # Default FY
     if not financial_year:
         today = date.today()
         if today.month >= 4:
@@ -80,300 +553,204 @@ async def mis_dashboard(
     with get_db() as conn:
         cursor = conn.cursor()
         ph = '%s' if USE_POSTGRES else '?'
+        base_conditions, params, fy_start, fy_end = _build_base_filters(
+            ph, financial_year, filter_office, filter_domain, filter_type, date_from, date_to)
 
-        # Build base filter conditions
-        base_conditions = "WHERE 1=1"
-        params = []
-
-        fy_start, fy_end = parse_financial_year(financial_year)
-        if fy_start and fy_end:
-            base_conditions += f" AND (a.start_date BETWEEN {ph} AND {ph} OR a.work_order_date BETWEEN {ph} AND {ph})"
-            params.extend([fy_start.isoformat(), fy_end.isoformat(), fy_start.isoformat(), fy_end.isoformat()])
-
-        if date_from:
-            base_conditions += f" AND (a.start_date >= {ph} OR a.work_order_date >= {ph})"
-            params.extend([date_from, date_from])
-
-        if date_to:
-            base_conditions += f" AND (a.start_date <= {ph} OR a.work_order_date <= {ph})"
-            params.extend([date_to, date_to])
-
-        if filter_office:
-            base_conditions += f" AND a.office_id = {ph}"
-            params.append(filter_office)
-
-        if filter_domain:
-            base_conditions += f" AND a.domain = {ph}"
-            params.append(filter_domain)
-
-        # 1. Office-wise Target vs Achievement (with Assignment/Training/Notional breakdown)
-        office_query = f"""
-            SELECT
-                a.office_id,
-                o.office_name,
-                o.officer_count,
-                o.annual_revenue_target,
-                COALESCE(fyt.annual_target, o.annual_revenue_target) as target,
-                COALESCE(fyt.training_target, 0) as training_target,
-                COALESCE(fyt.lecture_target, 0) as lecture_target,
-                COUNT(*) as assignment_count,
-                SUM(COALESCE(a.total_revenue, 0)) as total_revenue,
-                SUM(CASE WHEN a.type = 'ASSIGNMENT' THEN COALESCE(a.total_revenue, 0) ELSE 0 END) as assignment_revenue,
-                SUM(CASE WHEN a.type = 'TRAINING' THEN COALESCE(a.total_revenue, 0) ELSE 0 END) as training_revenue,
-                SUM(COALESCE(a.amount_received, 0)) as deposits,
-                SUM(COALESCE(a.total_expenditure, 0)) as total_expenditure,
-                SUM(COALESCE(a.surplus_deficit, 0)) as surplus_deficit,
-                SUM(CASE WHEN a.type = 'ASSIGNMENT' THEN 1 ELSE 0 END) as project_count,
-                SUM(CASE WHEN a.type = 'TRAINING' THEN 1 ELSE 0 END) as training_count,
-                AVG(COALESCE(a.physical_progress_percent, 0)) as avg_physical_progress
-            FROM assignments a
-            LEFT JOIN offices o ON a.office_id = o.office_id
-            LEFT JOIN financial_year_targets fyt ON a.office_id = fyt.office_id
-                AND fyt.financial_year = {ph}
-            {base_conditions}
-            GROUP BY a.office_id, o.office_name, o.officer_count, o.annual_revenue_target,
-                     fyt.annual_target, fyt.training_target, fyt.lecture_target
-            ORDER BY total_revenue DESC
-        """
-        cursor.execute(office_query, [financial_year] + params)
-        office_data = [dict(row) for row in cursor.fetchall()]
-
-        # Get notional revenue from non_revenue_suggestions for each office
-        notional_query = """
-            SELECT office_id, COALESCE(SUM(notional_value), 0) as notional_revenue
-            FROM non_revenue_suggestions
-            WHERE status = 'COMPLETED'
-            GROUP BY office_id
-        """
-        cursor.execute(notional_query)
-        notional_by_office = {row['office_id']: row['notional_revenue'] for row in cursor.fetchall()}
-
-        # Add notional revenue and calculate achievement percentages (weighted)
-        for o in office_data:
-            o['notional_revenue'] = notional_by_office.get(o['office_id'], 0)
-            o['total_contribution'] = ((o['total_revenue'] or 0) * REVENUE_WEIGHTAGE_REAL) + (o['notional_revenue'] * REVENUE_WEIGHTAGE_NOTIONAL)
-            target = o['target'] or 0
-            o['prorata_target'] = round(target * fy_progress, 2)
-            # Achievement is now based on total_contribution (Real + Notional)
-            o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
-            o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
-            o['surplus_deficit_pct'] = round((o['surplus_deficit'] / o['total_revenue'] * 100), 1) if o['total_revenue'] > 0 else 0
-
-        # Office rankings only visible to DDG/DG/ADMIN
         user_role = get_user_role(user)
         can_see_rankings = user_role in [ROLE_DG, ROLE_DDG_I, ROLE_DDG_II, ROLE_ADMIN]
 
-        # Mark top 3 and bottom 3 offices by achievement %
-        if can_see_rankings:
-            sorted_by_achievement = sorted([o for o in office_data if o['achievement_pct'] > 0],
-                                           key=lambda x: x['achievement_pct'], reverse=True)
-            top_3_offices = set(o['office_id'] for o in sorted_by_achievement[:3])
-            bottom_3_offices = set(o['office_id'] for o in sorted_by_achievement[-3:] if len(sorted_by_achievement) > 3)
-        else:
-            top_3_offices = set()
-            bottom_3_offices = set()
-
-        for o in office_data:
-            o['is_top'] = o['office_id'] in top_3_offices
-            o['is_bottom'] = o['office_id'] in bottom_3_offices and o['office_id'] not in top_3_offices
-
-        # 2. Domain-wise revenue aggregation
-        domain_query = f"""
-            SELECT
-                COALESCE(a.domain, 'Unspecified') as domain,
-                COUNT(*) as assignment_count,
-                SUM(COALESCE(a.total_revenue, 0)) as total_revenue,
-                SUM(COALESCE(a.total_expenditure, 0)) as total_expenditure,
-                SUM(COALESCE(a.surplus_deficit, 0)) as surplus_deficit,
-                AVG(COALESCE(a.physical_progress_percent, 0)) as avg_physical_progress
-            FROM assignments a
-            {base_conditions}
-            GROUP BY COALESCE(a.domain, 'Unspecified')
-            ORDER BY total_revenue DESC
-        """
-        cursor.execute(domain_query, params)
-        domain_data = [dict(row) for row in cursor.fetchall()]
-
-        # 3. Officer-wise Target vs Achievement
-        officer_conditions = "WHERE 1=1"
-        officer_params = []
-
-        if fy_start and fy_end:
-            officer_conditions += f" AND (a.start_date BETWEEN {ph} AND {ph} OR a.work_order_date BETWEEN {ph} AND {ph})"
-            officer_params.extend([fy_start.isoformat(), fy_end.isoformat(), fy_start.isoformat(), fy_end.isoformat()])
-
-        if date_from:
-            officer_conditions += f" AND (a.start_date >= {ph} OR a.work_order_date >= {ph})"
-            officer_params.extend([date_from, date_from])
-
-        if date_to:
-            officer_conditions += f" AND (a.start_date <= {ph} OR a.work_order_date <= {ph})"
-            officer_params.extend([date_to, date_to])
-
-        if filter_office:
-            officer_conditions += f" AND off.office_id = {ph}"
-            officer_params.append(filter_office)
-
-        # Show ALL active officers, not just those with revenue shares
-        officer_query = f"""
-            SELECT
-                off.officer_id,
-                off.name,
-                off.office_id,
-                off.designation,
-                off.annual_target,
-                COALESCE(revenue_data.assignment_count, 0) as assignment_count,
-                COALESCE(revenue_data.total_share_amount, 0) as total_share_amount,
-                COALESCE(revenue_data.avg_share_percent, 0) as avg_share_percent
-            FROM officers off
-            LEFT JOIN (
-                SELECT
-                    rs.officer_id,
-                    COUNT(DISTINCT rs.assignment_id) as assignment_count,
-                    SUM(rs.share_amount) as total_share_amount,
-                    AVG(rs.share_percent) as avg_share_percent
-                FROM revenue_shares rs
-                JOIN assignments a ON rs.assignment_id = a.id
-                {officer_conditions}
-                GROUP BY rs.officer_id
-            ) revenue_data ON off.officer_id = revenue_data.officer_id
-            WHERE off.is_active = 1
-            {f"AND off.office_id = {ph}" if filter_office else ""}
-            ORDER BY total_share_amount DESC
-        """
-        # Add filter_office to params if specified
-        query_params = officer_params + ([filter_office] if filter_office else [])
-        cursor.execute(officer_query, query_params)
-        officer_data = [dict(row) for row in cursor.fetchall()]
-
-        # Get notional revenue from non_revenue_suggestions for each officer
-        officer_notional_query = """
-            SELECT officer_id, COALESCE(SUM(notional_value), 0) as notional_revenue
-            FROM non_revenue_suggestions
-            WHERE status = 'COMPLETED' AND officer_id IS NOT NULL
-            GROUP BY officer_id
-        """
-        cursor.execute(officer_notional_query)
-        notional_by_officer = {row['officer_id']: row['notional_revenue'] for row in cursor.fetchall()}
-
-        # Calculate officer achievement percentages with notional revenue (weighted)
-        for o in officer_data:
-            target = o['annual_target'] or 60.0
-            o['prorata_target'] = round(target * fy_progress, 2)
-            o['real_revenue'] = o['total_share_amount'] or 0
-            o['notional_revenue'] = notional_by_officer.get(o['officer_id'], 0)
-            o['total_contribution'] = (o['real_revenue'] * REVENUE_WEIGHTAGE_REAL) + (o['notional_revenue'] * REVENUE_WEIGHTAGE_NOTIONAL)
-            o['achievement_pct'] = round((o['total_contribution'] / target * 100), 1) if target > 0 else 0
-            o['prorata_achievement_pct'] = round((o['total_contribution'] / o['prorata_target'] * 100), 1) if o['prorata_target'] > 0 else 0
-
-        # Mark top 10 and bottom 10 officers BY ACHIEVEMENT % (not by value)
-        # (can_see_rankings already computed above for office rankings)
-        if can_see_rankings:
-            sorted_officers_by_achievement = sorted([o for o in officer_data if o['achievement_pct'] > 0],
-                                                    key=lambda x: x['achievement_pct'], reverse=True)
-            top_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[:10])
-            bottom_10_officers = set(o['officer_id'] for o in sorted_officers_by_achievement[-10:] if len(sorted_officers_by_achievement) > 10)
-        else:
-            top_10_officers = set()
-            bottom_10_officers = set()
-
-        for o in officer_data:
-            o['is_top'] = o['officer_id'] in top_10_officers
-            o['is_bottom'] = o['officer_id'] in bottom_10_officers and o['officer_id'] not in top_10_officers
-
-        # Sort officer_data by achievement % by default
-        officer_data = sorted(officer_data, key=lambda x: x['achievement_pct'] or 0, reverse=True)
-
-        # 4. Physical Progress Summary
-        progress_query = f"""
-            SELECT
-                a.status,
-                COUNT(*) as count,
-                AVG(COALESCE(a.physical_progress_percent, 0)) as avg_progress,
-                SUM(COALESCE(a.total_revenue, 0)) as total_revenue
-            FROM assignments a
-            {base_conditions}
-            GROUP BY a.status
-            ORDER BY count DESC
-        """
-        cursor.execute(progress_query, params)
-        progress_by_status = [dict(row) for row in cursor.fetchall()]
-
-        # Get filter options
+        # Filter options (always loaded)
         cursor.execute("SELECT office_id, office_name FROM offices ORDER BY office_id")
         offices = [dict(row) for row in cursor.fetchall()]
-
         cursor.execute("SELECT DISTINCT domain FROM assignments WHERE domain IS NOT NULL ORDER BY domain")
         domains = [row['domain'] for row in cursor.fetchall()]
 
-        # Calculate totals with revenue breakdown
-        total_target = sum(o['target'] or 0 for o in office_data)
-        total_revenue = sum(o['total_revenue'] or 0 for o in office_data)
-        total_assignment_revenue = sum(o.get('assignment_revenue', 0) or 0 for o in office_data)
-        total_training_revenue = sum(o.get('training_revenue', 0) or 0 for o in office_data)
-        total_notional_revenue = sum(o.get('notional_revenue', 0) or 0 for o in office_data)
-        total_contribution = sum(o.get('total_contribution', o['total_revenue'] or 0) or 0 for o in office_data)
-        total_expenditure = sum(o['total_expenditure'] or 0 for o in office_data)
-        total_officers = sum(o['officer_count'] or 0 for o in office_data)
-        prorata_target = round(total_target * fy_progress, 2)
-        avg_physical_progress = sum(o['avg_physical_progress'] or 0 for o in office_data) / len(office_data) if office_data else 0
+        # Tab data
+        tab_data = {}
+        office_data = []
+        domain_data = []
+        totals = {}
 
-        totals = {
-            'total_assignments': sum(o['assignment_count'] for o in office_data),
-            'total_target': total_target,
-            'prorata_target': prorata_target,
-            'total_revenue': total_revenue,
-            'assignment_revenue': total_assignment_revenue,
-            'training_revenue': total_training_revenue,
-            'notional_revenue': total_notional_revenue,
-            'total_contribution': total_contribution,
-            'total_expenditure': total_expenditure,
-            'surplus_deficit': total_revenue - total_expenditure,
-            'achievement_pct': round((total_contribution / prorata_target * 100), 1) if prorata_target > 0 else 0,
-            'overall_achievement_pct': round((total_contribution / total_target * 100), 1) if total_target > 0 else 0,
-            'total_offices': len(office_data),
-            'total_officers': total_officers,
-            'total_domains': len(domain_data),
-            'total_officers_with_share': len(officer_data),
-            'avg_physical_progress': round(avg_physical_progress, 1),
-            'fy_progress_pct': round(fy_progress * 100, 1)
-        }
+        if active_tab in ('executive', 'office'):
+            office_data, _ = _load_office_data(cursor, ph, financial_year, base_conditions, params, fy_progress, can_see_rankings)
+            domain_data = _load_domain_data(cursor, ph, base_conditions, params)
+            totals = _compute_totals(office_data, domain_data, fy_progress)
+            progress_by_status = _load_progress_by_status(cursor, ph, base_conditions, params)
+            tab_data['office_data'] = office_data
+            tab_data['domain_data'] = domain_data
+            tab_data['totals'] = totals
+            tab_data['progress_by_status'] = progress_by_status
+            # For executive summary: extra KPIs
+            if active_tab == 'executive':
+                officer_data = _load_officer_data(cursor, ph, fy_start, fy_end, filter_office, date_from, date_to, fy_progress, can_see_rankings)
+                tab_data['officer_data'] = officer_data
+                # Overdue milestones count
+                cursor.execute(f"""
+                    SELECT COUNT(*) as cnt FROM milestones m JOIN assignments a ON m.assignment_id = a.id
+                    WHERE m.target_date < {'CURRENT_DATE' if USE_POSTGRES else "DATE('now')"}
+                    AND m.status NOT IN ('Completed', 'Cancelled')
+                    {"AND a.office_id = " + ph if filter_office else ""}
+                """, [filter_office] if filter_office else [])
+                row = cursor.fetchone()
+                tab_data['overdue_milestones'] = dict(row)['cnt'] if row else 0
+                # Pending invoices
+                cursor.execute(f"""
+                    SELECT COUNT(*) as cnt, COALESCE(SUM(ir.invoice_amount), 0) as val
+                    FROM invoice_requests ir JOIN assignments a ON ir.assignment_id = a.id
+                    WHERE ir.status = 'PENDING'
+                    {"AND a.office_id = " + ph if filter_office else ""}
+                """, [filter_office] if filter_office else [])
+                inv_row = cursor.fetchone()
+                inv_dict = dict(inv_row) if inv_row else {}
+                tab_data['pending_invoices_count'] = inv_dict.get('cnt', 0)
+                tab_data['pending_invoices_value'] = float(inv_dict.get('val', 0) or 0)
+                # Active assignments count
+                cursor.execute(f"""
+                    SELECT COUNT(*) as cnt FROM assignments a
+                    WHERE a.workflow_stage = 'ACTIVE'
+                    {"AND a.office_id = " + ph if filter_office else ""}
+                """, [filter_office] if filter_office else [])
+                row = cursor.fetchone()
+                tab_data['active_assignments'] = dict(row)['cnt'] if row else 0
 
-        # Apply sorting to office data (default: by achievement %)
-        if sort_by == 'revenue':
-            office_data = sorted(office_data, key=lambda x: x['total_revenue'] or 0,
-                               reverse=(sort_order == 'desc'))
-        elif sort_by == 'timeline':
-            office_data = sorted(office_data, key=lambda x: x['avg_physical_progress'] or 0,
-                               reverse=(sort_order == 'desc'))
-        else:
-            # Default: sort by achievement %
-            office_data = sorted(office_data, key=lambda x: x['achievement_pct'] or 0,
-                               reverse=(sort_order == 'desc'))
+        elif active_tab == 'activity':
+            domain_data = _load_domain_data(cursor, ph, base_conditions, params)
+            type_data, type_by_office = _load_activity_data(cursor, ph, base_conditions, params)
+            office_data, _ = _load_office_data(cursor, ph, financial_year, base_conditions, params, fy_progress, can_see_rankings)
+            totals = _compute_totals(office_data, domain_data, fy_progress)
+            tab_data['type_data'] = type_data
+            tab_data['type_by_office'] = type_by_office
+            tab_data['domain_data'] = domain_data
+            tab_data['totals'] = totals
+
+        elif active_tab == 'financial':
+            financial_detail = _load_financial_data(cursor, ph, filter_office)
+            tab_data['financial'] = financial_detail
+
+        elif active_tab == 'delays':
+            delays_detail = _load_delays_data(cursor, ph, filter_office)
+            tab_data['delays'] = delays_detail
+
+        elif active_tab == 'officer_client':
+            officer_data = _load_officer_data(cursor, ph, fy_start, fy_end, filter_office, date_from, date_to, fy_progress, can_see_rankings)
+            client_data = _load_client_data(cursor, ph, filter_office)
+            tab_data['officer_data'] = officer_data
+            tab_data['client_data'] = client_data
+            tab_data['officer_summary'] = {
+                'total_officers': len(officer_data),
+                'avg_achievement': round(sum(o['achievement_pct'] for o in officer_data) / len(officer_data), 1) if officer_data else 0,
+                'above_target': len([o for o in officer_data if o['prorata_achievement_pct'] >= 100]),
+                'below_50': len([o for o in officer_data if 0 < o['achievement_pct'] < 50]),
+            }
+            tab_data['client_summary'] = {
+                'total_clients': len(client_data),
+                'top_client_revenue': max((float(c['total_value'] or 0) for c in client_data), default=0),
+                'avg_revenue': round(sum(float(c['total_value'] or 0) for c in client_data) / len(client_data), 1) if client_data else 0,
+            }
 
     return templates.TemplateResponse(
         "mis_dashboard.html",
         {
             "request": request,
             "user": user,
-            "office_data": office_data,
-            "domain_data": domain_data,
-            "officer_data": officer_data,
-            "progress_by_status": progress_by_status,
+            "active_tab": active_tab,
+            "tab_data": tab_data,
             "offices": offices,
             "domains": domains,
             "financial_years": get_financial_years(),
             "filter_office": filter_office,
             "filter_domain": filter_domain,
+            "filter_type": filter_type,
             "financial_year": financial_year,
             "date_from": date_from,
             "date_to": date_to,
-            "totals": totals,
             "fy_progress": fy_progress,
             "sort_by": sort_by,
             "sort_order": sort_order,
-            "can_see_rankings": can_see_rankings
+            "can_see_rankings": can_see_rankings,
+            # Backward compat: pass top-level vars for existing drill-down pages
+            "totals": totals if totals else {},
+            "office_data": office_data,
+            "domain_data": domain_data,
         }
+    )
+
+
+# ---------------------------------------------------------------------------
+# CSV Export endpoint
+# ---------------------------------------------------------------------------
+
+@router.get("/export/csv")
+async def export_csv(
+    request: Request,
+    tab: str = Query("office"),
+    financial_year: Optional[str] = Query(None),
+    filter_office: Optional[str] = Query(None),
+    filter_domain: Optional[str] = Query(None),
+    filter_type: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+):
+    """Export current tab data as CSV."""
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=302)
+
+    if not financial_year:
+        today = date.today()
+        if today.month >= 4:
+            financial_year = f"{today.year}-{str(today.year + 1)[-2:]}"
+        else:
+            financial_year = f"{today.year - 1}-{str(today.year)[-2:]}"
+
+    fy_progress = calculate_fy_progress()
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        ph = '%s' if USE_POSTGRES else '?'
+        base_conditions, params, fy_start, fy_end = _build_base_filters(
+            ph, financial_year, filter_office, filter_domain, filter_type, date_from, date_to)
+        can_see_rankings = get_user_role(user) in [ROLE_DG, ROLE_DDG_I, ROLE_DDG_II, ROLE_ADMIN]
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        if tab in ('executive', 'office'):
+            office_data, _ = _load_office_data(cursor, ph, financial_year, base_conditions, params, fy_progress, can_see_rankings)
+            writer.writerow(['Office', 'Target', 'Pro-rata', 'Assignment Rev', 'Training Rev', 'Notional', 'Total', 'Achievement %', 'Expenditure', 'Surplus'])
+            for o in office_data:
+                writer.writerow([o['office_id'], o['target'], round(o['prorata_target'], 1),
+                    round(o.get('assignment_revenue') or 0, 1), round(o.get('training_revenue') or 0, 1),
+                    round(o.get('notional_revenue') or 0, 1), round(o.get('total_contribution') or 0, 1),
+                    o['achievement_pct'], round(o['total_expenditure'] or 0, 1), round(o['surplus_deficit'] or 0, 1)])
+
+        elif tab == 'delays':
+            delays = _load_delays_data(cursor, ph, filter_office)
+            writer.writerow(['Type', 'Assignment', 'Title', 'Office', 'Delay Days'])
+            for d in delays['milestone_delays']:
+                writer.writerow(['Milestone', d['assignment_no'], d.get('milestone_title', ''), d['office_id'], d['delay_days']])
+            for d in delays['payment_delays']:
+                writer.writerow(['Payment', d['assignment_no'], d.get('title', ''), d['office_id'], d['delay_days']])
+            for d in delays['invoice_delays']:
+                writer.writerow(['Invoice', d['assignment_no'], d.get('milestone_title', ''), d['office_id'], d['delay_days']])
+
+        elif tab == 'officer_client':
+            officer_data = _load_officer_data(cursor, ph, fy_start, fy_end, filter_office, date_from, date_to, fy_progress, can_see_rankings)
+            writer.writerow(['Officer', 'Office', 'Target', 'Real Revenue', 'Notional', 'Total', 'Achievement %', 'Assignments'])
+            for o in officer_data:
+                writer.writerow([o['name'], o['office_id'], o['annual_target'] or 60,
+                    round(o['real_revenue'], 1), round(o['notional_revenue'], 1),
+                    round(o['total_contribution'], 1), o['achievement_pct'], o['assignment_count']])
+
+        else:
+            writer.writerow(['No data for this tab'])
+
+    output.seek(0)
+    filename = f"mis_{tab}_{financial_year}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 
