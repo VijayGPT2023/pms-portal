@@ -617,6 +617,11 @@ def _render_assignment_view(request: Request, user: dict, assignment_id: int):
     if not assignment:
         return RedirectResponse(url="/dashboard", status_code=302)
 
+    # Normalize legacy workflow_stage values to valid stages
+    valid_stages = {'REGISTRATION', 'TL_ASSIGNMENT', 'DETAIL_ENTRY', 'ACTIVE', 'COMPLETED'}
+    if assignment.get('workflow_stage') and assignment['workflow_stage'] not in valid_stages:
+        assignment['workflow_stage'] = 'REGISTRATION'
+
     # Convert Decimal values to float for Jinja2 format compatibility
     numeric_fields = [
         'total_value', 'gross_value', 'invoice_amount', 'amount_received',

@@ -60,6 +60,7 @@
         <strong style="color: #92400e;">Workflow Stage:</strong>
         {% set stage = assignment.workflow_stage or 'REGISTRATION' %}
         {% set stages = ['REGISTRATION', 'TL_ASSIGNMENT', 'DETAIL_ENTRY', 'ACTIVE'] %}
+        {% if stage not in stages %}{% set stage = 'REGISTRATION' %}{% endif %}
         {% set stage_labels = {'REGISTRATION': 'Registration', 'TL_ASSIGNMENT': 'TL Assignment', 'DETAIL_ENTRY': 'Detail Entry', 'ACTIVE': 'Active'} %}
         {% for s in stages %}
             {% if s == stage %}
