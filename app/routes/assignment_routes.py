@@ -675,7 +675,21 @@ async def view_assignment(request: Request, assignment_id: int):
         context["cost_period"] = cost_period
         context["available_fys"] = available_fys
 
-    return templates.TemplateResponse("assignment_view.html", context)
+    try:
+        return templates.TemplateResponse("assignment_view.html", context)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"TEMPLATE ERROR for assignment {assignment_id}: {e}\n{tb}", flush=True)
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(
+            f"Template render error for assignment {assignment_id}:\n{e}\n\n"
+            f"workflow_stage={assignment.get('workflow_stage')}\n"
+            f"type={assignment.get('type')}\n"
+            f"status={assignment.get('status')}\n\n"
+            f"Traceback:\n{tb}",
+            status_code=500
+        )
 
 
 @router.get("/milestones/{assignment_id}", response_class=HTMLResponse)
