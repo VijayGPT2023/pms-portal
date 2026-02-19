@@ -10,29 +10,59 @@ from app.database import get_db, USE_POSTGRES
 
 
 def check_if_initialized():
-    """Check if database is already initialized with full data."""
-    # Force re-initialization to apply new fixed passwords
-    print("Forcing fresh initialization with fixed passwords...")
+    """Check if database already has tables and data.
+    Returns True if the DB has officers and assignments (skip full init).
+    """
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as cnt FROM officers")
+            officer_count = cursor.fetchone()['cnt']
+            cursor.execute("SELECT COUNT(*) as cnt FROM assignments")
+            assignment_count = cursor.fetchone()['cnt']
+            if officer_count > 0 and assignment_count > 0:
+                print(f"Database already has {officer_count} officers and {assignment_count} assignments.")
+                return True
+            if officer_count > 0:
+                print(f"Database has {officer_count} officers but no assignments. Will generate sample data.")
+                return False
+    except Exception:
+        pass  # Tables don't exist yet
     return False
 
 
+def ensure_tables_exist():
+    """Create tables if they don't exist (safe, idempotent)."""
+    from app.database import init_database as create_tables
+    create_tables()
+    print("Tables verified.")
+
+
 def init_database():
-    """Initialize the database with tables, officers, and sample data."""
+    """Initialize the database with tables, officers, and sample data.
+    Safe to call on every startup -- skips if data already exists.
+    """
     print("=" * 60, flush=True)
     print("PMS Portal - Database Initialization", flush=True)
     print(f"Database: {'PostgreSQL' if USE_POSTGRES else 'SQLite'}", flush=True)
     print("=" * 60, flush=True)
 
-    # Check if already initialized
+    # Always ensure tables exist (CREATE IF NOT EXISTS is safe)
+    print("\nStep 1: Ensuring database tables exist...")
+    print("-" * 40)
+    ensure_tables_exist()
+
+    # Check if already initialized with data
     if check_if_initialized():
-        print("\nDatabase already initialized. Skipping.")
+        print("\nDatabase already initialized. Skipping data generation.")
+        # Still ensure roles and hierarchy are set up
+        print("\nVerifying officer roles and reporting hierarchy...")
+        try:
+            setup_officer_roles()
+        except Exception as e:
+            print(f"Warning: Could not verify roles: {e}")
         print("=" * 60)
         return
-
-    print("\nStep 1: Creating database tables...")
-    print("-" * 40)
-    from app.database import reset_database
-    reset_database()
 
     print("\nStep 2: Importing officers from Excel...")
     print("-" * 40)
