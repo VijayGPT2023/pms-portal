@@ -3,7 +3,22 @@
 {% block title %}Dashboard - NPC PMS Portal{% endblock %}
 
 {% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
+    .chart-card {
+        background: white; border-radius: 12px; padding: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;
+        margin-bottom: 16px;
+    }
+    .chart-card h3 {
+        font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 12px;
+    }
+    .chart-wrap-sm { position: relative; height: 200px; }
+    .charts-row {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;
+    }
+    @media (max-width: 768px) { .charts-row { grid-template-columns: 1fr; } }
+
     .cards-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -146,6 +161,18 @@
         </div>
         <div style="background: #e2e8f0; border-radius: 4px; height: 6px; overflow: hidden;">
             <div style="background: #3b82f6; height: 100%; width: {{ "%.0f"|format((fy_progress or 0) * 100) }}%; border-radius: 4px;"></div>
+        </div>
+    </div>
+
+    <!-- Charts: Default MIS -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Target vs Revenue vs Expenditure</h3>
+            <div class="chart-wrap-sm"><canvas id="chartDefaultBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Monthly Billing Trend ({{ current_fy }})</h3>
+            <div class="chart-wrap-sm"><canvas id="chartDefaultTrend"></canvas></div>
         </div>
     </div>
 
@@ -438,6 +465,18 @@
     </div>
     {% endif %}
 
+    <!-- Charts: Physical Progress -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>On Time vs Delayed</h3>
+            <div class="chart-wrap-sm"><canvas id="chartOnTimeDelayed"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Delay Severity Breakdown</h3>
+            <div class="chart-wrap-sm"><canvas id="chartDelaySeverity"></canvas></div>
+        </div>
+    </div>
+
     <!-- Delayed Milestones Table -->
     {% if tab_data.milestone_rows %}
     <div style="overflow-x: auto;">
@@ -518,6 +557,18 @@
             <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name or o.office_id }}</option>
             {% endfor %}
         </select>
+    </div>
+
+    <!-- Charts: Financial Progress -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Invoice vs Payment Aging</h3>
+            <div class="chart-wrap-sm"><canvas id="chartAgingBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Monthly Payment Trend ({{ current_fy }})</h3>
+            <div class="chart-wrap-sm"><canvas id="chartPaymentTrend"></canvas></div>
+        </div>
     </div>
 
     <!-- Aging Analysis -->
@@ -702,6 +753,18 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Charts: Business MIS (Proposals) -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Pipeline by Stage</h3>
+            <div class="chart-wrap-sm"><canvas id="chartPipelineDonut"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Monthly Active Assignments ({{ current_fy }})</h3>
+            <div class="chart-wrap-sm"><canvas id="chartBizTrend"></canvas></div>
+        </div>
+    </div>
 
     <!-- Filter Bar -->
     <form method="GET" action="/dashboard" class="filter-bar" id="bizFilterForm">
@@ -900,5 +963,208 @@
         const form = document.getElementById('bizFilterForm');
         if (form) form.submit();
     }
+
+    // ── Chart.js Initialization ──
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentFy = '{{ current_fy }}';
+        const COLORS = {
+            blue: '#3b82f6', green: '#10b981', red: '#ef4444',
+            amber: '#f59e0b', purple: '#8b5cf6', teal: '#14b8a6',
+            slate: '#64748b'
+        };
+
+        async function fetchMonthly(tab, metric) {
+            try {
+                const resp = await fetch('/dashboard/api/monthly-breakdown?tab=' + tab + '&metric=' + metric + '&fy=' + currentFy);
+                if (!resp.ok) return null;
+                return await resp.json();
+            } catch(e) { return null; }
+        }
+
+        {% if active_tab == 'default_mis' %}
+        // ── Tab A: Default MIS ──
+        (function() {
+            var target = {{ tab_data.summary.fy_target or 0 }};
+            var revenue = {{ tab_data.summary.revenue or 0 }};
+            var expenditure = {{ tab_data.summary.expenditure or 0 }};
+            var surplus = {{ tab_data.summary.surplus_deficit or 0 }};
+
+            new Chart(document.getElementById('chartDefaultBar'), {
+                type: 'bar',
+                data: {
+                    labels: ['FY Target', 'Revenue', 'Expenditure', 'Surplus/Deficit'],
+                    datasets: [{
+                        data: [target, revenue, expenditure, surplus],
+                        backgroundColor: [COLORS.purple, COLORS.green, COLORS.red, surplus >= 0 ? COLORS.green : COLORS.red],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'Lakhs (L)' } } }
+                }
+            });
+
+            fetchMonthly('assignments', 'billing').then(function(data) {
+                if (!data) return;
+                new Chart(document.getElementById('chartDefaultTrend'), {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Billing (L)', data: data.data,
+                            borderColor: COLORS.blue, backgroundColor: COLORS.blue + '20',
+                            fill: true, tension: 0.3, pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            });
+        })();
+        {% endif %}
+
+        {% if active_tab == 'physical_progress' %}
+        // ── Tab B: Physical Progress ──
+        (function() {
+            var onTime = {{ tab_data.summary.on_time or 0 }};
+            var delayed = {{ tab_data.summary.delayed or 0 }};
+
+            new Chart(document.getElementById('chartOnTimeDelayed'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['On Time', 'Delayed'],
+                    datasets: [{
+                        data: [onTime, delayed],
+                        backgroundColor: [COLORS.green, COLORS.red],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+                }
+            });
+
+            {% set dd = tab_data.delay_distribution %}
+            new Chart(document.getElementById('chartDelaySeverity'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['1-30 days', '31-60 days', '61-90 days', '90+ days'],
+                    datasets: [{
+                        data: [{{ dd.get('0_30', 0) }}, {{ dd.get('30_60', 0) }}, {{ dd.get('60_90', 0) }}, {{ dd.get('90_plus', 0) }}],
+                        backgroundColor: [COLORS.amber, '#f97316', COLORS.red, '#991b1b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+                }
+            });
+        })();
+        {% endif %}
+
+        {% if active_tab == 'financial_progress' %}
+        // ── Tab C: Financial Progress ──
+        (function() {
+            new Chart(document.getElementById('chartAgingBar'), {
+                type: 'bar',
+                data: {
+                    labels: ['0-30 days', '31-60 days', '61-90 days', '90+ days'],
+                    datasets: [
+                        {
+                            label: 'Invoices',
+                            data: [{{ tab_data.invoice_aging.get('0_30', 0) }}, {{ tab_data.invoice_aging.get('30_60', 0) }}, {{ tab_data.invoice_aging.get('60_90', 0) }}, {{ tab_data.invoice_aging.get('90_plus', 0) }}],
+                            backgroundColor: COLORS.purple, borderRadius: 4
+                        },
+                        {
+                            label: 'Payments',
+                            data: [{{ tab_data.payment_aging.get('0_30', 0) }}, {{ tab_data.payment_aging.get('30_60', 0) }}, {{ tab_data.payment_aging.get('60_90', 0) }}, {{ tab_data.payment_aging.get('90_plus', 0) }}],
+                            backgroundColor: COLORS.amber, borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            fetchMonthly('assignments', 'payments').then(function(data) {
+                if (!data) return;
+                new Chart(document.getElementById('chartPaymentTrend'), {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Payments (L)', data: data.data,
+                            borderColor: COLORS.green, backgroundColor: COLORS.green + '20',
+                            fill: true, tension: 0.3, pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            });
+        })();
+        {% endif %}
+
+        {% if active_tab == 'business_mis' %}
+        // ── Tab D: Business MIS ──
+        (function() {
+            var pipelineCanvas = document.getElementById('chartPipelineDonut');
+            if (pipelineCanvas) {
+                {% if tab_data.pipeline %}
+                new Chart(pipelineCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: [{% for stage, data in tab_data.pipeline.items() %}'{{ stage }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                        datasets: [{
+                            data: [{% for stage, data in tab_data.pipeline.items() %}{{ data.cnt }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                            backgroundColor: [COLORS.blue, COLORS.green, COLORS.amber, COLORS.purple, COLORS.red, COLORS.teal],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } }
+                    }
+                });
+                {% endif %}
+            }
+
+            var bizTrendCanvas = document.getElementById('chartBizTrend');
+            if (bizTrendCanvas) {
+                fetchMonthly('assignments', 'active_count').then(function(data) {
+                    if (!data) return;
+                    new Chart(bizTrendCanvas, {
+                        type: 'bar',
+                        data: {
+                            labels: data.labels,
+                            datasets: [{
+                                label: 'Active', data: data.data,
+                                backgroundColor: COLORS.blue, borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                });
+            }
+        })();
+        {% endif %}
+    });
 </script>
 {% endblock %}

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 os.environ.setdefault("DATABASE_URL", "")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-from app.templates_config import format_date, format_datetime, safe_tojson, json_serial
+from app.templates_config import format_date, format_datetime, safe_tojson, json_serial, lakh_format, pct_format
 
 pytestmark = pytest.mark.unit
 
@@ -125,3 +125,67 @@ class TestSafeTojson:
         result = safe_tojson(data)
         parsed = json.loads(result)
         assert parsed["a"]["b"] == [1, 2]
+
+
+# ── lakh_format ──────────────────────────────────────────────────────
+
+class TestLakhFormat:
+    def test_none_returns_dash(self):
+        assert lakh_format(None) == "-"
+
+    def test_zero(self):
+        assert lakh_format(0) == "0.00L"
+
+    def test_one_lakh(self):
+        assert lakh_format(100000) == "1.00L"
+
+    def test_large_number(self):
+        result = lakh_format(1234567)
+        assert "12.35" in result
+        assert "L" in result
+
+    def test_without_symbol(self):
+        result = lakh_format(100000, symbol=False)
+        assert "L" not in result
+        assert "1.00" in result
+
+    def test_negative_value(self):
+        result = lakh_format(-500000)
+        assert "-5.00" in result
+        assert "L" in result
+
+    def test_string_number(self):
+        result = lakh_format("200000")
+        assert "2.00L" in result
+
+    def test_invalid_string(self):
+        assert lakh_format("not-a-number") == "not-a-number"
+
+    def test_decimal_value(self):
+        result = lakh_format(50000.5)
+        assert "0.50L" in result
+
+
+# ── pct_format ───────────────────────────────────────────────────────
+
+class TestPctFormat:
+    def test_none_returns_dash(self):
+        assert pct_format(None) == "-"
+
+    def test_whole_number(self):
+        assert pct_format(85) == "85.0%"
+
+    def test_decimal(self):
+        assert pct_format(75.6) == "75.6%"
+
+    def test_zero(self):
+        assert pct_format(0) == "0.0%"
+
+    def test_custom_decimals(self):
+        assert pct_format(85.678, decimals=2) == "85.68%"
+
+    def test_string_number(self):
+        assert pct_format("92.5") == "92.5%"
+
+    def test_invalid_string(self):
+        assert pct_format("abc") == "abc"

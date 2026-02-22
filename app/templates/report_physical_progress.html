@@ -2,6 +2,10 @@
 
 {% block title %}Physical Progress Report - PMS Portal{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{% endblock %}
+
 {% block content %}
 <div class="tab-container">
     <!-- Page Header -->
@@ -66,6 +70,20 @@
             </div>
         </form>
     </div>
+
+    <!-- Physical Progress Chart -->
+    {% if progress_data %}
+    <div style="padding: 20px 20px 0;">
+        <div class="card" style="padding: 16px;">
+            <h3 style="font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 12px;">
+                {% if view == 'office' %}Office{% elif view == 'domain' %}Domain{% elif view == 'officer' %}Officer{% else %}Type{% endif %}-wise Physical Progress
+            </h3>
+            <div style="position: relative; height: {{ [progress_data|length * 32, 200]|max }}px;">
+                <canvas id="chartPhysicalProgress"></canvas>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Data Table -->
     <div style="padding: 20px;">
@@ -257,6 +275,29 @@
 
 {% block extra_scripts %}
 <script>
-    /* No additional scripts needed for this template */
+document.addEventListener('DOMContentLoaded', function() {
+    var canvas = document.getElementById('chartPhysicalProgress');
+    if (!canvas) return;
+
+    {% if progress_data %}
+    new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: [{% for row in progress_data %}'{{ (row.office_id or row.office_name or row.domain or row.officer_name or row.name or row.type or "-")[:20] }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Physical Progress %',
+                data: [{% for row in progress_data %}{{ (row.avg_physical_progress or 0)|round|int }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                backgroundColor: [{% for row in progress_data %}{% set p = (row.avg_physical_progress or 0)|round|int %}'{% if p >= 80 %}#38a169{% elif p >= 50 %}#dd6b20{% else %}#e53e3e{% endif %}'{% if not loop.last %}, {% endif %}{% endfor %}],
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+            plugins: { legend: { display: false } },
+            scales: { x: { beginAtZero: true, max: 100, title: { display: true, text: '%' } } }
+        }
+    });
+    {% endif %}
+});
 </script>
 {% endblock %}

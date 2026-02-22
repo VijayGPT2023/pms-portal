@@ -2,6 +2,10 @@
 
 {% block title %}Delay Tracking - PMS Portal{% endblock %}
 
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+{% endblock %}
+
 {% block content %}
 <div class="tab-container">
     <!-- Page Header -->
@@ -50,6 +54,18 @@
         <div class="card" style="text-align: center; padding: 20px; border-left: 4px solid #3182ce;">
             <h3 style="color: #3182ce; margin: 0; font-size: 1.5rem;">{{ activation_delays|length }}</h3>
             <p style="margin: 5px 0 0; color: #718096; font-size: 0.8125rem;">Activation Delays</p>
+        </div>
+    </div>
+
+    <!-- Delay Charts -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 20px 16px;">
+        <div class="card" style="padding: 16px;">
+            <h3 style="font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 12px;">Delay Count by Type</h3>
+            <div style="position: relative; height: 200px;"><canvas id="chartDelayTypes"></canvas></div>
+        </div>
+        <div class="card" style="padding: 16px;">
+            <h3 style="font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 12px;">Total Delays by Severity</h3>
+            <div style="position: relative; height: 200px;"><canvas id="chartDelaySeverity"></canvas></div>
         </div>
     </div>
 
@@ -329,6 +345,58 @@
             var svg = detail.querySelector('summary svg');
             if (svg) svg.style.transform = 'rotate(-90deg)';
         }
+    });
+
+    /* ── Delay Charts ── */
+    document.addEventListener('DOMContentLoaded', function() {
+        // Horizontal bar: count by delay type
+        new Chart(document.getElementById('chartDelayTypes'), {
+            type: 'bar',
+            data: {
+                labels: ['Payment', 'Invoice', 'Milestone', 'Activation'],
+                datasets: [{
+                    data: [{{ payment_delays|length }}, {{ invoice_delays|length }}, {{ milestone_delays|length }}, {{ activation_delays|length }}],
+                    backgroundColor: ['#e53e3e', '#dd6b20', '#d69e2e', '#3182ce'],
+                    borderRadius: 6
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+
+        // Severity buckets across all delay types
+        var severity = {s0_30: 0, s30_60: 0, s60_90: 0, s90_plus: 0};
+        {% for item in payment_delays %}
+        {% if item.delay_days < 30 %}severity.s0_30++;{% elif item.delay_days < 60 %}severity.s30_60++;{% elif item.delay_days < 90 %}severity.s60_90++;{% else %}severity.s90_plus++;{% endif %}
+        {% endfor %}
+        {% for item in invoice_delays %}
+        {% if item.delay_days < 30 %}severity.s0_30++;{% elif item.delay_days < 60 %}severity.s30_60++;{% elif item.delay_days < 90 %}severity.s60_90++;{% else %}severity.s90_plus++;{% endif %}
+        {% endfor %}
+        {% for item in milestone_delays %}
+        {% if item.delay_days < 30 %}severity.s0_30++;{% elif item.delay_days < 60 %}severity.s30_60++;{% elif item.delay_days < 90 %}severity.s60_90++;{% else %}severity.s90_plus++;{% endif %}
+        {% endfor %}
+        {% for item in activation_delays %}
+        {% if item.delay_days < 30 %}severity.s0_30++;{% elif item.delay_days < 60 %}severity.s30_60++;{% elif item.delay_days < 90 %}severity.s60_90++;{% else %}severity.s90_plus++;{% endif %}
+        {% endfor %}
+
+        new Chart(document.getElementById('chartDelaySeverity'), {
+            type: 'doughnut',
+            data: {
+                labels: ['0-30 days', '31-60 days', '61-90 days', '90+ days'],
+                datasets: [{
+                    data: [severity.s0_30, severity.s30_60, severity.s60_90, severity.s90_plus],
+                    backgroundColor: ['#38a169', '#dd6b20', '#e53e3e', '#991b1b'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+            }
+        });
     });
 </script>
 {% endblock %}

@@ -46,7 +46,41 @@ def safe_tojson(value):
     return json.dumps(value, default=json_serial)
 
 
+def lakh_format(value, symbol=True):
+    """Format a number in Indian lakh notation (1 Lakh = 1,00,000).
+
+    Examples: 1234567 -> '12.35L', 0 -> '0.00L', None -> '-'
+    """
+    if value is None:
+        return '-'
+    try:
+        val = float(value)
+    except (ValueError, TypeError):
+        return str(value)
+    lakhs = val / 100000
+    formatted = f"{lakhs:,.2f}"
+    if symbol:
+        return f"{formatted}L"
+    return formatted
+
+
+def pct_format(value, decimals=1):
+    """Format a number as a percentage string.
+
+    Examples: 85.3 -> '85.3%', None -> '-'
+    """
+    if value is None:
+        return '-'
+    try:
+        val = float(value)
+    except (ValueError, TypeError):
+        return str(value)
+    return f"{val:.{decimals}f}%"
+
+
 # Register custom filters
 templates.env.filters['format_date'] = format_date
 templates.env.filters['format_datetime'] = format_datetime
 templates.env.filters['safe_tojson'] = safe_tojson
+templates.env.filters['lakh_format'] = lakh_format
+templates.env.filters['pct_format'] = pct_format
