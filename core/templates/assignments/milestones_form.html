@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Manage Milestones - {{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Manage Milestones</h1>
+    <a href="{% url 'core:assignment_view' assignment_id=assignment.pk %}" class="btn btn-secondary">Back to Assignment</a>
+</div>
+
+{% for msg in messages %}
+<div class="alert alert-{{ msg.tags }}" style="margin-bottom: 20px; padding: 15px; border-radius: 8px;">
+    {{ msg }}
+</div>
+{% endfor %}
+
+<!-- Workflow Steps -->
+{% include "includes/workflow_steps.html" with current_step=1 %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">
+            <span class="badge {% if assignment.type == 'ASSIGNMENT' %}badge-info{% elif assignment.type == 'TRAINING' %}badge-warning{% else %}badge-secondary{% endif %}">
+                {{ assignment.get_type_display }}
+            </span>
+            {{ assignment.assignment_no }} - {{ assignment.title }}
+        </h2>
+    </div>
+
+    <div style="padding: 15px; background: #f7fafc; border-radius: 8px; margin-bottom: 20px;">
+        <strong>Total Value (w/o GST):</strong> {{ assignment.total_value|default:assignment.gross_value|default:0|floatformat:2 }} L
+    </div>
+
+    <form method="POST" action="{% url 'core:manage_milestones' assignment_id=assignment.pk %}" id="milestonesForm">
+        {% csrf_token %}
+
+        <div id="milestonesContainer">
+            {% for m in milestones %}
+            <div class="milestone-entry" data-index="{{ forloop.counter0 }}">
+                <div class="milestone-header">
+                    <h4>Milestone {{ forloop.counter }}</h4>
+                    <button type="button" class="btn btn-sm btn-danger remove-milestone">Remove</button>
+                </div>
+                <input type="hidden" name="milestone_{{ forloop.counter0 }}_id" value="{{ m.id }}">
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Title *</label>
+                        <input type="text" name="milestone_{{ forloop.counter0 }}_title" class="form-control"
+                               value="{{ m.title }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Revenue %</label>
+                        <input type="number" name="milestone_{{ forloop.counter0 }}_revenue_percent" class="form-control revenue-percent"
+                               value="{{ m.revenue_percent|default:0 }}" step="0.1" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Target Date</label>
+                        <input type="date" name="milestone_{{ forloop.counter0 }}_target_date" class="form-control"
+                               value="{{ m.target_date|date:'Y-m-d'|default:'' }}" {% if m.id and not user.is_superuser %}readonly{% endif %}>
+                    </div>
+                    <div class="form-group">
+                        <label>Tentative Date
+                            {% if m.tentative_date_status == 'PENDING' %}
+                            <span class="badge badge-warning" style="font-size: 0.625rem;">Pending Approval</span>
+                            {% elif m.tentative_date_status == 'REJECTED' %}
+                            <span class="badge badge-danger" style="font-size: 0.625rem;">Rejected</span>
+                            {% endif %}
+                        </label>
+                        <input type="date" name="milestone_{{ forloop.counter0 }}_tentative_date" class="form-control tentative-date"
+                               value="{{ m.tentative_date|date:'Y-m-d'|default:m.target_date|date:'Y-m-d'|default:'' }}"
+                               data-original="{{ m.tentative_date|date:'Y-m-d'|default:m.target_date|date:'Y-m-d'|default:'' }}"
+                               data-milestone-id="{{ m.id }}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="milestone_{{ forloop.counter0 }}_description" class="form-control" rows="2">{{ m.description|default:'' }}</textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Status</label>
+                        <select name="milestone_{{ forloop.counter0 }}_status" class="form-control">
+                            <option value="Pending" {% if m.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="In Progress" {% if m.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                            <option value="Completed" {% if m.status == 'Completed' %}selected{% endif %}>Completed</option>
+                            <option value="Delayed" {% if m.status == 'Delayed' %}selected{% endif %}>Delayed</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="milestone_{{ forloop.counter0 }}_invoice_raised" value="1"
+                                   {% if m.invoice_raised %}checked{% endif %} class="invoice-checkbox">
+                            Invoice Raised
+                        </label>
+                        <input type="date" name="milestone_{{ forloop.counter0 }}_invoice_raised_date" class="form-control"
+                               value="{{ m.invoice_raised_date|date:'Y-m-d'|default:'' }}" placeholder="Invoice Date">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" name="milestone_{{ forloop.counter0 }}_payment_received" value="1"
+                                   {% if m.payment_received %}checked{% endif %} class="payment-checkbox">
+                            Payment Received
+                        </label>
+                        <input type="date" name="milestone_{{ forloop.counter0 }}_payment_received_date" class="form-control"
+                               value="{{ m.payment_received_date|date:'Y-m-d'|default:'' }}" placeholder="Payment Date">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Remarks</label>
+                    <input type="text" name="milestone_{{ forloop.counter0 }}_remarks" class="form-control"
+                           value="{{ m.remarks|default:'' }}" placeholder="Any remarks...">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div style="margin: 20px 0;">
+            <button type="button" id="addMilestone" class="btn btn-success">+ Add Milestone</button>
+        </div>
+
+        <div style="padding: 15px; background: #edf2f7; border-radius: 8px; margin: 20px 0;">
+            <strong>Total Revenue %:</strong> <span id="totalPercent">0</span>%
+            <span id="percentWarning" style="color: #e53e3e; margin-left: 15px; display: none;">
+                Warning: Total should equal 100%
+            </span>
+        </div>
+
+        <input type="hidden" name="next_step" id="nextStepInput" value="">
+
+        <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+            <button type="submit" class="btn btn-secondary btn-lg">Save Only</button>
+            <button type="submit" class="btn btn-primary btn-lg" onclick="document.getElementById('nextStepInput').value='cost_estimate'">
+                Save & Continue to Cost Estimate &rarr;
+            </button>
+            <a href="{% url 'core:assignment_view' assignment_id=assignment.pk %}" class="btn btn-outline-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<!-- Tentative Date Change Requests -->
+{% if milestones %}
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Request Tentative Date Change</h2>
+    </div>
+    <div style="padding: 20px;">
+        <p style="color: #64748b; margin-bottom: 15px;">
+            Target dates cannot be changed (except by Admin). Team Leaders can request changes to Tentative Dates, which require Head approval.
+        </p>
+        <form method="POST" action="{% url 'core:request_tentative_change' assignment_id=assignment.pk %}" id="tentativeDateForm">
+            {% csrf_token %}
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Select Milestone</label>
+                    <select name="milestone_id" class="form-control" required id="tentativeMilestoneSelect">
+                        <option value="">-- Select Milestone --</option>
+                        {% for m in milestones %}
+                        <option value="{{ m.id }}">
+                            Milestone {{ forloop.counter }}: {{ m.title }} (Current: {{ m.tentative_date|default:m.target_date|default:"Not Set" }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>New Tentative Date</label>
+                    <input type="date" name="new_tentative_date" class="form-control" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Reason for Change *</label>
+                <textarea name="reason" class="form-control" rows="2" required placeholder="Explain why the tentative date needs to be changed..."></textarea>
+            </div>
+            <button type="submit" class="btn btn-warning">Request Tentative Date Change</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<!-- Approval Workflow -->
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header">
+        <h2 class="card-title">Approval Workflow</h2>
+    </div>
+    <div style="padding: 20px;">
+        {% if assignment.milestone_approval_status == 'APPROVED' %}
+        <div style="background: #f0fff4; padding: 15px; border-radius: 8px; border-left: 4px solid #38a169;">
+            <strong style="color: #38a169;">Approved</strong>
+            <p style="margin: 5px 0 0;">Milestone planning has been approved by Head.</p>
+        </div>
+        {% elif assignment.milestone_approval_status == 'SUBMITTED' %}
+        <div style="background: #fefcbf; padding: 15px; border-radius: 8px; border-left: 4px solid #d69e2e;">
+            <strong style="color: #d69e2e;">Pending Approval</strong>
+            <p style="margin: 5px 0 0;">Milestone planning is awaiting Head approval.</p>
+        </div>
+        {% elif assignment.milestone_approval_status == 'REJECTED' %}
+        <div style="background: #fed7d7; padding: 15px; border-radius: 8px; border-left: 4px solid #e53e3e;">
+            <strong style="color: #e53e3e;">Rejected</strong>
+            <p style="margin: 5px 0 0;">Please review the remarks and resubmit.</p>
+            <form method="POST" action="{% url 'core:submit_milestone_planning' assignment_id=assignment.pk %}" style="margin-top: 10px;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-warning">Resubmit for Approval</button>
+            </form>
+        </div>
+        {% else %}
+        <p>After saving milestones, submit them for Head approval.</p>
+        <form method="POST" action="{% url 'core:submit_milestone_planning' assignment_id=assignment.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success btn-lg">Submit for Head Approval</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<template id="milestoneTemplate">
+    <div class="milestone-entry" data-index="__INDEX__">
+        <div class="milestone-header">
+            <h4>Milestone __NUM__</h4>
+            <button type="button" class="btn btn-sm btn-danger remove-milestone">Remove</button>
+        </div>
+        <div class="form-row">
+            <div class="form-group" style="flex: 2;">
+                <label>Title *</label>
+                <input type="text" name="milestone___INDEX___title" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Revenue %</label>
+                <input type="number" name="milestone___INDEX___revenue_percent" class="form-control revenue-percent"
+                       value="0" step="0.1" min="0" max="100">
+            </div>
+            <div class="form-group">
+                <label>Target Date</label>
+                <input type="date" name="milestone___INDEX___target_date" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Tentative Date</label>
+                <input type="date" name="milestone___INDEX___tentative_date" class="form-control">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea name="milestone___INDEX___description" class="form-control" rows="2"></textarea>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Status</label>
+                <select name="milestone___INDEX___status" class="form-control">
+                    <option value="Pending">Pending</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Delayed">Delayed</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="milestone___INDEX___invoice_raised" value="1" class="invoice-checkbox">
+                    Invoice Raised
+                </label>
+                <input type="date" name="milestone___INDEX___invoice_raised_date" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="milestone___INDEX___payment_received" value="1" class="payment-checkbox">
+                    Payment Received
+                </label>
+                <input type="date" name="milestone___INDEX___payment_received_date" class="form-control">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Remarks</label>
+            <input type="text" name="milestone___INDEX___remarks" class="form-control" placeholder="Any remarks...">
+        </div>
+    </div>
+</template>
+
+<style>
+.milestone-entry {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    background: #fff;
+}
+.milestone-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0;
+}
+.milestone-header h4 {
+    margin: 0;
+    color: #2d3748;
+}
+.form-row {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+.form-row .form-group {
+    flex: 1;
+    min-width: 150px;
+}
+</style>
+
+<script>
+let milestoneIndex = {{ milestones|length }};
+
+document.getElementById('addMilestone').addEventListener('click', function() {
+    const template = document.getElementById('milestoneTemplate').innerHTML;
+    const newMilestone = template
+        .replace(/__INDEX__/g, milestoneIndex)
+        .replace(/__NUM__/g, milestoneIndex + 1);
+
+    const container = document.getElementById('milestonesContainer');
+    const div = document.createElement('div');
+    div.innerHTML = newMilestone;
+    container.appendChild(div.firstElementChild);
+
+    milestoneIndex++;
+    updateTotalPercent();
+});
+
+document.getElementById('milestonesContainer').addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-milestone')) {
+        e.target.closest('.milestone-entry').remove();
+        updateTotalPercent();
+    }
+});
+
+document.getElementById('milestonesContainer').addEventListener('input', function(e) {
+    if (e.target.classList.contains('revenue-percent')) {
+        updateTotalPercent();
+    }
+});
+
+function updateTotalPercent() {
+    const inputs = document.querySelectorAll('.revenue-percent');
+    let total = 0;
+    inputs.forEach(input => {
+        total += parseFloat(input.value) || 0;
+    });
+    document.getElementById('totalPercent').textContent = total.toFixed(1);
+    document.getElementById('percentWarning').style.display =
+        (total > 0 && Math.abs(total - 100) > 0.1) ? 'inline' : 'none';
+}
+
+updateTotalPercent();
+</script>
+{% endblock %}

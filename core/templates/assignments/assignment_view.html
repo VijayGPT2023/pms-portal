@@ -1,0 +1,642 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ assignment.assignment_no }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        {% if assignment.type %}
+            <span class="badge {% if assignment.type == 'ASSIGNMENT' %}badge-info{% elif assignment.type == 'TRAINING' %}badge-warning{% else %}badge-secondary{% endif %}" style="font-size: 0.6em; vertical-align: middle;">
+                {{ assignment.get_type_display }}
+            </span>
+        {% endif %}
+        {{ assignment.assignment_no }}
+    </h1>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% if assignment.workflow_stage == 'DETAIL_ENTRY' or assignment.workflow_stage == 'ACTIVE' or not assignment.workflow_stage %}
+        <a href="{% url 'core:assignment_edit' assignment_id=assignment.pk %}" class="btn btn-primary btn-sm">Edit</a>
+        {% endif %}
+        {% if assignment.workflow_stage == 'ACTIVE' %}
+        <a href="{% url 'core:invoice_request_form' assignment_id=assignment.pk %}" class="btn btn-success btn-sm">Raise Invoice</a>
+        {% endif %}
+        <a href="{% url 'core:dashboard' %}" class="btn btn-secondary btn-sm">Dashboard</a>
+    </div>
+</div>
+
+<!-- Flash Messages -->
+{% for msg in messages %}
+<div class="alert alert-{{ msg.tags }}" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
+    {{ msg }}
+</div>
+{% endfor %}
+
+<!-- Registration Success Message -->
+{% if request.GET.registered == '1' %}
+<div class="alert alert-success" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
+    <strong>Activity registered successfully!</strong> It has been submitted for Head approval.
+</div>
+{% endif %}
+
+<!-- Wizard Completion Message -->
+{% if request.GET.completed == '1' %}
+<div class="alert alert-success" style="margin-bottom: 20px; padding: 15px; background: #f0fff4; border: 1px solid #68d391; border-radius: 8px;">
+    <strong>Assignment setup complete!</strong> All details have been saved successfully.
+</div>
+{% endif %}
+
+<!-- Workflow Stage Banner -->
+{% if assignment.workflow_stage and assignment.workflow_stage != 'ACTIVE' and assignment.workflow_stage != 'COMPLETED' %}
+<div style="margin-bottom: 20px; padding: 15px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px;">
+    <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <strong style="color: #92400e;">Workflow Stage:</strong>
+        <span class="badge" style="background: #f59e0b; color: white; padding: 4px 10px;">
+            {% if assignment.workflow_stage == 'REGISTRATION' %}Registration
+            {% elif assignment.workflow_stage == 'TL_ASSIGNMENT' %}TL Assignment
+            {% elif assignment.workflow_stage == 'DETAIL_ENTRY' %}Detail Entry
+            {% elif assignment.workflow_stage == 'ACTIVE' %}Active
+            {% else %}{{ assignment.workflow_stage }}
+            {% endif %}
+        </span>
+    </div>
+    {% if assignment.registration_status == 'PENDING_APPROVAL' %}
+    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">Awaiting Head approval for registration.</p>
+    {% elif assignment.registration_status == 'REJECTED' %}
+    <p style="margin: 0; color: #dc2626; font-size: 0.9rem;">Registration was rejected.</p>
+    {% elif assignment.workflow_stage == 'TL_ASSIGNMENT' %}
+    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">Registration approved. Waiting for Head to assign a Team Leader.</p>
+    {% elif assignment.workflow_stage == 'DETAIL_ENTRY' %}
+    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">Team Leader assigned. Please fill in all details and submit each section for approval.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Section Approval Status -->
+{% if assignment.workflow_stage == 'DETAIL_ENTRY' or assignment.workflow_stage == 'ACTIVE' %}
+<div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 8px;">
+    <strong style="color: #0369a1; margin-bottom: 8px; display: block;">Section Approvals:</strong>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <!-- Section approval badges rendered explicitly below -->
+
+        {% with status=assignment.approval_status %}
+        <span class="badge" style="padding: 5px 10px; {% if status == 'APPROVED' %}background: #d1fae5; color: #065f46;{% elif status == 'SUBMITTED' %}background: #fef3c7; color: #92400e;{% elif status == 'REJECTED' %}background: #fee2e2; color: #991b1b;{% else %}background: #f3f4f6; color: #6b7280;{% endif %}">
+            Basic Info: {% if status == 'APPROVED' %}Approved{% elif status == 'SUBMITTED' %}Pending{% elif status == 'REJECTED' %}Rejected{% else %}Not Submitted{% endif %}
+        </span>
+        {% endwith %}
+
+        {% with status=assignment.cost_approval_status %}
+        <span class="badge" style="padding: 5px 10px; {% if status == 'APPROVED' %}background: #d1fae5; color: #065f46;{% elif status == 'SUBMITTED' %}background: #fef3c7; color: #92400e;{% elif status == 'REJECTED' %}background: #fee2e2; color: #991b1b;{% else %}background: #f3f4f6; color: #6b7280;{% endif %}">
+            Cost Estimation: {% if status == 'APPROVED' %}Approved{% elif status == 'SUBMITTED' %}Pending{% elif status == 'REJECTED' %}Rejected{% else %}Not Submitted{% endif %}
+        </span>
+        {% endwith %}
+
+        {% with status=assignment.milestone_approval_status %}
+        <span class="badge" style="padding: 5px 10px; {% if status == 'APPROVED' %}background: #d1fae5; color: #065f46;{% elif status == 'SUBMITTED' %}background: #fef3c7; color: #92400e;{% elif status == 'REJECTED' %}background: #fee2e2; color: #991b1b;{% else %}background: #f3f4f6; color: #6b7280;{% endif %}">
+            Milestones: {% if status == 'APPROVED' %}Approved{% elif status == 'SUBMITTED' %}Pending{% elif status == 'REJECTED' %}Rejected{% else %}Not Submitted{% endif %}
+        </span>
+        {% endwith %}
+
+        {% with status=assignment.team_approval_status %}
+        <span class="badge" style="padding: 5px 10px; {% if status == 'APPROVED' %}background: #d1fae5; color: #065f46;{% elif status == 'SUBMITTED' %}background: #fef3c7; color: #92400e;{% elif status == 'REJECTED' %}background: #fee2e2; color: #991b1b;{% else %}background: #f3f4f6; color: #6b7280;{% endif %}">
+            Team: {% if status == 'APPROVED' %}Approved{% elif status == 'SUBMITTED' %}Pending{% elif status == 'REJECTED' %}Rejected{% else %}Not Submitted{% endif %}
+        </span>
+        {% endwith %}
+
+        {% with status=assignment.revenue_approval_status %}
+        <span class="badge" style="padding: 5px 10px; {% if status == 'APPROVED' %}background: #d1fae5; color: #065f46;{% elif status == 'SUBMITTED' %}background: #fef3c7; color: #92400e;{% elif status == 'REJECTED' %}background: #fee2e2; color: #991b1b;{% else %}background: #f3f4f6; color: #6b7280;{% endif %}">
+            Revenue Sharing: {% if status == 'APPROVED' %}Approved{% elif status == 'SUBMITTED' %}Pending{% elif status == 'REJECTED' %}Rejected{% else %}Not Submitted{% endif %}
+        </span>
+        {% endwith %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Assignment Title -->
+<div style="margin-bottom: 20px;">
+    <h3 style="margin: 0; color: #2d3748;">{{ assignment.title }}</h3>
+    <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; color: #718096; font-size: 0.9rem;">
+        <span>Office: <strong>{{ assignment.office_id }}</strong></span>
+        <span>|</span>
+        <span>Status:
+            <span class="badge {% if assignment.status == 'Completed' %}badge-success{% elif assignment.status == 'Ongoing' %}badge-info{% elif assignment.status == 'On Hold' %}badge-warning{% else %}badge-secondary{% endif %}">
+                {{ assignment.status|default:"Not Set" }}
+            </span>
+        </span>
+        <span>|</span>
+        <span>Value: <strong>{{ assignment.total_value|default:assignment.gross_value|default:0|floatformat:2 }}L</strong></span>
+    </div>
+</div>
+
+<!-- Four Tabs Navigation -->
+<div class="tab-nav" style="display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px;">
+    <a href="{% url 'core:assignment_view' assignment_id=assignment.pk %}?tab=basic"
+       class="tab-link {% if active_tab == 'basic' %}active{% endif %}"
+       style="padding: 12px 24px; text-decoration: none; color: {% if active_tab == 'basic' %}#3182ce{% else %}#718096{% endif %}; font-weight: {% if active_tab == 'basic' %}600{% else %}400{% endif %}; border-bottom: 3px solid {% if active_tab == 'basic' %}#3182ce{% else %}transparent{% endif %}; margin-bottom: -2px; transition: all 0.2s;">
+        Basic Details
+    </a>
+    <a href="{% url 'core:assignment_view' assignment_id=assignment.pk %}?tab=milestones"
+       class="tab-link {% if active_tab == 'milestones' %}active{% endif %}"
+       style="padding: 12px 24px; text-decoration: none; color: {% if active_tab == 'milestones' %}#3182ce{% else %}#718096{% endif %}; font-weight: {% if active_tab == 'milestones' %}600{% else %}400{% endif %}; border-bottom: 3px solid {% if active_tab == 'milestones' %}#3182ce{% else %}transparent{% endif %}; margin-bottom: -2px; transition: all 0.2s;">
+        Milestones
+    </a>
+    <a href="{% url 'core:assignment_view' assignment_id=assignment.pk %}?tab=cost"
+       class="tab-link {% if active_tab == 'cost' %}active{% endif %}"
+       style="padding: 12px 24px; text-decoration: none; color: {% if active_tab == 'cost' %}#3182ce{% else %}#718096{% endif %}; font-weight: {% if active_tab == 'cost' %}600{% else %}400{% endif %}; border-bottom: 3px solid {% if active_tab == 'cost' %}#3182ce{% else %}transparent{% endif %}; margin-bottom: -2px; transition: all 0.2s;">
+        Cost Status
+    </a>
+    <a href="{% url 'core:assignment_view' assignment_id=assignment.pk %}?tab=team"
+       class="tab-link {% if active_tab == 'team' %}active{% endif %}"
+       style="padding: 12px 24px; text-decoration: none; color: {% if active_tab == 'team' %}#3182ce{% else %}#718096{% endif %}; font-weight: {% if active_tab == 'team' %}600{% else %}400{% endif %}; border-bottom: 3px solid {% if active_tab == 'team' %}#3182ce{% else %}transparent{% endif %}; margin-bottom: -2px; transition: all 0.2s;">
+        Team & Revenue
+    </a>
+</div>
+
+<!-- ==================== BASIC DETAILS TAB ==================== -->
+{% if active_tab == 'basic' %}
+<div class="card">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px;">
+        <!-- General Info -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                General Information
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096; width: 40%;">Office:</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.office_id }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Domain:</td>
+                    <td style="padding: 8px 0;">{{ assignment.domain|default:"-" }}</td>
+                </tr>
+                {% if assignment.type == 'ASSIGNMENT' %}
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Client:</td>
+                    <td style="padding: 8px 0;">{{ assignment.client|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Client Type:</td>
+                    <td style="padding: 8px 0;">{{ assignment.client_type|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">City:</td>
+                    <td style="padding: 8px 0;">{{ assignment.city|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Team Leader:</td>
+                    <td style="padding: 8px 0;">{{ officers.team_leader_officer_id|default:"-" }}</td>
+                </tr>
+                {% elif assignment.type == 'TRAINING' %}
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Venue:</td>
+                    <td style="padding: 8px 0;">{{ assignment.venue|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Participants:</td>
+                    <td style="padding: 8px 0;">{{ assignment.type_of_participants|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Faculty 1:</td>
+                    <td style="padding: 8px 0;">{{ officers.faculty1_officer_id|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Faculty 2:</td>
+                    <td style="padding: 8px 0;">{{ officers.faculty2_officer_id|default:"-" }}</td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+
+        <!-- Dates & Progress -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Dates & Progress
+            </h4>
+            <table style="width: 100%;">
+                {% if assignment.type == 'TRAINING' %}
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Duration:</td>
+                    <td style="padding: 8px 0;">{{ assignment.duration_start|default:"-" }} to {{ assignment.duration_end|default:"-" }} ({{ assignment.duration_days|default:"-" }} days)</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <td style="padding: 8px 0; color: #718096; width: 40%;">Work Order Date:</td>
+                    <td style="padding: 8px 0;">{{ assignment.work_order_date|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Start Date:</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.start_date|default:"-" }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Target Date:</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.target_date|default:"-" }}</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Physical Progress:</td>
+                    <td style="padding: 8px 0;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            {% with pp=assignment.physical_progress_percent|default:0 %}
+                            <div class="mini-progress-bar" style="width: 100px; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                <div style="width: {{ pp|floatformat:0 }}%; height: 100%; background: {% if pp >= 80 %}#48bb78{% elif pp >= 50 %}#ed8936{% else %}#e53e3e{% endif %}; border-radius: 4px;"></div>
+                            </div>
+                            <strong>{{ pp|floatformat:1 }}%</strong>
+                            {% endwith %}
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Timeline Progress:</td>
+                    <td style="padding: 8px 0;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            {% with tp=assignment.timeline_progress_percent|default:0 %}
+                            <div class="mini-progress-bar" style="width: 100px; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                                <div style="width: {{ tp|floatformat:0 }}%; height: 100%; background: {% if tp >= 80 %}#48bb78{% elif tp >= 50 %}#ed8936{% else %}#e53e3e{% endif %}; border-radius: 4px;"></div>
+                            </div>
+                            <strong>{{ tp|floatformat:1 }}%</strong>
+                            {% endwith %}
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Financial Summary -->
+        <div>
+            <h4 style="color: #2d3748; margin-bottom: 15px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                Financial Summary
+            </h4>
+            <table style="width: 100%;">
+                <tr>
+                    <td style="padding: 8px 0; color: #718096; width: 50%;">Total Value (w/o GST):</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.total_value|default:assignment.gross_value|default:0|floatformat:2 }}L</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Invoice Raised:</td>
+                    <td style="padding: 8px 0;">{{ assignment.invoice_amount|default:0|floatformat:2 }}L</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Payment Received:</td>
+                    <td style="padding: 8px 0;">{{ assignment.amount_received|default:0|floatformat:2 }}L</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Revenue Shared:</td>
+                    <td style="padding: 8px 0;"><strong>{{ assignment.total_revenue|default:0|floatformat:2 }}L</strong></td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Total Expenditure:</td>
+                    <td style="padding: 8px 0;">{{ assignment.total_expenditure|default:0|floatformat:2 }}L</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #718096;">Surplus / Deficit:</td>
+                    <td style="padding: 8px 0;">
+                        {% with sd=assignment.surplus_deficit|default:0 %}
+                        <span style="color: {% if sd >= 0 %}#48bb78{% else %}#e53e3e{% endif %};">
+                            <strong>{{ sd|floatformat:2 }}L</strong>
+                        </span>
+                        {% endwith %}
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    {% if assignment.tor_scope %}
+    <div style="margin-top: 25px;">
+        <h4 style="color: #2d3748; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+            ToRs / Scope
+        </h4>
+        <p style="padding: 15px; background: #f7fafc; border-radius: 6px; margin: 0;">
+            {{ assignment.tor_scope }}
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Setup Progress -->
+    <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+        <h4 style="color: #718096; margin-bottom: 15px; font-size: 0.9rem;">Setup Progress</h4>
+        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+            <span class="badge {% if assignment.details_filled %}badge-success{% else %}badge-secondary{% endif %}" style="padding: 6px 12px;">
+                1. Basic Info {% if assignment.details_filled %}&#10003;{% endif %}
+            </span>
+            <span style="color: #cbd5e0;">&rarr;</span>
+            <span class="badge {% if milestone_count > 0 %}badge-success{% else %}badge-secondary{% endif %}" style="padding: 6px 12px;">
+                2. Milestones ({{ milestone_count }}) {% if milestone_count > 0 %}&#10003;{% endif %}
+            </span>
+            <span style="color: #cbd5e0;">&rarr;</span>
+            <span class="badge {% if assignment.total_expenditure > 0 %}badge-success{% else %}badge-secondary{% endif %}" style="padding: 6px 12px;">
+                3. Cost Estimate {% if assignment.total_expenditure > 0 %}&#10003;{% endif %}
+            </span>
+            <span style="color: #cbd5e0;">&rarr;</span>
+            <span class="badge {% if revenue_count > 0 %}badge-success{% else %}badge-secondary{% endif %}" style="padding: 6px 12px;">
+                4. Team & Revenue ({{ revenue_count }}) {% if revenue_count > 0 %}&#10003;{% endif %}
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== MILESTONES TAB ==================== -->
+{% elif active_tab == 'milestones' %}
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="card-title" style="margin: 0;">Milestones</h2>
+        <a href="{% url 'core:manage_milestones' assignment_id=assignment.pk %}" class="btn btn-primary btn-sm">Edit Milestones</a>
+    </div>
+
+    {% if milestones %}
+    <div class="table-container" style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Title</th>
+                    <th>Target Date</th>
+                    <th>Tentative Date</th>
+                    <th class="text-right">Revenue %</th>
+                    <th class="text-center">Invoice</th>
+                    <th class="text-center">Payment</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in milestones %}
+                <tr>
+                    <td>{{ m.milestone_no }}</td>
+                    <td>
+                        <strong>{{ m.title }}</strong>
+                        {% if m.description %}
+                        <br><small style="color: #718096;">{{ m.description|truncatechars:80 }}</small>
+                        {% endif %}
+                    </td>
+                    <td>{{ m.target_date|default:"-" }}</td>
+                    <td>
+                        {{ m.tentative_date|default:"-" }}
+                        {% if m.tentative_date_status == 'PENDING' %}
+                        <br><span class="badge badge-warning" style="font-size: 0.7em;">Pending Approval</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-right">{{ m.revenue_percent|default:0|floatformat:1 }}%</td>
+                    <td class="text-center">
+                        {% if m.invoice_raised %}
+                        <span class="badge badge-success">Yes</span>
+                        {% if m.invoice_raised_date %}<br><small>{{ m.invoice_raised_date }}</small>{% endif %}
+                        {% else %}
+                        <span class="badge badge-secondary">No</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if m.payment_received %}
+                        <span class="badge badge-success">Yes</span>
+                        {% if m.payment_received_date %}<br><small>{{ m.payment_received_date }}</small>{% endif %}
+                        {% else %}
+                        <span class="badge badge-secondary">No</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge {% if m.status == 'Completed' %}badge-success{% elif m.status == 'In Progress' %}badge-info{% elif m.status == 'Delayed' %}badge-danger{% else %}badge-warning{% endif %}">
+                            {{ m.status|default:"Pending" }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight: bold; background: #f7fafc;">
+                    <td colspan="4">Total</td>
+                    <td class="text-right">{{ computed.total_revenue_pct|floatformat:1 }}%</td>
+                    <td colspan="3"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Billing Summary -->
+    <div style="margin-top: 15px; padding: 15px; background: #f7fafc; border-radius: 8px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+            <div>
+                <strong style="color: #718096; font-size: 0.8rem;">Total Value</strong>
+                <p style="font-size: 1.1em; margin: 4px 0 0;">{{ assignment.total_value|default:assignment.gross_value|default:0|floatformat:2 }}L</p>
+            </div>
+            <div>
+                <strong style="color: #718096; font-size: 0.8rem;">Invoice Raised</strong>
+                <p style="font-size: 1.1em; margin: 4px 0 0;">{{ assignment.invoice_amount|default:0|floatformat:2 }}L</p>
+            </div>
+            <div>
+                <strong style="color: #718096; font-size: 0.8rem;">Payment Received</strong>
+                <p style="font-size: 1.1em; margin: 4px 0 0;">{{ assignment.amount_received|default:0|floatformat:2 }}L</p>
+            </div>
+            <div>
+                <strong style="color: #718096; font-size: 0.8rem;">Revenue Shared</strong>
+                <p style="font-size: 1.1em; margin: 4px 0 0;">{{ assignment.total_revenue|default:0|floatformat:2 }}L</p>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <p style="text-align: center; padding: 30px; color: #718096;">
+        No milestones defined.
+        <a href="{% url 'core:manage_milestones' assignment_id=assignment.pk %}">Add milestones</a>
+    </p>
+    {% endif %}
+</div>
+
+<!-- ==================== COST STATUS TAB ==================== -->
+{% elif active_tab == 'cost' %}
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="card-title" style="margin: 0;">Cost Status</h2>
+        <div style="display: flex; gap: 8px;">
+            <a href="{% url 'core:expenditure_entry' assignment_id=assignment.pk %}" class="btn btn-success btn-sm">+ Record Expense</a>
+            <a href="{% url 'core:manage_expenditure' assignment_id=assignment.pk %}" class="btn btn-primary btn-sm">Edit Estimates</a>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        {% with total_estimated=computed.total_estimated total_actual=computed.total_actual %}
+        <div style="padding: 15px; background: #ebf8ff; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #718096;">Estimated Cost</div>
+            <div style="font-size: 1.3em; font-weight: 600; color: #2b6cb0;">{{ total_estimated|floatformat:2 }}L</div>
+        </div>
+        <div style="padding: 15px; background: #fefcbf; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #718096;">Actual Spent</div>
+            <div style="font-size: 1.3em; font-weight: 600; color: #975a16;">{{ total_actual|floatformat:2 }}L</div>
+        </div>
+        {% endwith %}
+        <div style="padding: 15px; background: {% if assignment.surplus_deficit >= 0 %}#f0fff4{% else %}#fff5f5{% endif %}; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #718096;">Net Surplus/Deficit</div>
+            <div style="font-size: 1.3em; font-weight: 600; color: {% if assignment.surplus_deficit >= 0 %}#276749{% else %}#c53030{% endif %};">
+                {{ assignment.surplus_deficit|default:0|floatformat:2 }}L
+            </div>
+        </div>
+    </div>
+
+    <!-- Expenditure by Head -->
+    {% if expenditure_items %}
+    <h4 style="color: #2d3748; margin-bottom: 10px;">Expenditure by Head</h4>
+    <div class="table-container" style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Head</th>
+                    <th>Category</th>
+                    <th class="text-right">Estimated</th>
+                    <th class="text-right">Actual</th>
+                    <th class="text-right">Variance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in expenditure_items %}
+                <tr>
+                    <td>{{ item.head.head_code }}</td>
+                    <td>{{ item.head.head_name }}</td>
+                    <td><span class="badge badge-secondary">{{ item.head.category }}</span></td>
+                    <td class="text-right">{{ item.estimated_amount|default:0|floatformat:2 }}</td>
+                    <td class="text-right">{{ item.actual_amount|default:0|floatformat:2 }}</td>
+                    {% with variance=item.estimated_amount|default:0 %}
+                    <td class="text-right">-</td>
+                    {% endwith %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="text-align: center; padding: 20px; color: #718096;">
+        No cost estimates defined.
+        <a href="{% url 'core:manage_expenditure' assignment_id=assignment.pk %}">Set up cost estimates</a>
+    </p>
+    {% endif %}
+
+    <!-- Date-wise Expense Entries -->
+    <div style="margin-top: 25px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <h4 style="color: #2d3748; margin: 0;">Date-wise Expense Entries</h4>
+            <form method="GET" action="{% url 'core:assignment_view' assignment_id=assignment.pk %}" style="display: flex; gap: 6px; align-items: center;">
+                <input type="hidden" name="tab" value="cost">
+                <label style="font-size: 0.8rem; color: #718096;">Period:</label>
+                <select name="cost_period" onchange="this.form.submit()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8rem;">
+                    <option value="all" {% if cost_period == 'all' %}selected{% endif %}>Till Date (All)</option>
+                    {% for fy in available_fys %}
+                    <option value="{{ fy }}" {% if cost_period == fy %}selected{% endif %}>FY {{ fy }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        {% if expenditure_entries %}
+        <div class="table-container" style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Head</th>
+                        <th class="text-right">Amount</th>
+                        <th>FY</th>
+                        <th>Description</th>
+                        <th>Voucher Ref</th>
+                        <th>Entered By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in expenditure_entries %}
+                    <tr>
+                        <td>{{ entry.entry_date }}</td>
+                        <td><span class="badge badge-info">{{ entry.head.head_code }}</span> {{ entry.head.head_name }}</td>
+                        <td class="text-right"><strong>{{ entry.amount|default:0|floatformat:2 }}</strong></td>
+                        <td>{{ entry.fy_period }}</td>
+                        <td>{{ entry.description|default:"-" }}</td>
+                        <td>{{ entry.voucher_reference|default:"-" }}</td>
+                        <td>{{ entry.entered_by.name|default:entry.entered_by_id }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight: bold; background: #f7fafc;">
+                        <td colspan="2">Total Entries</td>
+                        <td class="text-right">{{ computed.total_expense_entries|floatformat:2 }}L</td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <p style="text-align: center; padding: 20px; color: #718096; background: #f7fafc; border-radius: 8px;">
+            No expense entries recorded yet.
+            <a href="{% url 'core:expenditure_entry' assignment_id=assignment.pk %}">Record an expense</a>
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ==================== TEAM & REVENUE TAB ==================== -->
+{% elif active_tab == 'team' %}
+<div class="card">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <h2 class="card-title" style="margin: 0;">Team & Revenue Sharing</h2>
+        <a href="{% url 'core:revenue_edit' assignment_id=assignment.pk %}" class="btn btn-primary btn-sm">Edit Revenue Shares</a>
+    </div>
+
+    {% if revenue_shares %}
+    <!-- Revenue Summary -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px;">
+        <div style="padding: 15px; background: #ebf8ff; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #718096;">Total Value</div>
+            <div style="font-size: 1.2em; font-weight: 600; color: #2b6cb0;">{{ assignment.total_value|default:assignment.gross_value|default:0|floatformat:2 }}L</div>
+        </div>
+        <div style="padding: 15px; background: #f0fff4; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #718096;">Shareable Revenue</div>
+            <div style="font-size: 1.2em; font-weight: 600; color: #276749;">{{ assignment.total_revenue|default:0|floatformat:2 }}L</div>
+        </div>
+        <div style="padding: 15px; background: #faf5ff; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #718096;">Team Members</div>
+            <div style="font-size: 1.2em; font-weight: 600; color: #6b46c1;">{{ revenue_shares|length }}</div>
+        </div>
+    </div>
+
+    <!-- Revenue Shares Table -->
+    <div class="table-container" style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Officer</th>
+                    <th>Designation</th>
+                    <th>Office</th>
+                    <th class="text-right">Share %</th>
+                    <th class="text-right">Share Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for share in revenue_shares %}
+                <tr>
+                    <td><strong>{{ share.officer.name }}</strong></td>
+                    <td>{{ share.officer.designation|default:"-" }}</td>
+                    <td>{{ share.officer.office_id|default:"-" }}</td>
+                    <td class="text-right">{{ share.share_percent|default:0|floatformat:2 }}%</td>
+                    <td class="text-right"><strong>{{ share.share_amount|default:0|floatformat:2 }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-weight: bold; background: #f7fafc;">
+                    <td colspan="3">Total</td>
+                    <td class="text-right">{{ computed.total_share_pct|floatformat:2 }}%</td>
+                    <td class="text-right">{{ computed.total_share_amt|floatformat:2 }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <p style="text-align: center; padding: 30px; color: #718096;">
+        No revenue shares allocated yet.
+        <a href="{% url 'core:revenue_edit' assignment_id=assignment.pk %}">Allocate revenue shares</a>
+    </p>
+    {% endif %}
+</div>
+{% endif %}
+
+<style>
+.tab-link:hover {
+    color: #3182ce !important;
+    background: #ebf8ff;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Register New Activity - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Register New Activity</h1>
+    <a href="{% url 'core:dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+{% if error %}
+<div class="alert alert-danger" style="margin-bottom: 20px; padding: 15px; background: #fff5f5; border: 1px solid #fc8181; border-radius: 8px;">
+    {{ error }}
+</div>
+{% endif %}
+
+{% for msg in messages %}
+<div class="alert alert-{{ msg.tags }}" style="margin-bottom: 20px; padding: 15px; border-radius: 8px;">
+    {{ msg }}
+</div>
+{% endfor %}
+
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Quick Registration</h2>
+    </div>
+
+    <form method="POST" action="{% url 'core:register_activity' %}">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="title">Activity Title *</label>
+            <input type="text" id="title" name="title" class="form-control" required
+                   placeholder="Enter activity title">
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="type">Activity Type *</label>
+                <select id="type" name="type" class="form-control" required>
+                    <option value="ASSIGNMENT">Assignment / Project</option>
+                    <option value="TRAINING">Training Programme</option>
+                    <option value="DEVELOPMENT">Development Work</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="client">Client / Entity</label>
+                <input type="text" id="client" name="client" class="form-control"
+                       placeholder="e.g., Ministry of Finance">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Brief Description</label>
+            <textarea id="description" name="description" class="form-control" rows="3"
+                      placeholder="Brief description of the activity..."></textarea>
+        </div>
+
+        <div style="margin-top: 30px; display: flex; gap: 15px;">
+            <button type="submit" class="btn btn-primary btn-lg">Register & Submit for Approval</button>
+            <a href="{% url 'core:dashboard' %}" class="btn btn-secondary btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

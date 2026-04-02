@@ -1,0 +1,1198 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Dashboard - NPC PMS Portal{% endblock %}
+
+{% block extra_head %}
+<script src="{% static 'js/chart.min.js' %}"></script>
+<style>
+    .chart-card {
+        background: white; border-radius: 12px; padding: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;
+        margin-bottom: 16px;
+    }
+    .chart-card h3 {
+        font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 12px;
+    }
+    .chart-wrap-sm { position: relative; height: 200px; }
+    .charts-row {
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 16px;
+    }
+    @media (max-width: 768px) { .charts-row { grid-template-columns: 1fr; } }
+
+    .cards-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin: 16px 0;
+    }
+    @media (max-width: 900px) {
+        .cards-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+        .cards-grid { grid-template-columns: 1fr; }
+    }
+    .summary-card {
+        border-radius: 10px;
+        padding: 16px;
+        position: relative;
+    }
+    .summary-card .card-label {
+        font-size: 0.7rem;
+        margin-bottom: 4px;
+    }
+    .summary-card .card-value {
+        font-size: 1.35rem;
+        font-weight: 700;
+    }
+    .traffic-green { color: #059669; }
+    .traffic-amber { color: #d97706; }
+    .traffic-red { color: #dc2626; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-amber { background: #fef3c7; color: #92400e; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .aging-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+    .aging-table th, .aging-table td { padding: 8px 12px; text-align: center; border: 1px solid #e2e8f0; }
+    .aging-table th { background: #f8fafc; font-weight: 600; color: #475569; }
+    .filter-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+    .filter-bar select, .filter-bar input { padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem; }
+    .filter-bar label { font-size: 0.75rem; color: #64748b; white-space: nowrap; }
+    .sub-toggle { display: flex; gap: 0; margin-bottom: 16px; }
+    .sub-toggle a { padding: 8px 20px; font-size: 0.8125rem; text-decoration: none; border: 1px solid #e2e8f0; color: #64748b; background: white; }
+    .sub-toggle a:first-child { border-radius: 8px 0 0 8px; }
+    .sub-toggle a:last-child { border-radius: 0 8px 8px 0; }
+    .sub-toggle a.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+    .delay-bar { display: flex; height: 24px; border-radius: 6px; overflow: hidden; margin-bottom: 16px; }
+    .delay-bar div { display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 600; color: white; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tab-container">
+    <!-- Header with Role-Based View -->
+    <div class="tab-header">
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <h1>{{ view_title|default:"Dashboard" }}</h1>
+            {% if scope_value %}
+            <span class="badge badge-info" style="font-size: 0.875rem;">{{ scope_value }}</span>
+            {% endif %}
+            {% if role_offices %}
+            <span style="font-size: 0.75rem; color: #64748b;">
+                {{ role_offices|length }} Offices{% if role_groups %}, {{ role_groups|length }} Groups{% endif %}
+            </span>
+            {% endif %}
+        </div>
+        <div class="tab-actions" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <!-- FY Selector -->
+            <form method="GET" action="{% url 'core:dashboard' %}" style="display: flex; gap: 6px; align-items: center;" id="fyForm">
+                <input type="hidden" name="active_tab" value="{{ active_tab }}">
+                {% if filter_office %}<input type="hidden" name="filter_office" value="{{ filter_office }}">{% endif %}
+                {% if filter_status %}<input type="hidden" name="filter_status" value="{{ filter_status }}">{% endif %}
+                <label style="font-size: 0.75rem; color: #64748b; white-space: nowrap;">FY:</label>
+                <select name="fy" onchange="document.getElementById('fyForm').submit()" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.8125rem;">
+                    {% for year in financial_years %}
+                    <option value="{{ year }}" {% if current_fy == year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <a href="{% url 'core:select_activity_type' %}" class="btn btn-primary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Activity
+            </a>
+            {% if active_role == 'RD_HEAD' or active_role == 'GROUP_HEAD' or active_role == 'DG' or active_role == 'DDG-I' or active_role == 'DDG-II' or active_role == 'ADMIN' %}
+            <a href="{% url 'core:dashboard' %}?active_tab=default_mis" class="btn btn-warning btn-sm">Approvals</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- 4 Main Tabs -->
+    <div class="tab-nav" style="margin-bottom: 0; border-bottom: 2px solid #e2e8f0;">
+        <a href="{% url 'core:dashboard' %}?active_tab=default_mis&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'default_mis' %}active{% endif %}" style="text-decoration: none;">
+            Default MIS
+        </a>
+        <a href="{% url 'core:dashboard' %}?active_tab=physical_progress&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'physical_progress' %}active{% endif %}" style="text-decoration: none;">
+            Physical Progress
+        </a>
+        <a href="{% url 'core:dashboard' %}?active_tab=financial_progress&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'financial_progress' %}active{% endif %}" style="text-decoration: none;">
+            Financial Progress
+        </a>
+        <a href="{% url 'core:dashboard' %}?active_tab=business_mis&fy={{ current_fy }}"
+           class="tab-btn {% if active_tab == 'business_mis' %}active{% endif %}" style="text-decoration: none;">
+            Business MIS
+        </a>
+    </div>
+
+    {# ============================================================== #}
+    {# TAB A: DEFAULT MIS                                              #}
+    {# ============================================================== #}
+    {% if active_tab == 'default_mis' %}
+
+    <!-- Summary Cards -->
+    <div class="cards-grid">
+        <div class="summary-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white;">
+            <div class="card-label" style="opacity: 0.9;">FY Target ({{ current_fy }})</div>
+            <div class="card-value">{{ tab_data.summary.fy_target|floatformat:1|default:"0.0" }}L</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Revenue (Billed FY)</div>
+            <div class="card-value" style="color: #047857;">{{ tab_data.summary.revenue|floatformat:1|default:"0.0" }}L</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Expenditure (FY)</div>
+            <div class="card-value" style="color: #dc2626;">{{ tab_data.summary.expenditure|floatformat:1|default:"0.0" }}L</div>
+        </div>
+        {% with sd=tab_data.summary.surplus_deficit %}
+        <div class="summary-card" style="background: {% if sd >= 0 %}linear-gradient(135deg, #10b981, #059669){% else %}linear-gradient(135deg, #ef4444, #dc2626){% endif %}; color: white;">
+            <div class="card-label" style="opacity: 0.9;">Surplus / Deficit</div>
+            <div class="card-value">{{ sd|floatformat:1|default:"0.0" }}L</div>
+        </div>
+        {% endwith %}
+    </div>
+
+    <!-- FY Progress Bar -->
+    <div style="margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #64748b; margin-bottom: 4px;">
+            <span>FY Progress</span>
+            {% widthratio fy_progress 1 100 as fy_pct %}
+            <span>{{ fy_pct }}% elapsed</span>
+        </div>
+        <div style="background: #e2e8f0; border-radius: 4px; height: 6px; overflow: hidden;">
+            <div style="background: #3b82f6; height: 100%; width: {{ fy_pct }}%; border-radius: 4px;"></div>
+        </div>
+    </div>
+
+    <!-- Charts: Default MIS -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Target vs Revenue vs Expenditure</h3>
+            <div class="chart-wrap-sm"><canvas id="chartDefaultBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Monthly Billing Trend ({{ current_fy }})</h3>
+            <div class="chart-wrap-sm"><canvas id="chartDefaultTrend"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Breadcrumb Navigation -->
+    {% if breadcrumbs|length > 1 %}
+    <div style="margin-bottom: 12px; font-size: 0.8125rem; color: #64748b; display: flex; align-items: center; gap: 4px; flex-wrap: wrap;">
+        {% for crumb in breadcrumbs %}
+            {% if not forloop.last %}
+                <a href="{{ crumb.url }}" style="color: #3b82f6; text-decoration: none;">{{ crumb.label }}</a>
+                <span style="color: #cbd5e1;">/</span>
+            {% else %}
+                <strong style="color: #1e293b;">{{ crumb.label }}</strong>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Office Table (entities view) -->
+    {% if sub_view == 'entities' and tab_data.office_rows %}
+    <div style="overflow-x: auto;">
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>Office / Group</th>
+                <th class="text-right">FY Target (L)</th>
+                <th class="text-right">Revenue (L)</th>
+                <th class="text-right">Expenditure (L)</th>
+                <th class="text-right">Surplus/Deficit (L)</th>
+                <th class="text-right">Achievement %</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in tab_data.office_rows %}
+            <tr>
+                <td>
+                    <a href="{% url 'core:dashboard' %}?active_tab=default_mis&fy={{ current_fy }}&sub_view=team_leaders&sub_id={{ e.office_id|urlencode }}"
+                       style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                        {{ e.office_name|default:e.office_id }}
+                    </a>
+                    <div style="font-size: 0.7rem; color: #94a3b8;">{{ e.office_id }}</div>
+                </td>
+                <td class="text-right">{{ e.fy_target|floatformat:1 }}</td>
+                <td class="text-right" style="color: #047857;">{{ e.revenue|floatformat:1 }}</td>
+                <td class="text-right" style="color: #dc2626;">{{ e.expenditure|floatformat:1 }}</td>
+                <td class="text-right" style="font-weight: 600; color: {% if e.surplus_deficit >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                    {{ e.surplus_deficit|floatformat:1 }}
+                </td>
+                <td class="text-right">
+                    <span class="badge {% if e.achievement_pct >= 80 %}badge-green{% elif e.achievement_pct >= 40 %}badge-amber{% else %}badge-red{% endif %}" style="font-size: 0.7rem;">
+                        {{ e.achievement_pct|floatformat:1 }}%
+                    </span>
+                </td>
+                <td>
+                    <a href="{% url 'core:dashboard' %}?active_tab=default_mis&fy={{ current_fy }}&sub_view=team_leaders&sub_id={{ e.office_id|urlencode }}"
+                       class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">Drill Down</a>
+                </td>
+            </tr>
+            {% endfor %}
+            <!-- Totals row -->
+            <tr style="font-weight: 700; background: #f1f5f9; border-top: 2px solid #e2e8f0;">
+                <td>TOTAL ({{ tab_data.office_rows|length }} offices)</td>
+                <td class="text-right" id="total-fy-target"></td>
+                <td class="text-right" style="color: #047857;" id="total-revenue"></td>
+                <td class="text-right" style="color: #dc2626;" id="total-expenditure"></td>
+                <td class="text-right" id="total-surplus"></td>
+                <td class="text-right" id="total-achievement"></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+    </div>
+
+    <!-- Drill-down: Team Leaders -->
+    {% elif sub_view == 'team_leaders' and sub_rows %}
+    <div style="overflow-x: auto;">
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>Team Leader</th>
+                <th>Designation</th>
+                <th class="text-right">Targeted (L)</th>
+                <th class="text-right">Billed (FY)</th>
+                <th class="text-right">Received</th>
+                <th class="text-right">Expenditure</th>
+                <th class="text-right">Surplus/Deficit</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in sub_rows %}
+            <tr{% if t.officer_id == '__unassigned__' %} style="background: #fffbeb;"{% endif %}>
+                <td>
+                    {% if t.officer_id == '__unassigned__' %}
+                    <span style="color: #b45309; font-weight: 600; font-style: italic;">{{ t.tl_name }}</span>
+                    {% else %}
+                    <a href="{% url 'core:dashboard' %}?active_tab=default_mis&fy={{ current_fy }}&sub_view=officers&sub_id={{ t.officer_id|urlencode }}"
+                       style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                        {{ t.tl_name }}
+                    </a>
+                    {% endif %}
+                </td>
+                <td style="font-size: 0.75rem; color: #64748b;">{{ t.designation|default:"-" }}</td>
+                <td class="text-right">{{ t.targeted_value|floatformat:1 }}</td>
+                <td class="text-right" style="color: #047857;">{{ t.billed_fy|floatformat:1 }}</td>
+                <td class="text-right" style="color: #10b981;">{{ t.payment_received|floatformat:1 }}</td>
+                <td class="text-right" style="color: #dc2626;">{{ t.expenses_fy|floatformat:1 }}</td>
+                <td class="text-right" style="font-weight: 600; color: {% if t.surplus_deficit >= 0 %}#10b981{% else %}#dc2626{% endif %};">
+                    {{ t.surplus_deficit|floatformat:1 }}
+                </td>
+                <td>
+                    {% if t.officer_id != '__unassigned__' %}
+                    <a href="{% url 'core:dashboard' %}?active_tab=default_mis&fy={{ current_fy }}&sub_view=officers&sub_id={{ t.officer_id|urlencode }}"
+                       class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">Officers</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            <tr style="font-weight: 700; background: #f1f5f9; border-top: 2px solid #e2e8f0;">
+                <td colspan="2">TOTAL ({{ sub_rows|length }} TLs)</td>
+                <td class="text-right" id="total-tl-targeted"></td>
+                <td class="text-right" style="color: #047857;" id="total-tl-billed"></td>
+                <td class="text-right" style="color: #10b981;" id="total-tl-received"></td>
+                <td class="text-right" style="color: #dc2626;" id="total-tl-expenses"></td>
+                <td class="text-right" id="total-tl-surplus"></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+    </div>
+
+    <!-- Drill-down: Officers -->
+    {% elif sub_view == 'officers' and sub_rows %}
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>Officer</th>
+                <th>Designation</th>
+                <th class="text-right">Target (L)</th>
+                <th class="text-right">Targeted (L)</th>
+                <th class="text-right">Completed (L)</th>
+                <th class="text-right">Revenue Earned (L)</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in sub_rows %}
+            <tr>
+                <td>
+                    <a href="{% url 'core:dashboard' %}?active_tab=default_mis&fy={{ current_fy }}&sub_view=items&sub_id={{ o.officer_id|urlencode }}"
+                       style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                        {{ o.name }}
+                    </a>
+                </td>
+                <td style="font-size: 0.75rem; color: #64748b;">{{ o.designation|default:"-" }}</td>
+                <td class="text-right" style="font-weight: 600;">{{ o.annual_target|floatformat:1 }}</td>
+                <td class="text-right">{{ o.targeted_value|floatformat:1 }}</td>
+                <td class="text-right" style="color: #047857;">{{ o.completed_value|floatformat:1 }}</td>
+                <td class="text-right" style="color: #10b981; font-weight: 600;">{{ o.revenue_earned|floatformat:1 }}</td>
+                <td>
+                    <a href="{% url 'core:dashboard' %}?active_tab=default_mis&fy={{ current_fy }}&sub_view=items&sub_id={{ o.officer_id|urlencode }}"
+                       class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">Items</a>
+                </td>
+            </tr>
+            {% endfor %}
+            <tr style="font-weight: 700; background: #f1f5f9; border-top: 2px solid #e2e8f0;">
+                <td colspan="2">TOTAL ({{ sub_rows|length }} officers)</td>
+                <td class="text-right" id="total-off-target"></td>
+                <td class="text-right" id="total-off-targeted"></td>
+                <td class="text-right" style="color: #047857;" id="total-off-completed"></td>
+                <td class="text-right" style="color: #10b981;" id="total-off-revenue"></td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Drill-down: Items -->
+    {% elif sub_view == 'items' and items %}
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Title</th>
+                <th>Office</th>
+                <th>Value</th>
+                <th>Received</th>
+                <th>Expenses</th>
+                <th>Surplus</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in items %}
+            <tr>
+                <td><a href="{% url 'core:assignment_view' a.id %}" class="link-primary" style="font-size: 0.8rem;">{{ a.assignment_no }}</a></td>
+                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ a.title|truncatechars:40 }}</td>
+                <td>{{ a.office_id }}</td>
+                <td>{{ a.gross_value|floatformat:1|default:"0.0" }}L</td>
+                <td style="color: #10b981;">{{ a.amount_received|floatformat:1|default:"0.0" }}L</td>
+                <td style="color: #dc2626;">{{ a.total_expenditure|floatformat:1|default:"0.0" }}L</td>
+                {% with sd=a.surplus_deficit|default:0 %}
+                <td style="color: {% if sd >= 0 %}#10b981{% else %}#dc2626{% endif %};">{{ sd|floatformat:1 }}L</td>
+                {% endwith %}
+                <td>
+                    <span class="badge
+                        {% if a.status == 'Completed' %}badge-success
+                        {% elif a.status == 'In Progress' or a.status == 'Ongoing' %}badge-info
+                        {% elif a.status == 'On Hold' %}badge-warning
+                        {% else %}badge-secondary{% endif %}">
+                        {{ a.status|default:"-" }}
+                    </span>
+                </td>
+                <td><a href="{% url 'core:assignment_view' a.id %}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% elif not tab_data.office_rows and sub_view == 'entities' %}
+    <div class="empty-state" style="padding: 40px; text-align: center;">
+        <h3>No office data</h3>
+        <p>No offices found with MIS data for FY {{ current_fy }}.</p>
+    </div>
+    {% endif %}
+
+
+    {# ============================================================== #}
+    {# TAB B: PHYSICAL PROGRESS                                        #}
+    {# ============================================================== #}
+    {% elif active_tab == 'physical_progress' %}
+
+    <!-- Summary Cards -->
+    <div class="cards-grid">
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Total Milestones (FY)</div>
+            <div class="card-value" style="color: #1e293b;">{{ tab_data.summary.total }}</div>
+        </div>
+        <div class="summary-card" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">
+            <div class="card-label" style="opacity: 0.9;">On Time</div>
+            <div class="card-value">{{ tab_data.summary.on_time }}</div>
+        </div>
+        <div class="summary-card" style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white;">
+            <div class="card-label" style="opacity: 0.9;">Delayed</div>
+            <div class="card-value">{{ tab_data.summary.delayed }}</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Avg Delay</div>
+            <div class="card-value traffic-{% if tab_data.summary.avg_delay < 30 %}green{% elif tab_data.summary.avg_delay < 60 %}amber{% else %}red{% endif %}">
+                {{ tab_data.summary.avg_delay }} days
+            </div>
+        </div>
+    </div>
+
+    <!-- Office Filter -->
+    <div class="filter-bar">
+        <label>Filter by Office:</label>
+        <select onchange="window.location.href='{% url 'core:dashboard' %}?active_tab=physical_progress&fy={{ current_fy }}&filter_office=' + this.value">
+            <option value="">All Offices</option>
+            {% for o in offices_list %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name|default:o.office_id }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Delay Distribution Bar -->
+    {% with dd=tab_data.delay_distribution %}
+    {% with dd_total=dd.0_30|add:dd.30_60|add:dd.60_90|add:dd.90_plus %}
+    {% if dd_total > 0 %}
+    <div style="margin-bottom: 8px; font-size: 0.75rem; color: #64748b; font-weight: 600;">Delay Distribution ({{ dd_total }} delayed milestones)</div>
+    <div class="delay-bar">
+        {% if dd.0_30 > 0 %}
+        {% widthratio dd.0_30 dd_total 100 as w_0_30 %}
+        <div style="width: {{ w_0_30 }}%; background: #fbbf24;" title="1-30 days: {{ dd.0_30 }}">1-30d: {{ dd.0_30 }}</div>
+        {% endif %}
+        {% if dd.30_60 > 0 %}
+        {% widthratio dd.30_60 dd_total 100 as w_30_60 %}
+        <div style="width: {{ w_30_60 }}%; background: #f97316;" title="31-60 days: {{ dd.30_60 }}">31-60d: {{ dd.30_60 }}</div>
+        {% endif %}
+        {% if dd.60_90 > 0 %}
+        {% widthratio dd.60_90 dd_total 100 as w_60_90 %}
+        <div style="width: {{ w_60_90 }}%; background: #ef4444;" title="61-90 days: {{ dd.60_90 }}">61-90d: {{ dd.60_90 }}</div>
+        {% endif %}
+        {% if dd.90_plus > 0 %}
+        {% widthratio dd.90_plus dd_total 100 as w_90p %}
+        <div style="width: {{ w_90p }}%; background: #991b1b;" title="90+ days: {{ dd.90_plus }}">90+d: {{ dd.90_plus }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% endwith %}
+
+    <!-- Charts: Physical Progress -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>On Time vs Delayed</h3>
+            <div class="chart-wrap-sm"><canvas id="chartOnTimeDelayed"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Delay Severity Breakdown</h3>
+            <div class="chart-wrap-sm"><canvas id="chartDelaySeverity"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Delayed Milestones Table -->
+    {% if tab_data.milestone_rows %}
+    <div style="overflow-x: auto;">
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>Assignment</th>
+                <th>Milestone</th>
+                <th>Target Date</th>
+                <th>Status</th>
+                <th>Delay (Days)</th>
+                <th>Office</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in tab_data.milestone_rows %}
+            <tr>
+                <td><a href="{% url 'core:assignment_view' m.assignment_id %}" class="link-primary" style="font-size: 0.8rem;">{{ m.assignment_no }}</a></td>
+                <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ m.milestone_title|default:m.milestone_no }}</td>
+                <td style="font-size: 0.8rem;">{{ m.target_date }}</td>
+                <td><span class="badge badge-warning" style="font-size: 0.65rem;">{{ m.status }}</span></td>
+                <td>
+                    <span class="badge badge-{% if m.traffic_light == 'green' %}green{% elif m.traffic_light == 'amber' %}amber{% else %}red{% endif %}" style="font-size: 0.7rem; font-weight: 700;">
+                        {{ m.delay_days }} days
+                    </span>
+                </td>
+                <td style="font-size: 0.8rem;">{{ m.office_id }}</td>
+                <td><a href="{% url 'core:assignment_view' m.assignment_id %}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 40px; text-align: center;">
+        <h3>No delayed milestones</h3>
+        <p>All milestones are on track for FY {{ current_fy }}.</p>
+    </div>
+    {% endif %}
+
+
+    {# ============================================================== #}
+    {# TAB C: FINANCIAL PROGRESS                                       #}
+    {# ============================================================== #}
+    {% elif active_tab == 'financial_progress' %}
+
+    <!-- Summary Cards -->
+    <div class="cards-grid">
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Avg Invoice Delay</div>
+            <div class="card-value traffic-{% if tab_data.summary.avg_invoice_delay < 30 %}green{% elif tab_data.summary.avg_invoice_delay < 60 %}amber{% else %}red{% endif %}">
+                {{ tab_data.summary.avg_invoice_delay }} days
+            </div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Avg Payment Delay</div>
+            <div class="card-value traffic-{% if tab_data.summary.avg_payment_delay < 30 %}green{% elif tab_data.summary.avg_payment_delay < 60 %}amber{% else %}red{% endif %}">
+                {{ tab_data.summary.avg_payment_delay }} days
+            </div>
+        </div>
+        <div class="summary-card" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white;">
+            <div class="card-label" style="opacity: 0.9;">Outstanding Invoices</div>
+            <div class="card-value">{{ tab_data.summary.outstanding_invoices_count }}</div>
+        </div>
+        <div class="summary-card" style="background: linear-gradient(135deg, #f59e0b, #d97706); color: white;">
+            <div class="card-label" style="opacity: 0.9;">Outstanding Payments</div>
+            <div class="card-value">{{ tab_data.summary.outstanding_payments_count }}</div>
+        </div>
+    </div>
+
+    <!-- Office Filter -->
+    <div class="filter-bar">
+        <label>Filter by Office:</label>
+        <select onchange="window.location.href='{% url 'core:dashboard' %}?active_tab=financial_progress&fy={{ current_fy }}&filter_office=' + this.value">
+            <option value="">All Offices</option>
+            {% for o in offices_list %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name|default:o.office_id }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- Charts: Financial Progress -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Invoice vs Payment Aging</h3>
+            <div class="chart-wrap-sm"><canvas id="chartAgingBar"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Monthly Payment Trend ({{ current_fy }})</h3>
+            <div class="chart-wrap-sm"><canvas id="chartPaymentTrend"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Aging Analysis -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+        <!-- Invoice Aging -->
+        <div>
+            <h3 style="font-size: 0.875rem; margin-bottom: 8px; color: #475569;">Invoice Aging</h3>
+            <table class="aging-table">
+                <thead>
+                    <tr>
+                        <th>0-30 days</th>
+                        <th>31-60 days</th>
+                        <th>61-90 days</th>
+                        <th>90+ days</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="color: #059669;">{{ tab_data.invoice_aging.0_30|default:0 }}</td>
+                        <td style="color: #d97706;">{{ tab_data.invoice_aging.30_60|default:0 }}</td>
+                        <td style="color: #ea580c;">{{ tab_data.invoice_aging.60_90|default:0 }}</td>
+                        <td style="color: #dc2626; font-weight: 700;">{{ tab_data.invoice_aging.90_plus|default:0 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <!-- Payment Aging -->
+        <div>
+            <h3 style="font-size: 0.875rem; margin-bottom: 8px; color: #475569;">Payment Aging</h3>
+            <table class="aging-table">
+                <thead>
+                    <tr>
+                        <th>0-30 days</th>
+                        <th>31-60 days</th>
+                        <th>61-90 days</th>
+                        <th>90+ days</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="color: #059669;">{{ tab_data.payment_aging.0_30|default:0 }}</td>
+                        <td style="color: #d97706;">{{ tab_data.payment_aging.30_60|default:0 }}</td>
+                        <td style="color: #ea580c;">{{ tab_data.payment_aging.60_90|default:0 }}</td>
+                        <td style="color: #dc2626; font-weight: 700;">{{ tab_data.payment_aging.90_plus|default:0 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Invoice Delays Detail -->
+    <details style="margin-bottom: 16px;" {% if tab_data.invoice_delays %}open{% endif %}>
+        <summary style="cursor: pointer; font-size: 0.875rem; font-weight: 600; color: #475569; margin-bottom: 8px;">
+            Invoice Delays ({{ tab_data.invoice_delays|length }} milestones pending invoicing)
+        </summary>
+        {% if tab_data.invoice_delays %}
+        <div style="overflow-x: auto;">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Assignment</th>
+                    <th>Milestone</th>
+                    <th>Target Date</th>
+                    <th>Delay (Days)</th>
+                    <th>Office</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in tab_data.invoice_delays %}
+                <tr>
+                    <td><a href="{% url 'core:assignment_view' m.assignment_id %}" class="link-primary" style="font-size: 0.8rem;">{{ m.assignment_no }}</a></td>
+                    <td style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ m.milestone_title|default:m.milestone_no }}</td>
+                    <td style="font-size: 0.8rem;">{{ m.target_date }}</td>
+                    <td>
+                        <span class="badge badge-{% if m.delay_days < 30 %}green{% elif m.delay_days < 60 %}amber{% else %}red{% endif %}" style="font-size: 0.7rem;">
+                            {{ m.delay_days|default:0 }} days
+                        </span>
+                    </td>
+                    <td style="font-size: 0.8rem;">{{ m.office_id }}</td>
+                    <td><a href="{% url 'core:assignment_view' m.assignment_id %}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p style="color: #94a3b8; font-size: 0.8125rem;">No pending invoice delays.</p>
+        {% endif %}
+    </details>
+
+    <!-- Payment Delays Detail -->
+    <details style="margin-bottom: 16px;" {% if tab_data.payment_delays %}open{% endif %}>
+        <summary style="cursor: pointer; font-size: 0.875rem; font-weight: 600; color: #475569; margin-bottom: 8px;">
+            Payment Delays ({{ tab_data.payment_delays|length }} invoices awaiting payment)
+        </summary>
+        {% if tab_data.payment_delays %}
+        <div style="overflow-x: auto;">
+        <table class="compact-table">
+            <thead>
+                <tr>
+                    <th>Invoice #</th>
+                    <th>Assignment</th>
+                    <th>Amount (L)</th>
+                    <th>Approved Date</th>
+                    <th>Delay (Days)</th>
+                    <th>Office</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in tab_data.payment_delays %}
+                <tr>
+                    <td style="font-size: 0.8rem;">{{ p.request_number }}</td>
+                    <td><a href="{% url 'core:assignment_view' p.assignment_id %}" class="link-primary" style="font-size: 0.8rem;">{{ p.assignment_no }}</a></td>
+                    <td>{{ p.invoice_amount|floatformat:1|default:"0.0" }}</td>
+                    <td style="font-size: 0.8rem;">{{ p.approved_at }}</td>
+                    <td>
+                        <span class="badge badge-{% if p.delay_days < 30 %}green{% elif p.delay_days < 60 %}amber{% else %}red{% endif %}" style="font-size: 0.7rem;">
+                            {{ p.delay_days|default:0 }} days
+                        </span>
+                    </td>
+                    <td style="font-size: 0.8rem;">{{ p.office_id }}</td>
+                    <td><a href="{% url 'core:assignment_view' p.assignment_id %}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <p style="color: #94a3b8; font-size: 0.8125rem;">No pending payment delays.</p>
+        {% endif %}
+    </details>
+
+
+    {# ============================================================== #}
+    {# TAB D: BUSINESS MIS                                             #}
+    {# ============================================================== #}
+    {% elif active_tab == 'business_mis' %}
+
+    <!-- Sub-section Toggle -->
+    <div class="sub-toggle" style="margin-top: 16px;">
+        <a href="{% url 'core:dashboard' %}?active_tab=business_mis&fy={{ current_fy }}&sub_section=proposals"
+           class="{% if sub_section == 'proposals' %}active{% endif %}">Proposals</a>
+        <a href="{% url 'core:dashboard' %}?active_tab=business_mis&fy={{ current_fy }}&sub_section=work_in_hand"
+           class="{% if sub_section == 'work_in_hand' %}active{% endif %}">Work in Hand</a>
+    </div>
+
+    {% if tab_data.sub_section == 'proposals' %}
+    <!-- Proposals Summary Cards -->
+    <div class="cards-grid">
+        <div class="summary-card" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white;">
+            <div class="card-label" style="opacity: 0.9;">Pipeline Value</div>
+            <div class="card-value">{{ tab_data.summary.pipeline_value|floatformat:1|default:"0.0" }}L</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Total Activities</div>
+            <div class="card-value" style="color: #1e293b;">{{ tab_data.summary.active_proposals }}</div>
+        </div>
+        <div class="summary-card" style="background: linear-gradient(135deg, #10b981, #059669); color: white;">
+            <div class="card-label" style="opacity: 0.9;">Active/Completed Value</div>
+            <div class="card-value">{{ tab_data.summary.won_value|floatformat:1|default:"0.0" }}L</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Conversion Rate</div>
+            <div class="card-value" style="color: #3b82f6;">{{ tab_data.summary.conversion_rate }}%</div>
+        </div>
+    </div>
+
+    <!-- Pipeline by Stage -->
+    {% if tab_data.pipeline %}
+    <div style="margin-bottom: 16px;">
+        <h3 style="font-size: 0.875rem; color: #475569; margin-bottom: 8px;">Pipeline by Stage</h3>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            {% for stage, data in tab_data.pipeline.items %}
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 16px; text-align: center;">
+                <div style="font-size: 0.7rem; color: #64748b;">{{ stage }}</div>
+                <div style="font-size: 1.1rem; font-weight: 700; color: #1e293b;">{{ data.cnt }}</div>
+                <div style="font-size: 0.7rem; color: #94a3b8;">{{ data.total_value|floatformat:1 }}L</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Charts: Business MIS (Proposals) -->
+    <div class="charts-row">
+        <div class="chart-card">
+            <h3>Pipeline by Stage</h3>
+            <div class="chart-wrap-sm"><canvas id="chartPipelineDonut"></canvas></div>
+        </div>
+        <div class="chart-card">
+            <h3>Monthly Active Assignments ({{ current_fy }})</h3>
+            <div class="chart-wrap-sm"><canvas id="chartBizTrend"></canvas></div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <form method="GET" action="{% url 'core:dashboard' %}" class="filter-bar" id="bizFilterForm">
+        {% csrf_token %}
+        <input type="hidden" name="active_tab" value="business_mis">
+        <input type="hidden" name="sub_section" value="proposals">
+        <input type="hidden" name="fy" value="{{ current_fy }}">
+        <label>Office:</label>
+        <select name="filter_office">
+            <option value="">All</option>
+            {% for o in offices_list %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name|default:o.office_id }}</option>
+            {% endfor %}
+        </select>
+        <label>Domain:</label>
+        <select name="filter_domain">
+            <option value="">All</option>
+            {% for d in domains_list %}
+            <option value="{{ d }}" {% if filter_domain == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+        </select>
+        <label>Stage:</label>
+        <select name="filter_status">
+            <option value="">All</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <label>Sort:</label>
+        <select name="sort_by">
+            <option value="">Latest</option>
+            <option value="gross_value" {% if sort_by == 'gross_value' %}selected{% endif %}>Value</option>
+            <option value="assignment_no" {% if sort_by == 'assignment_no' %}selected{% endif %}>No.</option>
+            <option value="office_id" {% if sort_by == 'office_id' %}selected{% endif %}>Office</option>
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    </form>
+
+    <!-- Proposals Table -->
+    {% if tab_data.rows %}
+    <div style="overflow-x: auto;">
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Title</th>
+                <th>Office</th>
+                <th>Client</th>
+                <th>Value (L)</th>
+                <th>Stage</th>
+                <th>Domain</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in tab_data.rows %}
+            <tr>
+                <td><a href="{% url 'core:assignment_view' a.id %}" class="link-primary" style="font-size: 0.8rem;">{{ a.assignment_no }}</a></td>
+                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ a.title|truncatechars:40 }}</td>
+                <td style="font-size: 0.8rem;">{{ a.office_id }}</td>
+                <td style="font-size: 0.8rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ a.client|default:"-"|truncatechars:20 }}</td>
+                <td class="text-right">{{ a.gross_value|floatformat:1|default:"0.0" }}</td>
+                <td>
+                    <span class="badge
+                        {% if a.workflow_stage == 'ACTIVE' %}badge-success
+                        {% elif a.workflow_stage == 'COMPLETED' %}badge-info
+                        {% elif a.workflow_stage == 'DETAIL_ENTRY' %}badge-warning
+                        {% else %}badge-secondary{% endif %}" style="font-size: 0.65rem;">
+                        {{ a.workflow_stage|default:"-" }}
+                    </span>
+                </td>
+                <td style="font-size: 0.75rem; color: #64748b;">{{ a.domain|default:"-" }}</td>
+                <td><a href="{% url 'core:assignment_view' a.id %}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 40px; text-align: center;">
+        <h3>No proposals found</h3>
+        <p>Adjust filters or create a new activity.</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- Work in Hand -->
+    <div class="cards-grid">
+        <div class="summary-card" style="background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white;">
+            <div class="card-label" style="opacity: 0.9;">Active Assignments</div>
+            <div class="card-value">{{ tab_data.summary.active_count }}</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Total Value in Hand</div>
+            <div class="card-value" style="color: #047857;">{{ tab_data.summary.total_value|floatformat:1|default:"0.0" }}L</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">Upcoming Milestones (30d)</div>
+            <div class="card-value" style="color: #d97706;">{{ tab_data.summary.upcoming_milestones }}</div>
+        </div>
+        <div class="summary-card" style="background: white; border: 1px solid #e2e8f0;">
+            <div class="card-label" style="color: #64748b;">FY {{ current_fy }}</div>
+            {% widthratio fy_progress 1 100 as fy_pct_wih %}
+            <div class="card-value" style="color: #3b82f6;">{{ fy_pct_wih }}%</div>
+        </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <form method="GET" action="{% url 'core:dashboard' %}" class="filter-bar">
+        {% csrf_token %}
+        <input type="hidden" name="active_tab" value="business_mis">
+        <input type="hidden" name="sub_section" value="work_in_hand">
+        <input type="hidden" name="fy" value="{{ current_fy }}">
+        <label>Office:</label>
+        <select name="filter_office">
+            <option value="">All</option>
+            {% for o in offices_list %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name|default:o.office_id }}</option>
+            {% endfor %}
+        </select>
+        <label>Domain:</label>
+        <select name="filter_domain">
+            <option value="">All</option>
+            {% for d in domains_list %}
+            <option value="{{ d }}" {% if filter_domain == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    </form>
+
+    <!-- Work in Hand Table -->
+    {% if tab_data.rows %}
+    <div style="overflow-x: auto;">
+    <table class="compact-table">
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Title</th>
+                <th>Office</th>
+                <th>Value (L)</th>
+                <th>Progress</th>
+                <th>Target Date</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in tab_data.rows %}
+            <tr>
+                <td><a href="{% url 'core:assignment_view' a.id %}" class="link-primary" style="font-size: 0.8rem;">{{ a.assignment_no }}</a></td>
+                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ a.title|truncatechars:40 }}</td>
+                <td style="font-size: 0.8rem;">{{ a.office_id }}</td>
+                <td class="text-right">{{ a.gross_value|floatformat:1|default:"0.0" }}</td>
+                <td>
+                    {% with prog=a.physical_progress_percent|default:0 %}
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                        <div style="flex: 1; background: #e2e8f0; border-radius: 3px; height: 6px; min-width: 40px;">
+                            <div style="background: {% if prog >= 80 %}#10b981{% elif prog >= 40 %}#f59e0b{% else %}#3b82f6{% endif %}; height: 100%; width: {{ prog }}%; border-radius: 3px;"></div>
+                        </div>
+                        <span style="font-size: 0.7rem; color: #64748b;">{{ prog|floatformat:0 }}%</span>
+                    </div>
+                    {% endwith %}
+                </td>
+                <td style="font-size: 0.8rem;">{{ a.target_date|default:"-" }}</td>
+                <td>
+                    <span class="badge
+                        {% if a.status == 'In Progress' or a.status == 'Ongoing' %}badge-info
+                        {% elif a.status == 'Not Started' %}badge-warning
+                        {% else %}badge-secondary{% endif %}" style="font-size: 0.65rem;">
+                        {{ a.status|default:"-" }}
+                    </span>
+                </td>
+                <td><a href="{% url 'core:assignment_view' a.id %}" class="btn btn-sm btn-secondary" style="font-size: 0.7rem;">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding: 40px; text-align: center;">
+        <h3>No active assignments</h3>
+        <p>No work currently in progress.</p>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% endif %}
+</div>
+
+<!-- User Info Footer -->
+<div style="text-align: center; padding: 15px; color: #94a3b8; font-size: 0.8125rem;">
+    Logged in as <strong>{{ user.name }}</strong> | {{ active_role|default:"Officer" }}{% if scope_value %} ({{ scope_value }}){% endif %} | {{ user.office_id_value }} | FY {{ current_fy }}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Business MIS: Dynamic filtering via API (Tab D)
+    async function applyBusinessFilter() {
+        var form = document.getElementById('bizFilterForm');
+        if (form) form.submit();
+    }
+
+    // ---- Chart.js Initialization ----
+    document.addEventListener('DOMContentLoaded', function() {
+        var currentFy = '{{ current_fy }}';
+        var COLORS = {
+            blue: '#3b82f6', green: '#10b981', red: '#ef4444',
+            amber: '#f59e0b', purple: '#8b5cf6', teal: '#14b8a6',
+            slate: '#64748b'
+        };
+
+        async function fetchMonthly(tab, metric) {
+            try {
+                var resp = await fetch('{% url "core:monthly_breakdown_api" %}?tab=' + tab + '&metric=' + metric + '&fy=' + currentFy);
+                if (!resp.ok) return null;
+                return await resp.json();
+            } catch(e) { return null; }
+        }
+
+        {% if active_tab == 'default_mis' %}
+        // ---- Tab A: Default MIS ----
+        (function() {
+            var target = {{ tab_data.summary.fy_target|default:0 }};
+            var revenue = {{ tab_data.summary.revenue|default:0 }};
+            var expenditure = {{ tab_data.summary.expenditure|default:0 }};
+            var surplus = {{ tab_data.summary.surplus_deficit|default:0 }};
+
+            new Chart(document.getElementById('chartDefaultBar'), {
+                type: 'bar',
+                data: {
+                    labels: ['FY Target', 'Revenue', 'Expenditure', 'Surplus/Deficit'],
+                    datasets: [{
+                        data: [target, revenue, expenditure, surplus],
+                        backgroundColor: [COLORS.purple, COLORS.green, COLORS.red, surplus >= 0 ? COLORS.green : COLORS.red],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'Lakhs (L)' } } }
+                }
+            });
+
+            fetchMonthly('assignments', 'billing').then(function(data) {
+                if (!data) return;
+                new Chart(document.getElementById('chartDefaultTrend'), {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Billing (L)', data: data.data,
+                            borderColor: COLORS.blue, backgroundColor: COLORS.blue + '20',
+                            fill: true, tension: 0.3, pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            });
+
+            // Calculate totals for entities table via JS
+            {% if sub_view == 'entities' and tab_data.office_rows %}
+            var officeRows = [
+                {% for e in tab_data.office_rows %}
+                {fy_target: {{ e.fy_target|default:0 }}, revenue: {{ e.revenue|default:0 }}, expenditure: {{ e.expenditure|default:0 }}, surplus_deficit: {{ e.surplus_deficit|default:0 }}}{% if not forloop.last %},{% endif %}
+                {% endfor %}
+            ];
+            var totFyTarget = officeRows.reduce(function(s,r){return s+r.fy_target;},0);
+            var totRevenue = officeRows.reduce(function(s,r){return s+r.revenue;},0);
+            var totExpenditure = officeRows.reduce(function(s,r){return s+r.expenditure;},0);
+            var totSurplus = officeRows.reduce(function(s,r){return s+r.surplus_deficit;},0);
+            var totAchievement = totFyTarget > 0 ? (totRevenue / totFyTarget * 100).toFixed(1) : '0.0';
+            document.getElementById('total-fy-target').textContent = totFyTarget.toFixed(1);
+            document.getElementById('total-revenue').textContent = totRevenue.toFixed(1);
+            document.getElementById('total-expenditure').textContent = totExpenditure.toFixed(1);
+            var surplusEl = document.getElementById('total-surplus');
+            surplusEl.textContent = totSurplus.toFixed(1);
+            surplusEl.style.color = totSurplus >= 0 ? '#10b981' : '#dc2626';
+            surplusEl.style.fontWeight = '600';
+            document.getElementById('total-achievement').textContent = totAchievement + '%';
+            {% endif %}
+        })();
+        {% endif %}
+
+        {% if active_tab == 'physical_progress' %}
+        // ---- Tab B: Physical Progress ----
+        (function() {
+            var onTime = {{ tab_data.summary.on_time|default:0 }};
+            var delayed = {{ tab_data.summary.delayed|default:0 }};
+
+            new Chart(document.getElementById('chartOnTimeDelayed'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['On Time', 'Delayed'],
+                    datasets: [{
+                        data: [onTime, delayed],
+                        backgroundColor: [COLORS.green, COLORS.red],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+                }
+            });
+
+            new Chart(document.getElementById('chartDelaySeverity'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['1-30 days', '31-60 days', '61-90 days', '90+ days'],
+                    datasets: [{
+                        data: [{{ tab_data.delay_distribution.0_30|default:0 }}, {{ tab_data.delay_distribution.30_60|default:0 }}, {{ tab_data.delay_distribution.60_90|default:0 }}, {{ tab_data.delay_distribution.90_plus|default:0 }}],
+                        backgroundColor: [COLORS.amber, '#f97316', COLORS.red, '#991b1b'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } }
+                }
+            });
+        })();
+        {% endif %}
+
+        {% if active_tab == 'financial_progress' %}
+        // ---- Tab C: Financial Progress ----
+        (function() {
+            new Chart(document.getElementById('chartAgingBar'), {
+                type: 'bar',
+                data: {
+                    labels: ['0-30 days', '31-60 days', '61-90 days', '90+ days'],
+                    datasets: [
+                        {
+                            label: 'Invoices',
+                            data: [{{ tab_data.invoice_aging.0_30|default:0 }}, {{ tab_data.invoice_aging.30_60|default:0 }}, {{ tab_data.invoice_aging.60_90|default:0 }}, {{ tab_data.invoice_aging.90_plus|default:0 }}],
+                            backgroundColor: COLORS.purple, borderRadius: 4
+                        },
+                        {
+                            label: 'Payments',
+                            data: [{{ tab_data.payment_aging.0_30|default:0 }}, {{ tab_data.payment_aging.30_60|default:0 }}, {{ tab_data.payment_aging.60_90|default:0 }}, {{ tab_data.payment_aging.90_plus|default:0 }}],
+                            backgroundColor: COLORS.amber, borderRadius: 4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            fetchMonthly('assignments', 'payments').then(function(data) {
+                if (!data) return;
+                new Chart(document.getElementById('chartPaymentTrend'), {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Payments (L)', data: data.data,
+                            borderColor: COLORS.green, backgroundColor: COLORS.green + '20',
+                            fill: true, tension: 0.3, pointRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { beginAtZero: true } }
+                    }
+                });
+            });
+        })();
+        {% endif %}
+
+        {% if active_tab == 'business_mis' %}
+        // ---- Tab D: Business MIS ----
+        (function() {
+            var pipelineCanvas = document.getElementById('chartPipelineDonut');
+            if (pipelineCanvas) {
+                {% if tab_data.pipeline %}
+                new Chart(pipelineCanvas, {
+                    type: 'doughnut',
+                    data: {
+                        labels: [{% for stage, data in tab_data.pipeline.items %}'{{ stage }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+                        datasets: [{
+                            data: [{% for stage, data in tab_data.pipeline.items %}{{ data.cnt }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                            backgroundColor: [COLORS.blue, COLORS.green, COLORS.amber, COLORS.purple, COLORS.red, COLORS.teal],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } }
+                    }
+                });
+                {% endif %}
+            }
+
+            var bizTrendCanvas = document.getElementById('chartBizTrend');
+            if (bizTrendCanvas) {
+                fetchMonthly('assignments', 'active_count').then(function(data) {
+                    if (!data) return;
+                    new Chart(bizTrendCanvas, {
+                        type: 'bar',
+                        data: {
+                            labels: data.labels,
+                            datasets: [{
+                                label: 'Active', data: data.data,
+                                backgroundColor: COLORS.blue, borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true, maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } }
+                        }
+                    });
+                });
+            }
+        })();
+        {% endif %}
+    });
+</script>
+{% endblock %}

@@ -6,14 +6,18 @@ services:
   - type: web
     name: pms-portal
     env: python
-    buildCommand: pip install -r requirements.txt && python scripts/setup_all.py
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: python manage.py migrate --noinput && python scripts/seed_django.py && gunicorn pms_portal.wsgi --bind 0.0.0.0:$PORT
     envVars:
       - key: PYTHON_VERSION
-        value: "3.11"
+        value: "3.12"
       - key: DATABASE_URL
         fromDatabase:
           name: pms-portal-db
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com,.railway.app,localhost"

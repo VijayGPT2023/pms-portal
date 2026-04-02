@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Select Activity Type - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Create New Activity</h1>
+    <a href="{% url 'core:dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <p style="text-align: center; margin: 20px 0; color: #4a5568; font-size: 1.1rem;">
+        Select the type of activity you want to create:
+    </p>
+
+    <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; padding: 20px;">
+        <a href="{% url 'core:new_assignment' %}?type=ASSIGNMENT" class="type-card"
+           style="display: block; text-decoration: none; color: inherit; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; width: 280px; text-align: center; transition: all 0.2s;">
+            <h3 style="color: #2d3748; margin-bottom: 10px;">Assignment / Project</h3>
+            <p style="color: #718096;">Consultancy and project work with real revenue</p>
+            <span class="badge" style="background: #dbeafe; color: #1d4ed8; padding: 6px 16px; margin-top: 10px;">Revenue Work</span>
+        </a>
+
+        <a href="{% url 'core:register_activity' %}" class="type-card"
+           style="display: block; text-decoration: none; color: inherit; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; width: 280px; text-align: center; transition: all 0.2s;">
+            <h3 style="color: #2d3748; margin-bottom: 10px;">Training Programme</h3>
+            <p style="color: #718096;">Training programs, workshops, and capacity building</p>
+            <span class="badge" style="background: #fef3c7; color: #92400e; padding: 6px 16px; margin-top: 10px;">Training</span>
+        </a>
+
+        <a href="{% url 'core:new_assignment' %}?type=DEVELOPMENT" class="type-card"
+           style="display: block; text-decoration: none; color: inherit; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; width: 280px; text-align: center; transition: all 0.2s;">
+            <h3 style="color: #2d3748; margin-bottom: 10px;">Development Work</h3>
+            <p style="color: #718096;">Internal projects, research, proposals (notional value)</p>
+            <span class="badge" style="background: #d1fae5; color: #047857; padding: 6px 16px; margin-top: 10px;">Notional Value</span>
+        </a>
+    </div>
+</div>
+
+<style>
+.type-card:hover {
+    border-color: #3182ce !important;
+    box-shadow: 0 4px 12px rgba(49, 130, 206, 0.15);
+    transform: translateY(-2px);
+}
+</style>
+{% endblock %}

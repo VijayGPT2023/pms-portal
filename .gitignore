@@ -44,9 +44,16 @@ initial_passwords.csv
 .claude/
 ~$*
 
-# Large binary files (optional - for local use)
-# *.xlsx
-# *.pdf
-# *.pptx
+# Django
+staticfiles/
+db.sqlite3
+uploads/
+
+# Large binary/data files
+Tally_MIS/
+tally/
+*.xlsx
+*.pdf
+*.pptx
 cookies*.txt
 response*.html

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Work Orders - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Work Orders</h1>
+    <a href="{% url 'core:dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<!-- Filters -->
+<div class="card">
+    <form method="GET" action="{% url 'core:workorders_list' %}" class="filters" style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+        <div class="filter-group">
+            <label>View</label>
+            <select name="view">
+                <option value="">All Work Orders</option>
+                <option value="my_created" {% if filter_view == 'my_created' %}selected{% endif %}>My Work Orders</option>
+                <option value="my_office" {% if filter_view == 'my_office' %}selected{% endif %}>My Office</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="office">
+                <option value="">All Offices</option>
+                {% for oid, oname in offices %}
+                <option value="{{ oid }}" {% if filter_office == oid %}selected{% endif %}>{{ oid }} - {{ oname }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label>Status</label>
+            <select name="status">
+                <option value="">All Statuses</option>
+                <option value="Not Started" {% if filter_status == 'Not Started' %}selected{% endif %}>Not Started</option>
+                <option value="Ongoing" {% if filter_status == 'Ongoing' %}selected{% endif %}>Ongoing</option>
+                <option value="Completed" {% if filter_status == 'Completed' %}selected{% endif %}>Completed</option>
+                <option value="On Hold" {% if filter_status == 'On Hold' %}selected{% endif %}>On Hold</option>
+                <option value="Cancelled" {% if filter_status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Apply</button>
+        <a href="{% url 'core:workorders_list' %}" class="btn btn-secondary">Reset</a>
+    </form>
+</div>
+
+<!-- Status Summary -->
+{% if status_counts %}
+<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
+    {% for status, count in status_counts.items %}
+    <span class="badge {% if status == 'Completed' %}badge-success{% elif status == 'Ongoing' %}badge-info{% elif status == 'On Hold' %}badge-warning{% else %}badge-secondary{% endif %}"
+          style="padding: 8px 16px; font-size: 0.9rem;">
+        {{ status }}: {{ count }}
+    </span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Assignments Table -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Work Orders ({{ assignments|length }})</h2>
+    </div>
+
+    {% if assignments %}
+    <div class="table-container" style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Assignment No</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Office</th>
+                    <th>Team Leader</th>
+                    <th>Status</th>
+                    <th>Workflow</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assignments %}
+                <tr>
+                    <td>
+                        <a href="{% url 'core:assignment_view' assignment_id=a.pk %}">{{ a.assignment_no }}</a>
+                    </td>
+                    <td>
+                        <span class="badge {% if a.type == 'ASSIGNMENT' %}badge-info{% elif a.type == 'TRAINING' %}badge-warning{% else %}badge-secondary{% endif %}">
+                            {{ a.get_type_display|default:"-" }}
+                        </span>
+                    </td>
+                    <td>{{ a.title|truncatechars:40 }}</td>
+                    <td>{{ a.office_id }}</td>
+                    <td>{{ a.team_leader.name|default:"-" }}</td>
+                    <td>
+                        <span class="badge {% if a.status == 'Completed' %}badge-success{% elif a.status == 'Ongoing' %}badge-info{% elif a.status == 'On Hold' %}badge-warning{% else %}badge-secondary{% endif %}">
+                            {{ a.status|default:"-" }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge" style="background: #e2e8f0; color: #4a5568;">{{ a.get_workflow_stage_display|default:"-" }}</span>
+                    </td>
+                    <td>
+                        <a href="{% url 'core:assignment_view' assignment_id=a.pk %}" class="btn btn-sm btn-primary">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center" style="padding: 30px;">
+        No work orders found matching your criteria.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

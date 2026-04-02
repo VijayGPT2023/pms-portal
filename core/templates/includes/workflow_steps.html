@@ -1,0 +1,10 @@
+<!-- Workflow step indicator component -->
+<div class="workflow-steps">
+    {% for step in steps %}
+    <div class="step {% if step.status == 'completed' %}completed{% elif step.status == 'active' %}active{% else %}pending{% endif %}">
+        <div class="step-number">{{ forloop.counter }}</div>
+        <div class="step-label">{{ step.label }}</div>
+    </div>
+    {% if not forloop.last %}<div class="step-line"></div>{% endif %}
+    {% endfor %}
+</div>
