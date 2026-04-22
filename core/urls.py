@@ -16,7 +16,6 @@ from .views import (
     data_management as data,
     non_revenue as nrev,
     profile as prof,
-    change_requests as cr,
 )
 
 app_name = "core"
@@ -181,15 +180,6 @@ urlpatterns = [
     path("profile/", prof.view_profile, name="profile"),
     path("profile/change-password/", prof.change_password_form, name="change_password_form"),
     path("profile/change-password/submit/", prof.change_password_submit, name="change_password_submit"),
-
-    # ── Change Requests ───────────────────────────────────────────────
-    path("change-request/new/<int:assignment_id>/", cr.change_request_form, name="change_request_form"),
-    path("change-request/new/<int:assignment_id>/submit/", cr.submit_change_request, name="submit_change_request"),
-    path("change-request/review/<int:request_id>/", cr.review_change_request, name="review_change_request"),
-    path("change-request/review/<int:request_id>/forward/", cr.forward_change_request, name="forward_change_request"),
-    path("change-request/review/<int:request_id>/reject/", cr.tl_reject_change_request, name="tl_reject_change_request"),
-    path("change-request/<int:request_id>/approve/", cr.head_approve_change_request, name="head_approve_change_request"),
-    path("change-request/<int:request_id>/reject/", cr.head_reject_change_request, name="head_reject_change_request"),
 
     # ── Admin ─────────────────────────────────────────────────────────
     path("admin-panel/users/", adm.user_management_page, name="user_management"),
