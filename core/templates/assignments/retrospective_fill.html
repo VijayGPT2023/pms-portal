@@ -49,6 +49,7 @@
     <h2 style="font-size:15px; margin:0 0 12px;">As-Of Snapshot</h2>
     <form method="POST">
         {% csrf_token %}
+        <input type="hidden" name="action" value="save_meta">
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px;">
             <div>
                 <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">As-of date</label>
@@ -84,16 +85,16 @@
     </form>
 </div>
 
-<!-- Read-only snapshot of existing records -->
+<!-- Summary totals -->
 <div class="card" style="padding:14px; margin-bottom:14px;">
-    <h2 style="font-size:15px; margin:0 0 10px;">Existing Records</h2>
+    <h2 style="font-size:15px; margin:0 0 10px;">Totals (derived from records below)</h2>
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
         <div>
-            <div style="font-size:11px; color:#888;">Invoiced (to date)</div>
+            <div style="font-size:11px; color:#888;">Invoiced</div>
             <div style="font-size:18px; font-weight:600; color:#1F4E79;">₹ {{ assignment.invoice_amount|floatformat:0 }}</div>
         </div>
         <div>
-            <div style="font-size:11px; color:#888;">Received (to date)</div>
+            <div style="font-size:11px; color:#888;">Received</div>
             <div style="font-size:18px; font-weight:600; color:#27ae60;">₹ {{ assignment.amount_received|floatformat:0 }}</div>
         </div>
         <div>
@@ -105,10 +106,186 @@
             <div style="font-size:18px; font-weight:600;">{{ assignment.team_members.count }}</div>
         </div>
     </div>
-    <div style="margin-top:12px; font-size:12px; color:#666;">
-        Historic invoice and payment entry for bulk-onboarded assignments will be enabled in Slice D.2.
-        For now, use the regular finance flow to record new invoices/payments.
+</div>
+
+<!-- Add Historic Invoice -->
+{% if can_edit %}
+<div class="card" style="padding:14px; margin-bottom:14px;">
+    <h2 style="font-size:15px; margin:0 0 12px;">Add Historic Invoice</h2>
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_invoice">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;">
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Invoice date <span style="color:#c33;">*</span></label>
+                <input type="date" name="invoice_date" required
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+            </div>
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Amount (₹) <span style="color:#c33;">*</span></label>
+                <input type="number" name="invoice_amount" required min="1" step="0.01"
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+            </div>
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Invoice type</label>
+                <select name="invoice_type"
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+                    <option value="ADVANCE">Advance</option>
+                    <option value="SUBSEQUENT" selected>Subsequent</option>
+                    <option value="FINAL">Final</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">External invoice #</label>
+                <input type="text" name="invoice_reference" maxlength="200" placeholder="e.g. NPC-INV-2024-15"
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+            </div>
+        </div>
+        <div style="margin-top:12px;">
+            <button type="submit" class="btn" style="background:#1F4E79; color:white; border:none; padding:7px 16px; border-radius:4px; cursor:pointer; font-size:13px;">
+                Record Invoice
+            </button>
+            <span style="font-size:11px; color:#888; margin-left:10px;">
+                Recorded as status=INVOICED (no approval step). 80% revenue recognized on save.
+            </span>
+        </div>
+    </form>
+</div>
+
+<!-- Add Historic Payment -->
+<div class="card" style="padding:14px; margin-bottom:14px;">
+    <h2 style="font-size:15px; margin:0 0 12px;">Add Historic Payment</h2>
+    {% if invoices %}
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_payment">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:12px;">
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Against invoice <span style="color:#c33;">*</span></label>
+                <select name="invoice_id" required
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+                    <option value="">— select —</option>
+                    {% for inv in invoices %}
+                    <option value="{{ inv.id }}">{{ inv.request_number }} — ₹{{ inv.invoice_amount|floatformat:0 }} ({{ inv.tally_invoice_date|date:'Y-m-d'|default:'-' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Payment date <span style="color:#c33;">*</span></label>
+                <input type="date" name="payment_date" required
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+            </div>
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Amount received (₹) <span style="color:#c33;">*</span></label>
+                <input type="number" name="payment_amount" required min="1" step="0.01"
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+            </div>
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Payment mode</label>
+                <select name="payment_mode"
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+                    <option value="">—</option>
+                    <option value="NEFT">NEFT</option>
+                    <option value="RTGS">RTGS</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="DD">DD</option>
+                    <option value="UPI">UPI</option>
+                    <option value="CASH">Cash</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:12px; color:#555; display:block; margin-bottom:4px;">Reference #</label>
+                <input type="text" name="payment_reference" maxlength="200" placeholder="UTR / cheque no"
+                    style="width:100%; padding:6px 8px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+            </div>
+        </div>
+        <div style="margin-top:12px;">
+            <button type="submit" class="btn" style="background:#27ae60; color:white; border:none; padding:7px 16px; border-radius:4px; cursor:pointer; font-size:13px;">
+                Record Payment
+            </button>
+            <span style="font-size:11px; color:#888; margin-left:10px;">
+                20% revenue recognized automatically.
+            </span>
+        </div>
+    </form>
+    {% else %}
+    <div style="font-size:13px; color:#888;">Add an invoice first before recording payments.</div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Invoice History Table -->
+<div class="card" style="padding:14px; margin-bottom:14px;">
+    <h2 style="font-size:15px; margin:0 0 10px;">Invoices ({{ invoices|length }})</h2>
+    {% if invoices %}
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+            <tr style="background:#f3f4f6; color:#333;">
+                <th style="padding:6px 8px; text-align:left;">Ref</th>
+                <th style="padding:6px 8px; text-align:left;">Type</th>
+                <th style="padding:6px 8px; text-align:left;">Date</th>
+                <th style="padding:6px 8px; text-align:right;">Amount</th>
+                <th style="padding:6px 8px; text-align:right;">80% revenue</th>
+                <th style="padding:6px 8px; text-align:left;">Status</th>
+                <th style="padding:6px 8px; text-align:left;">FY</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for inv in invoices %}
+            <tr style="border-top:1px solid #eee;">
+                <td style="padding:6px 8px;">{{ inv.request_number }}</td>
+                <td style="padding:6px 8px;">{{ inv.get_invoice_type_display }}</td>
+                <td style="padding:6px 8px;">{{ inv.tally_invoice_date|date:'Y-m-d'|default:'-' }}</td>
+                <td style="padding:6px 8px; text-align:right;">₹ {{ inv.invoice_amount|floatformat:0 }}</td>
+                <td style="padding:6px 8px; text-align:right;">₹ {{ inv.revenue_recognized_80|floatformat:0 }}</td>
+                <td style="padding:6px 8px;">{{ inv.status }}</td>
+                <td style="padding:6px 8px;">{{ inv.fy_period }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
     </div>
+    {% else %}
+    <div style="font-size:13px; color:#888;">No invoices recorded yet.</div>
+    {% endif %}
+</div>
+
+<!-- Payment History Table -->
+<div class="card" style="padding:14px; margin-bottom:14px;">
+    <h2 style="font-size:15px; margin:0 0 10px;">Payments ({{ payments|length }})</h2>
+    {% if payments %}
+    <div style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+            <tr style="background:#f3f4f6; color:#333;">
+                <th style="padding:6px 8px; text-align:left;">Receipt</th>
+                <th style="padding:6px 8px; text-align:left;">Invoice</th>
+                <th style="padding:6px 8px; text-align:left;">Date</th>
+                <th style="padding:6px 8px; text-align:right;">Amount</th>
+                <th style="padding:6px 8px; text-align:right;">20% revenue</th>
+                <th style="padding:6px 8px; text-align:left;">Mode</th>
+                <th style="padding:6px 8px; text-align:left;">FY</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in payments %}
+            <tr style="border-top:1px solid #eee;">
+                <td style="padding:6px 8px;">{{ p.receipt_number }}</td>
+                <td style="padding:6px 8px;">{{ p.invoice_request.request_number }}</td>
+                <td style="padding:6px 8px;">{{ p.receipt_date|date:'Y-m-d' }}</td>
+                <td style="padding:6px 8px; text-align:right;">₹ {{ p.amount_received|floatformat:0 }}</td>
+                <td style="padding:6px 8px; text-align:right;">₹ {{ p.revenue_recognized_20|floatformat:0 }}</td>
+                <td style="padding:6px 8px;">{{ p.payment_mode|default:'-' }}</td>
+                <td style="padding:6px 8px;">{{ p.fy_period }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div style="font-size:13px; color:#888;">No payments recorded yet.</div>
+    {% endif %}
 </div>
 
 {% endblock %}

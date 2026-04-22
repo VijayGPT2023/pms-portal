@@ -3,7 +3,7 @@ Integration tests for assignment routes.
 """
 import pytest
 from django.test import Client as TestClient
-from core.models import Assignment, Milestone
+from core.models import Assignment, InvoiceRequest, Milestone, PaymentReceipt
 
 pytestmark = pytest.mark.django_db
 
@@ -116,3 +116,124 @@ class TestRetrospectiveFill:
         assert response.status_code == 302
         sample_assignment.refresh_from_db()
         assert sample_assignment.physical_progress_percent == 0  # unchanged
+
+
+class TestRetrospectiveHistoricInvoice:
+    """D.2 — historic invoice capture bypasses FSM (approved=A1)."""
+
+    def _bulk(self, assignment):
+        assignment.is_bulk_onboarded = True
+        assignment.save(update_fields=["is_bulk_onboarded"])
+
+    def test_add_invoice_creates_invoiced_record_with_80_revenue(self, auth_client, sample_assignment):
+        self._bulk(sample_assignment)
+        response = auth_client.post(
+            f"/assignment/retrospective-fill/{sample_assignment.id}/",
+            {
+                "action": "add_invoice",
+                "invoice_date": "2025-09-15",
+                "invoice_amount": "100000",
+                "invoice_type": "SUBSEQUENT",
+                "invoice_reference": "NPC-INV-2025-42",
+            },
+        )
+        assert response.status_code == 302
+        inv = InvoiceRequest.objects.get(assignment=sample_assignment)
+        assert inv.status == "INVOICED"  # FSM bypassed
+        assert inv.invoice_amount == 100000
+        assert inv.revenue_recognized_80 == 80000.0
+        assert inv.fy_period == "2025-26"  # Sep-2025 falls in Indian FY 2025-26
+        assert str(inv.tally_invoice_date) == "2025-09-15"
+        assert inv.request_number.startswith("LEGACY/")
+
+    def test_add_invoice_updates_cached_invoice_amount(self, auth_client, sample_assignment):
+        self._bulk(sample_assignment)
+        auth_client.post(
+            f"/assignment/retrospective-fill/{sample_assignment.id}/",
+            {"action": "add_invoice", "invoice_date": "2025-09-15", "invoice_amount": "50000"},
+        )
+        sample_assignment.refresh_from_db()
+        assert sample_assignment.invoice_amount == 50000
+
+    def test_add_invoice_rejects_non_positive(self, auth_client, sample_assignment):
+        self._bulk(sample_assignment)
+        response = auth_client.post(
+            f"/assignment/retrospective-fill/{sample_assignment.id}/",
+            {"action": "add_invoice", "invoice_date": "2025-09-15", "invoice_amount": "0"},
+        )
+        assert response.status_code == 302
+        assert InvoiceRequest.objects.filter(assignment=sample_assignment).count() == 0
+
+    def test_fy_derivation_crosses_financial_year(self, auth_client, sample_assignment):
+        """Indian FY: Apr-Mar. A Feb date falls in the previous calendar year's FY."""
+        self._bulk(sample_assignment)
+        auth_client.post(
+            f"/assignment/retrospective-fill/{sample_assignment.id}/",
+            {"action": "add_invoice", "invoice_date": "2026-02-10", "invoice_amount": "1"},
+        )
+        inv = InvoiceRequest.objects.get(assignment=sample_assignment)
+        assert inv.fy_period == "2025-26"  # Feb-2026 is still FY 2025-26
+
+
+class TestRetrospectiveHistoricPayment:
+    """D.2 — historic payment capture. 20% revenue via existing save() override."""
+
+    def _bulk_with_invoice(self, auth_client, assignment):
+        assignment.is_bulk_onboarded = True
+        assignment.save(update_fields=["is_bulk_onboarded"])
+        auth_client.post(
+            f"/assignment/retrospective-fill/{assignment.id}/",
+            {"action": "add_invoice", "invoice_date": "2025-09-15", "invoice_amount": "100000"},
+        )
+        return InvoiceRequest.objects.get(assignment=assignment)
+
+    def test_add_payment_creates_receipt_with_20_revenue(self, auth_client, sample_assignment):
+        inv = self._bulk_with_invoice(auth_client, sample_assignment)
+        response = auth_client.post(
+            f"/assignment/retrospective-fill/{sample_assignment.id}/",
+            {
+                "action": "add_payment",
+                "invoice_id": str(inv.id),
+                "payment_date": "2025-10-20",
+                "payment_amount": "100000",
+                "payment_mode": "NEFT",
+                "payment_reference": "UTR123",
+            },
+        )
+        assert response.status_code == 302
+        pr = PaymentReceipt.objects.get(invoice_request=inv)
+        assert pr.amount_received == 100000
+        assert pr.revenue_recognized_20 == 20000.0  # auto via save() override
+        assert pr.payment_mode == "NEFT"
+        assert pr.reference_number == "UTR123"
+        assert pr.fy_period == "2025-26"
+        assert pr.receipt_number.startswith("LEGACY/")
+
+    def test_add_payment_updates_cached_amount_received(self, auth_client, sample_assignment):
+        inv = self._bulk_with_invoice(auth_client, sample_assignment)
+        auth_client.post(
+            f"/assignment/retrospective-fill/{sample_assignment.id}/",
+            {
+                "action": "add_payment",
+                "invoice_id": str(inv.id),
+                "payment_date": "2025-10-20",
+                "payment_amount": "75000",
+            },
+        )
+        sample_assignment.refresh_from_db()
+        assert sample_assignment.amount_received == 75000
+
+    def test_add_payment_rejects_invalid_invoice(self, auth_client, sample_assignment):
+        sample_assignment.is_bulk_onboarded = True
+        sample_assignment.save(update_fields=["is_bulk_onboarded"])
+        response = auth_client.post(
+            f"/assignment/retrospective-fill/{sample_assignment.id}/",
+            {
+                "action": "add_payment",
+                "invoice_id": "99999",
+                "payment_date": "2025-10-20",
+                "payment_amount": "1000",
+            },
+        )
+        assert response.status_code == 302
+        assert PaymentReceipt.objects.count() == 0

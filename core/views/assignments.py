@@ -24,6 +24,8 @@ from core.models import (
     ConfigOption,
     ApprovalRequest,
     ActivityLog,
+    InvoiceRequest,
+    PaymentReceipt,
 )
 
 # ---------------------------------------------------------------------------
@@ -1230,13 +1232,39 @@ def head_assignment_hub(request):
     })
 
 
+def _derive_fy(d):
+    """Indian financial year label for a date, e.g. 2025-04-01 -> '2025-26'."""
+    if d.month >= 4:
+        return f"{d.year}-{str(d.year + 1)[2:]}"
+    return f"{d.year - 1}-{str(d.year)[2:]}"
+
+
+def _refresh_assignment_financial_sums(assignment):
+    """Recompute cached invoice_amount and amount_received from child records."""
+    invoiced = InvoiceRequest.objects.filter(
+        assignment=assignment, status="INVOICED",
+    ).aggregate(s=Sum("invoice_amount"))["s"] or 0
+    received = PaymentReceipt.objects.filter(
+        invoice_request__assignment=assignment,
+    ).aggregate(s=Sum("amount_received"))["s"] or 0
+    assignment.invoice_amount = invoiced
+    assignment.amount_received = received
+    assignment.save(update_fields=["invoice_amount", "amount_received"])
+
+
 @login_required
 def retrospective_fill(request, assignment_id):
     """Retrospective data entry for bulk-onboarded assignments (SCOPE_V2 §3.6).
 
-    TL enters as-of date + physical progress %. Accessible to the assignment's
-    TL, the office's RD/GH, or admin. Only meaningful when the assignment is
-    flagged is_bulk_onboarded.
+    Actions (POST):
+      - save_meta (default): as-of date + physical progress %
+      - add_invoice: create InvoiceRequest with status=INVOICED (bypasses FSM
+        intentionally — historic data has no approval step in real life).
+        OfficerRevenueLedger backfill is deferred to Slice D.3.
+      - add_payment: create PaymentReceipt linked to an existing invoice.
+
+    Accessible to the assignment's TL, the office's RD/GH, or admin. Refuses
+    when the assignment is not is_bulk_onboarded.
     """
     assignment = get_object_or_404(Assignment, pk=assignment_id)
     user = request.user
@@ -1257,45 +1285,139 @@ def retrospective_fill(request, assignment_id):
         return redirect("core:assignment_view", assignment_id=assignment_id)
 
     if request.method == "POST":
-        as_of_raw = request.POST.get("as_of_date", "").strip()
-        phys_raw = request.POST.get("physical_progress_percent", "").strip()
+        action = request.POST.get("action", "save_meta")
 
-        update_fields = []
-        if as_of_raw:
+        if action == "save_meta":
+            as_of_raw = request.POST.get("as_of_date", "").strip()
+            phys_raw = request.POST.get("physical_progress_percent", "").strip()
+            update_fields = []
+            if as_of_raw:
+                try:
+                    assignment.bulk_onboarding_as_of_date = datetime.strptime(as_of_raw, "%Y-%m-%d").date()
+                    update_fields.append("bulk_onboarding_as_of_date")
+                except ValueError:
+                    messages.error(request, "Invalid date format. Use YYYY-MM-DD.")
+                    return redirect("core:retrospective_fill", assignment_id=assignment_id)
+            if phys_raw:
+                try:
+                    phys = float(phys_raw)
+                except ValueError:
+                    messages.error(request, "Physical progress must be a number.")
+                    return redirect("core:retrospective_fill", assignment_id=assignment_id)
+                if not (0 <= phys <= 100):
+                    messages.error(request, "Physical progress must be between 0 and 100.")
+                    return redirect("core:retrospective_fill", assignment_id=assignment_id)
+                assignment.physical_progress_percent = phys
+                update_fields.append("physical_progress_percent")
+            if update_fields:
+                assignment.save(update_fields=update_fields)
+                ActivityLog.objects.create(
+                    actor=user, action="UPDATE", entity_type="assignment",
+                    entity_id=assignment.pk,
+                    remarks=f"Retrospective meta: as_of={as_of_raw or '-'}, phys={phys_raw or '-'}",
+                )
+                messages.success(request, "Retrospective data saved.")
+
+        elif action == "add_invoice":
             try:
-                assignment.bulk_onboarding_as_of_date = datetime.strptime(as_of_raw, "%Y-%m-%d").date()
-                update_fields.append("bulk_onboarding_as_of_date")
-            except ValueError:
-                messages.error(request, "Invalid date format. Use YYYY-MM-DD.")
+                amount = float(request.POST.get("invoice_amount", "0"))
+                invoice_date = datetime.strptime(
+                    request.POST.get("invoice_date", "").strip(), "%Y-%m-%d",
+                ).date()
+            except (ValueError, TypeError):
+                messages.error(request, "Invoice amount and date are required.")
+                return redirect("core:retrospective_fill", assignment_id=assignment_id)
+            if amount <= 0:
+                messages.error(request, "Invoice amount must be positive.")
                 return redirect("core:retrospective_fill", assignment_id=assignment_id)
 
-        if phys_raw:
-            try:
-                phys = float(phys_raw)
-            except ValueError:
-                messages.error(request, "Physical progress must be a number.")
-                return redirect("core:retrospective_fill", assignment_id=assignment_id)
-            if not (0 <= phys <= 100):
-                messages.error(request, "Physical progress must be between 0 and 100.")
-                return redirect("core:retrospective_fill", assignment_id=assignment_id)
-            assignment.physical_progress_percent = phys
-            update_fields.append("physical_progress_percent")
+            external_ref = request.POST.get("invoice_reference", "").strip()
+            invoice_type = request.POST.get("invoice_type", "SUBSEQUENT")
+            if invoice_type not in ("ADVANCE", "SUBSEQUENT", "FINAL"):
+                invoice_type = "SUBSEQUENT"
 
-        if update_fields:
-            assignment.save(update_fields=update_fields)
+            seq = InvoiceRequest.objects.filter(assignment=assignment).count() + 1
+            with transaction.atomic():
+                invoice = InvoiceRequest(
+                    request_number=f"LEGACY/{assignment.assignment_no}/{seq:02d}",
+                    assignment=assignment,
+                    invoice_type=invoice_type,
+                    invoice_amount=amount,
+                    fy_period=_derive_fy(invoice_date),
+                    description=f"Historic invoice (bulk onboarding). External ref: {external_ref or '-'}",
+                    status="INVOICED",  # bypass FSM — historic data has no approval
+                    requested_by=user,
+                    tally_invoice_date=invoice_date,
+                    revenue_recognized_80=round(amount * 0.80, 2),
+                )
+                invoice.save()
+                _refresh_assignment_financial_sums(assignment)
             ActivityLog.objects.create(
-                actor=user,
-                action="UPDATE",
-                entity_type="assignment",
-                entity_id=assignment.pk,
-                remarks=f"Retrospective fill: as_of={as_of_raw or '-'}, phys={phys_raw or '-'}",
+                actor=user, action="CREATE", entity_type="invoice_request",
+                entity_id=invoice.pk,
+                remarks=f"Historic invoice added: {invoice.request_number} amt={amount}",
             )
-            messages.success(request, "Retrospective data saved.")
+            messages.success(request, f"Historic invoice {invoice.request_number} recorded.")
+
+        elif action == "add_payment":
+            invoice_id = request.POST.get("invoice_id", "")
+            try:
+                amount = float(request.POST.get("payment_amount", "0"))
+                payment_date = datetime.strptime(
+                    request.POST.get("payment_date", "").strip(), "%Y-%m-%d",
+                ).date()
+            except (ValueError, TypeError):
+                messages.error(request, "Payment amount and date are required.")
+                return redirect("core:retrospective_fill", assignment_id=assignment_id)
+            if amount <= 0:
+                messages.error(request, "Payment amount must be positive.")
+                return redirect("core:retrospective_fill", assignment_id=assignment_id)
+
+            try:
+                invoice = InvoiceRequest.objects.get(pk=invoice_id, assignment=assignment)
+            except (InvoiceRequest.DoesNotExist, ValueError):
+                messages.error(request, "Select a valid invoice to receive payment against.")
+                return redirect("core:retrospective_fill", assignment_id=assignment_id)
+
+            payment_mode = request.POST.get("payment_mode", "").strip().upper()
+            if payment_mode not in ("NEFT", "RTGS", "CHEQUE", "DD", "CASH", "UPI", ""):
+                payment_mode = ""
+            reference = request.POST.get("payment_reference", "").strip()
+
+            seq = PaymentReceipt.objects.filter(invoice_request=invoice).count() + 1
+            with transaction.atomic():
+                receipt = PaymentReceipt(
+                    receipt_number=f"LEGACY/{invoice.request_number}/P{seq:02d}",
+                    invoice_request=invoice,
+                    amount_received=amount,
+                    receipt_date=payment_date,
+                    payment_mode=payment_mode,
+                    reference_number=reference,
+                    fy_period=_derive_fy(payment_date),
+                    remarks="Historic payment (bulk onboarding)",
+                    updated_by=user,
+                )
+                receipt.save()  # save() auto-calculates revenue_recognized_20
+                _refresh_assignment_financial_sums(assignment)
+            ActivityLog.objects.create(
+                actor=user, action="CREATE", entity_type="payment_receipt",
+                entity_id=receipt.pk,
+                remarks=f"Historic payment added: {receipt.receipt_number} amt={amount}",
+            )
+            messages.success(request, f"Historic payment {receipt.receipt_number} recorded.")
+
         return redirect("core:retrospective_fill", assignment_id=assignment_id)
+
+    invoices = InvoiceRequest.objects.filter(assignment=assignment).order_by("-tally_invoice_date", "-id")
+    payments = PaymentReceipt.objects.filter(
+        invoice_request__assignment=assignment,
+    ).select_related("invoice_request").order_by("-receipt_date", "-id")
 
     return render(request, "assignments/retrospective_fill.html", {
         "assignment": assignment,
         "can_edit": is_tl or is_office_head or is_admin,
+        "invoices": invoices,
+        "payments": payments,
     })
 
 
