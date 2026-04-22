@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Assignments - {{ office_id }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <div>
+        <h1>{{ office_id }} - Assignment Review</h1>
+        <p style="color:#666; margin:4px 0 0;">{{ role }} | {{ user.name }} | Review imported assignments, then assign Team Leaders</p>
+    </div>
+    <a href="{% url 'core:dashboard' %}?stay=1" class="btn btn-secondary" style="font-size:13px;">View Dashboard</a>
+</div>
+
+<!-- Summary Cards -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:10px; margin-bottom:16px;">
+    <a href="{% url 'core:head_hub' %}" class="card" style="padding:14px; text-align:center; text-decoration:none; color:inherit;">
+        <div style="font-size:26px; font-weight:700; color:#1F4E79;">{{ total_count }}</div>
+        <div style="font-size:11px; color:#666;">Total</div>
+    </a>
+    <a href="{% url 'core:head_hub' %}?review=pending" class="card" style="padding:14px; text-align:center; text-decoration:none; {% if filter_review == 'pending' %}border:2px solid #f39c12;{% endif %}">
+        <div style="font-size:26px; font-weight:700; color:#f39c12;">{{ pending_review }}</div>
+        <div style="font-size:11px; color:#666;">Pending Review</div>
+    </a>
+    <a href="{% url 'core:head_hub' %}?review=confirmed" class="card" style="padding:14px; text-align:center; text-decoration:none; {% if filter_review == 'confirmed' %}border:2px solid #27ae60;{% endif %}">
+        <div style="font-size:26px; font-weight:700; color:#27ae60;">{{ confirmed_count }}</div>
+        <div style="font-size:11px; color:#666;">Confirmed</div>
+    </a>
+    <a href="{% url 'core:head_hub' %}?review=flagged" class="card" style="padding:14px; text-align:center; text-decoration:none; {% if filter_review == 'flagged' %}border:2px solid #e74c3c;{% endif %}">
+        <div style="font-size:26px; font-weight:700; color:#e74c3c;">{{ flagged_count }}</div>
+        <div style="font-size:11px; color:#666;">Flagged/Delisted</div>
+    </a>
+    <a href="{% url 'core:head_hub' %}?tl=unassigned" class="card" style="padding:14px; text-align:center; text-decoration:none; {% if filter_tl == 'unassigned' %}border:2px solid #e67e22;{% endif %}">
+        <div style="font-size:26px; font-weight:700; color:#e67e22;">{{ tl_unassigned }}</div>
+        <div style="font-size:11px; color:#666;">TL Pending</div>
+    </a>
+    <div class="card" style="padding:14px; text-align:center;">
+        <div style="font-size:20px; font-weight:700; color:#2c3e50;">{% widthratio total_invoiced 100000 1 %}L</div>
+        <div style="font-size:11px; color:#666;">Invoiced</div>
+    </div>
+</div>
+
+{% if messages %}
+<div style="margin-bottom:12px;">
+    {% for message in messages %}
+    <div style="padding:8px 14px; border-radius:4px; margin-bottom:4px; font-size:13px;
+        {% if message.tags == 'success' %}background:#d4edda; color:#155724;
+        {% elif message.tags == 'error' %}background:#f8d7da; color:#721c24;
+        {% elif message.tags == 'warning' %}background:#fff3cd; color:#856404;
+        {% else %}background:#d1ecf1; color:#0c5460;{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Merge Form (wraps entire table) -->
+<form method="POST" id="mergeForm">
+{% csrf_token %}
+<input type="hidden" name="action" value="merge" id="formAction">
+
+<!-- Toolbar -->
+<div class="card" style="padding:10px 14px; margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <button type="button" onclick="doMerge()" class="btn" style="font-size:12px; padding:5px 12px; background:#3498db; color:white; border:none; border-radius:4px; cursor:pointer;">
+        Merge Selected
+    </button>
+    <span style="color:#ccc;">|</span>
+    <span style="font-size:11px; color:#888;">Select 2+ rows using checkboxes, then click Merge. The first selected becomes primary.</span>
+</div>
+
+<!-- Assignment Table -->
+<div class="card" style="overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+            <tr style="background:#1F4E79; color:white;">
+                <th style="padding:8px 4px; width:30px;"><input type="checkbox" id="selectAll" onclick="toggleAll(this)"></th>
+                <th style="padding:8px 6px; text-align:left;">#</th>
+                <th style="padding:8px 6px; text-align:left;">Assignment / Client</th>
+                <th style="padding:8px 6px; text-align:right;">Invoiced</th>
+                <th style="padding:8px 6px; text-align:right;">Received</th>
+                <th style="padding:8px 6px; text-align:right;">Expense</th>
+                <th style="padding:8px 6px; text-align:center;">Status</th>
+                <th style="padding:8px 6px; text-align:center;">Stage</th>
+                <th style="padding:8px 6px; text-align:left;">Team Leader</th>
+                <th style="padding:8px 6px; text-align:center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in assignments %}
+            <tr style="border-bottom:1px solid #eee; {% if a.status == 'On Hold' %}background:#fff3cd;{% elif a.status == 'Cancelled' %}background:#f8f9fa; opacity:0.6;{% elif not a.team_leader and a.status != 'Cancelled' %}background:#fff8f0;{% endif %}" id="row-{{ a.id }}">
+                <td style="padding:6px 4px; text-align:center;">
+                    {% if a.status != 'Cancelled' and a.status != 'On Hold' %}
+                    <input type="checkbox" name="merge_ids" value="{{ a.id }}" class="merge-cb">
+                    {% endif %}
+                </td>
+                <td style="padding:6px; color:#aaa; font-size:10px;">{{ forloop.counter }}</td>
+                <td style="padding:6px;">
+                    <a href="{% url 'core:assignment_view' a.id %}" style="font-weight:600; font-size:12px; color:#1F4E79;">
+                        {{ a.title|truncatechars:45 }}
+                    </a>
+                    <div style="color:#888; font-size:10px;">{{ a.client|truncatechars:35 }}</div>
+                    {% if a.tor_scope and 'NOT AN ASSIGNMENT' in a.tor_scope or 'MERGED' in a.tor_scope or 'DELISTED' in a.tor_scope %}
+                    <div style="color:#e74c3c; font-size:10px; font-style:italic;">{{ a.tor_scope|truncatechars:60 }}</div>
+                    {% endif %}
+                </td>
+                <td style="padding:6px; text-align:right; font-weight:600; white-space:nowrap;">
+                    {% if a.invoice_amount %}{% widthratio a.invoice_amount 100000 1 %}L{% else %}-{% endif %}
+                </td>
+                <td style="padding:6px; text-align:right; color:#16a085; white-space:nowrap;">
+                    {% if a.amount_received %}{% widthratio a.amount_received 100000 1 %}L{% else %}-{% endif %}
+                </td>
+                <td style="padding:6px; text-align:right; color:#8e44ad; white-space:nowrap;">
+                    {% if a.total_expenditure %}{% widthratio a.total_expenditure 100000 1 %}L{% else %}-{% endif %}
+                </td>
+                <td style="padding:6px; text-align:center;">
+                    <span style="padding:1px 6px; border-radius:8px; font-size:10px;
+                        {% if a.status == 'Completed' %}background:#d4edda; color:#155724;
+                        {% elif a.status == 'Ongoing' %}background:#cce5ff; color:#004085;
+                        {% elif a.status == 'Cancelled' %}background:#f8d7da; color:#721c24;
+                        {% elif a.status == 'On Hold' %}background:#fff3cd; color:#856404;
+                        {% else %}background:#e2e3e5; color:#383d41;{% endif %}">
+                        {{ a.status }}
+                    </span>
+                </td>
+                <td style="padding:6px; text-align:center; font-size:10px; color:#888;">
+                    {{ a.workflow_stage|truncatechars:12 }}
+                </td>
+                <td style="padding:6px; min-width:150px;">
+                    {% if a.status == 'Cancelled' or a.status == 'On Hold' %}
+                        <span style="color:#ccc; font-size:11px;">-</span>
+                    {% elif a.team_leader %}
+                        <span style="color:#27ae60; font-size:11px;">{{ a.team_leader.name|truncatechars:18 }}</span>
+                    {% else %}
+                        <!-- Inline TL assignment -->
+                        <div style="display:flex; gap:3px;">
+                            <select form="tlForm-{{ a.id }}" name="team_leader_id" style="padding:2px; font-size:10px; max-width:100px; border:1px solid #ffc107; border-radius:2px;">
+                                <option value="">-- TL --</option>
+                                {% for ofc in office_officers %}
+                                <option value="{{ ofc.officer_id }}">{{ ofc.name|truncatechars:16 }}</option>
+                                {% endfor %}
+                            </select>
+                            <form id="tlForm-{{ a.id }}" method="POST" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="assign_tl">
+                                <input type="hidden" name="assignment_id" value="{{ a.id }}">
+                                <button type="submit" style="padding:2px 5px; font-size:9px; background:#ffc107; border:1px solid #e0a800; border-radius:2px; cursor:pointer;">Go</button>
+                            </form>
+                        </div>
+                    {% endif %}
+                </td>
+                <td style="padding:6px; text-align:center; white-space:nowrap;">
+                    {% if a.status != 'Cancelled' and a.status != 'On Hold' %}
+                    <!-- Action dropdown -->
+                    <div style="position:relative; display:inline-block;">
+                        <button onclick="toggleMenu({{ a.id }})" style="padding:2px 8px; font-size:11px; background:#eee; border:1px solid #ddd; border-radius:3px; cursor:pointer;">...</button>
+                        <div id="menu-{{ a.id }}" style="display:none; position:absolute; right:0; top:100%; background:white; border:1px solid #ddd; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.15); z-index:10; min-width:160px;">
+                            <a href="{% url 'core:assignment_edit' a.id %}" style="display:block; padding:8px 12px; font-size:12px; color:#333; text-decoration:none; border-bottom:1px solid #eee;">Edit Details</a>
+                            {% if a.workflow_stage != 'DETAIL_ENTRY' and a.workflow_stage != 'ACTIVE' %}
+                            <a href="#" onclick="confirmAssignment({{ a.id }}); return false;" style="display:block; padding:8px 12px; font-size:12px; color:#27ae60; text-decoration:none; border-bottom:1px solid #eee;">Confirm (OK)</a>
+                            {% endif %}
+                            <a href="#" onclick="markNotAssignment({{ a.id }}); return false;" style="display:block; padding:8px 12px; font-size:12px; color:#f39c12; text-decoration:none; border-bottom:1px solid #eee;">Not an Assignment</a>
+                            <a href="#" onclick="delistAssignment({{ a.id }}); return false;" style="display:block; padding:8px 12px; font-size:12px; color:#e74c3c; text-decoration:none;">Delist (Wrong Office)</a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="10" style="padding:40px; text-align:center; color:#888;">
+                    No assignments match the current filter.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+</form>
+
+<!-- Hidden forms for actions that need remark -->
+<form method="POST" id="notAssignmentForm" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="mark_not_assignment">
+    <input type="hidden" name="assignment_id" id="naAssignmentId">
+    <input type="hidden" name="remark" id="naRemark">
+</form>
+
+<form method="POST" id="delistForm" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delist">
+    <input type="hidden" name="assignment_id" id="dlAssignmentId">
+    <input type="hidden" name="remark" id="dlRemark">
+</form>
+
+<form method="POST" id="confirmForm" style="display:none;">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="confirm">
+    <input type="hidden" name="assignment_id" id="cfAssignmentId">
+</form>
+
+{% if pending_review > 0 %}
+<div style="margin-top:14px; padding:10px 14px; background:#e8f4fd; border:1px solid #bee5eb; border-radius:4px; color:#0c5460; font-size:12px;">
+    <strong>Instructions:</strong> Review each assignment imported from Tally.
+    For each row: <strong>Confirm</strong> if correct, <strong>Edit</strong> to fix data,
+    <strong>Not an Assignment</strong> if it's rent/misc, <strong>Delist</strong> if wrong office,
+    or <strong>Merge</strong> duplicates using checkboxes. Then assign Team Leaders.
+</div>
+{% endif %}
+
+<script>
+function toggleMenu(id) {
+    var menu = document.getElementById('menu-' + id);
+    // Close all other menus
+    document.querySelectorAll('[id^="menu-"]').forEach(function(m) {
+        if (m.id !== 'menu-' + id) m.style.display = 'none';
+    });
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+// Close menus on click outside
+document.addEventListener('click', function(e) {
+    if (!e.target.matches('[onclick*="toggleMenu"]')) {
+        document.querySelectorAll('[id^="menu-"]').forEach(function(m) { m.style.display = 'none'; });
+    }
+});
+
+function toggleAll(cb) {
+    document.querySelectorAll('.merge-cb').forEach(function(c) { c.checked = cb.checked; });
+}
+
+function doMerge() {
+    var checked = document.querySelectorAll('.merge-cb:checked');
+    if (checked.length < 2) {
+        alert('Select at least 2 assignments to merge.');
+        return;
+    }
+    var primary = prompt('Enter the # (row number) of the PRIMARY assignment (others will merge into it):');
+    if (!primary) return;
+    // Find the assignment ID for that row
+    var rows = document.querySelectorAll('.merge-cb:checked');
+    var idx = parseInt(primary) - 1;
+    if (idx < 0 || idx >= checked.length) {
+        // Use first checked as primary
+        idx = 0;
+    }
+    var form = document.getElementById('mergeForm');
+    var inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'primary_id'; inp.value = checked[idx].value;
+    form.appendChild(inp);
+    document.getElementById('formAction').value = 'merge';
+    if (confirm('Merge ' + checked.length + ' assignments? This cannot be undone.')) {
+        form.submit();
+    }
+}
+
+function markNotAssignment(id) {
+    var remark = prompt('What is this entry? (e.g., "Rent income", "Exam fee", "Misc receipt")');
+    if (remark === null) return;
+    document.getElementById('naAssignmentId').value = id;
+    document.getElementById('naRemark').value = remark;
+    document.getElementById('notAssignmentForm').submit();
+}
+
+function delistAssignment(id) {
+    var remark = prompt('Which office should this go to? (e.g., "Should be EM Group" or "Not NPC work")');
+    if (remark === null) return;
+    document.getElementById('dlAssignmentId').value = id;
+    document.getElementById('dlRemark').value = remark;
+    document.getElementById('delistForm').submit();
+}
+
+function confirmAssignment(id) {
+    if (confirm('Confirm this assignment data is correct?')) {
+        document.getElementById('cfAssignmentId').value = id;
+        document.getElementById('confirmForm').submit();
+    }
+}
+</script>
+{% endblock %}

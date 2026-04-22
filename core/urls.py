@@ -47,6 +47,7 @@ urlpatterns = [
     path("assignment/expenditure/<int:assignment_id>/", asgn.manage_expenditure, name="manage_expenditure"),
     path("assignment/expenditure-entry/<int:assignment_id>/", asgn.expenditure_entry, name="expenditure_entry"),
     path("mis/assignments/", asgn.assignments_list, name="assignments_list"),
+    path("head/assignments/", asgn.head_assignment_hub, name="head_hub"),
 
     # ── Approvals ─────────────────────────────────────────────────────
     path("approvals/", appr.approvals_page, name="approvals"),

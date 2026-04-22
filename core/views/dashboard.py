@@ -850,8 +850,18 @@ def _get_business_mis_data(role_q, is_individual, user, fy,
 
 @login_required
 def dashboard_view(request):
-    """Display the main dashboard with 4 MIS tabs and role-based views."""
+    """Display the main dashboard with 4 MIS tabs and role-based views.
+
+    RD Heads and Group Heads are redirected to the Head Assignment Hub
+    on first visit (unless they explicitly navigate to dashboard).
+    """
     user = request.user
+
+    # Redirect Heads to assignment hub (unless they chose dashboard explicitly)
+    role = getattr(user, "admin_role_id", "") or ""
+    if role in ("RD Head", "Group Head") and "stay" not in request.GET:
+        from django.shortcuts import redirect
+        return redirect("core:head_hub")
 
     active_tab = request.GET.get('active_tab', 'default_mis')
     if active_tab not in VALID_TABS:

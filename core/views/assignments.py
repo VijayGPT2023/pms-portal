@@ -1052,5 +1052,179 @@ def assignments_list(request):
     })
 
 
+@login_required
+def head_assignment_hub(request):
+    """Assignment hub for RD Heads and Group Heads.
+
+    Shows all assignments for their office with:
+    - TL allocation action
+    - Delist/transfer action
+    - Edit financial data action
+    - Summary stats
+    """
+    user = request.user
+    office_id = user.office_id
+    role = getattr(user, "admin_role_id", "") or ""
+
+    # Get assignments for this office
+    qs = Assignment.objects.filter(office_id=office_id).select_related("office", "team_leader")
+
+    # Handle actions via POST
+    if request.method == "POST":
+        action = request.POST.get("action")
+        assignment_id = request.POST.get("assignment_id")
+
+        # ── Action 1: Assign Team Leader ──
+        if action == "assign_tl" and assignment_id:
+            tl_id = request.POST.get("team_leader_id")
+            try:
+                assignment = Assignment.objects.get(id=assignment_id, office_id=office_id)
+                if tl_id:
+                    tl = Officer.objects.get(officer_id=tl_id)
+                    assignment.team_leader = tl
+                    if assignment.workflow_stage == "REGISTRATION":
+                        assignment.workflow_stage = "TL_ASSIGNMENT"
+                    assignment.save(update_fields=["team_leader", "workflow_stage"])
+                    messages.success(request, f"Team Leader '{tl.name}' assigned to '{assignment.title[:50]}'")
+                else:
+                    assignment.team_leader = None
+                    assignment.save(update_fields=["team_leader"])
+                    messages.info(request, f"Team Leader removed from '{assignment.title[:50]}'")
+            except (Assignment.DoesNotExist, Officer.DoesNotExist) as e:
+                messages.error(request, f"Error: {e}")
+
+        # ── Action 2: Mark Not Assignment (with remark for admin) ──
+        elif action == "mark_not_assignment" and assignment_id:
+            remark = request.POST.get("remark", "").strip()
+            try:
+                assignment = Assignment.objects.get(id=assignment_id, office_id=office_id)
+                assignment.status = "On Hold"
+                assignment.tor_scope = f"[NOT AN ASSIGNMENT - Head Remark]: {remark}\n\n{assignment.tor_scope or ''}"
+                assignment.save(update_fields=["status", "tor_scope"])
+                messages.warning(request, f"'{assignment.title[:40]}' marked as not-assignment. Admin will review.")
+            except Assignment.DoesNotExist:
+                messages.error(request, "Assignment not found")
+
+        # ── Action 3: Merge multiple assignments into one ──
+        elif action == "merge":
+            merge_ids = request.POST.getlist("merge_ids")
+            primary_id = request.POST.get("primary_id")
+            if len(merge_ids) >= 2 and primary_id:
+                try:
+                    with transaction.atomic():
+                        primary = Assignment.objects.get(id=primary_id, office_id=office_id)
+                        others = Assignment.objects.filter(
+                            id__in=merge_ids, office_id=office_id
+                        ).exclude(id=primary_id)
+
+                        merged_names = []
+                        for other in others:
+                            # Sum financials into primary
+                            primary.invoice_amount = (primary.invoice_amount or 0) + (other.invoice_amount or 0)
+                            primary.amount_received = (primary.amount_received or 0) + (other.amount_received or 0)
+                            primary.total_expenditure = (primary.total_expenditure or 0) + (other.total_expenditure or 0)
+                            primary.total_value = (primary.total_value or 0) + (other.total_value or 0)
+                            primary.gross_value = (primary.gross_value or 0) + (other.gross_value or 0)
+                            # Move invoices and receipts to primary
+                            from core.models import InvoiceRequest, PaymentReceipt
+                            InvoiceRequest.objects.filter(assignment=other).update(assignment=primary)
+                            merged_names.append(other.title[:30])
+                            # Mark other as cancelled with merge note
+                            other.status = "Cancelled"
+                            other.tor_scope = f"[MERGED INTO {primary.assignment_no}]\n{other.tor_scope or ''}"
+                            other.save()
+
+                        primary.tor_scope = f"[MERGED FROM: {', '.join(merged_names)}]\n{primary.tor_scope or ''}"
+                        primary.save()
+                        messages.success(request, f"Merged {len(others)} assignments into '{primary.title[:40]}'")
+                except Exception as e:
+                    messages.error(request, f"Merge error: {e}")
+            else:
+                messages.error(request, "Select at least 2 assignments and choose a primary to merge.")
+
+        # ── Action 4: Delist / wrong office ──
+        elif action == "delist" and assignment_id:
+            remark = request.POST.get("remark", "").strip()
+            try:
+                assignment = Assignment.objects.get(id=assignment_id, office_id=office_id)
+                assignment.status = "Cancelled"
+                assignment.tor_scope = f"[DELISTED BY HEAD - Wrong Office]: {remark}\n{assignment.tor_scope or ''}"
+                assignment.save(update_fields=["status", "tor_scope"])
+                messages.warning(request, f"'{assignment.title[:40]}' delisted. Admin will reassign.")
+            except Assignment.DoesNotExist:
+                messages.error(request, "Assignment not found")
+
+        # ── Action 5: Confirm assignment (data is correct, ready for TL) ──
+        elif action == "confirm" and assignment_id:
+            try:
+                assignment = Assignment.objects.get(id=assignment_id, office_id=office_id)
+                assignment.registration_status = "APPROVED"
+                assignment.approval_status = "APPROVED"
+                if assignment.team_leader:
+                    assignment.workflow_stage = "DETAIL_ENTRY"
+                assignment.save(update_fields=["registration_status", "approval_status", "workflow_stage"])
+                messages.success(request, f"'{assignment.title[:40]}' confirmed. TL can now fill details.")
+            except Assignment.DoesNotExist:
+                messages.error(request, "Assignment not found")
+
+        return redirect("core:head_hub")
+
+    # Filters
+    filter_status = request.GET.get("status", "")
+    filter_tl = request.GET.get("tl", "")
+    if filter_status:
+        qs = qs.filter(status=filter_status)
+    if filter_tl == "unassigned":
+        qs = qs.filter(team_leader__isnull=True)
+    elif filter_tl == "assigned":
+        qs = qs.filter(team_leader__isnull=False)
+
+    qs = qs.order_by("-invoice_amount")
+
+    # Officers in this office (for TL dropdown)
+    office_officers = Officer.objects.filter(office_id=office_id, is_active=True).order_by("name")
+
+    # Additional filters
+    filter_review = request.GET.get("review", "")
+    if filter_review == "pending":
+        qs = qs.filter(status__in=["Ongoing", "Not Started", "Completed"]).exclude(
+            workflow_stage="DETAIL_ENTRY")
+    elif filter_review == "confirmed":
+        qs = qs.filter(workflow_stage__in=["DETAIL_ENTRY", "ACTIVE", "COMPLETED"])
+    elif filter_review == "flagged":
+        qs = qs.filter(status__in=["On Hold", "Cancelled"])
+
+    # Summary stats
+    all_office_qs = Assignment.objects.filter(office_id=office_id)
+    total_count = all_office_qs.count()
+    active_qs = all_office_qs.exclude(status__in=["Cancelled", "On Hold"])
+    tl_assigned = active_qs.filter(team_leader__isnull=False).count()
+    tl_unassigned = active_qs.filter(team_leader__isnull=True).count()
+    confirmed_count = all_office_qs.filter(workflow_stage__in=["DETAIL_ENTRY", "ACTIVE", "COMPLETED"]).count()
+    flagged_count = all_office_qs.filter(status__in=["On Hold", "Cancelled"]).count()
+    pending_review = total_count - confirmed_count - flagged_count
+    total_invoiced = active_qs.aggregate(s=Sum("invoice_amount"))["s"] or 0
+    total_received = qs.aggregate(s=Sum("amount_received"))["s"] or 0
+
+    return render(request, "assignments/head_hub.html", {
+        "assignments": qs,
+        "office_officers": office_officers,
+        "office_id": office_id,
+        "role": role,
+        "user": user,
+        "total_count": total_count,
+        "tl_assigned": tl_assigned,
+        "tl_unassigned": tl_unassigned,
+        "confirmed_count": confirmed_count,
+        "flagged_count": flagged_count,
+        "pending_review": pending_review,
+        "total_invoiced": total_invoiced,
+        "total_received": total_received,
+        "filter_status": filter_status,
+        "filter_tl": filter_tl,
+        "filter_review": filter_review,
+    })
+
+
 # We need Max import for milestone numbering
 from django.db.models import Max as models_max  # noqa: E402
