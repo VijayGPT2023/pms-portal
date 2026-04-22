@@ -6,10 +6,11 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
 from core.models import (
-    Assignment, Client, ExpenditureHead, ExpenditureItem,
+    Assignment, Client, EditRequest, ExpenditureHead, ExpenditureItem,
     InvoiceRequest, Milestone, Office, Officer, OfficerRole,
     PaymentReceipt, RevenueShare,
 )
+from django_fsm import TransitionNotAllowed
 
 
 pytestmark = pytest.mark.django_db
@@ -316,3 +317,86 @@ class TestOfficerRole:
             scope_type="GROUP", scope_value="IE",
         )
         assert officer_user.roles.count() == 2
+
+
+# =============================================================================
+# EditRequest (SCOPE_V2 §3.5)
+# =============================================================================
+
+class TestEditRequest:
+    def _make(self, assignment, officer, section=EditRequest.Section.COST, reason="bump cost"):
+        return EditRequest.objects.create(
+            assignment=assignment,
+            section=section,
+            proposed_by=officer,
+            reason=reason,
+        )
+
+    def test_edit_number_auto_increments_per_section(self, sample_assignment, team_leader_user):
+        e1 = self._make(sample_assignment, team_leader_user, EditRequest.Section.COST)
+        e2 = self._make(sample_assignment, team_leader_user, EditRequest.Section.COST)
+        e3 = self._make(sample_assignment, team_leader_user, EditRequest.Section.COST)
+        assert (e1.edit_number, e2.edit_number, e3.edit_number) == (1, 2, 3)
+
+    def test_edit_counters_are_independent_across_sections(self, sample_assignment, team_leader_user):
+        cost1 = self._make(sample_assignment, team_leader_user, EditRequest.Section.COST)
+        cost2 = self._make(sample_assignment, team_leader_user, EditRequest.Section.COST)
+        team1 = self._make(sample_assignment, team_leader_user, EditRequest.Section.TEAM)
+        assert cost1.edit_number == 1
+        assert cost2.edit_number == 2
+        assert team1.edit_number == 1  # independent counter
+
+    def test_required_approver_role_gh_for_first_three(self, sample_assignment, team_leader_user):
+        for expected_edit_no in (1, 2, 3):
+            er = self._make(sample_assignment, team_leader_user, EditRequest.Section.TEAM)
+            assert er.edit_number == expected_edit_no
+            assert er.required_approver_role == "GH"
+
+    def test_required_approver_role_ddg_from_fourth(self, sample_assignment, team_leader_user):
+        for _ in range(3):
+            self._make(sample_assignment, team_leader_user, EditRequest.Section.TEAM)
+        fourth = self._make(sample_assignment, team_leader_user, EditRequest.Section.TEAM)
+        assert fourth.edit_number == 4
+        assert fourth.required_approver_role == "DDG"
+
+    def test_approve_transition_records_reviewer(self, sample_assignment, team_leader_user, rd_head_user):
+        er = self._make(sample_assignment, team_leader_user)
+        er.approve(rd_head_user, notes="looks fine")
+        er.save()
+        er.refresh_from_db()
+        assert er.status == "APPROVED"
+        assert er.reviewed_by == rd_head_user
+        assert er.review_notes == "looks fine"
+        assert er.reviewed_at is not None
+
+    def test_reject_requires_notes(self, sample_assignment, team_leader_user, rd_head_user):
+        er = self._make(sample_assignment, team_leader_user)
+        with pytest.raises(ValueError):
+            er.reject(rd_head_user, notes="")
+
+    def test_reject_transition(self, sample_assignment, team_leader_user, rd_head_user):
+        er = self._make(sample_assignment, team_leader_user)
+        er.reject(rd_head_user, notes="not justified")
+        er.save()
+        er.refresh_from_db()
+        assert er.status == "REJECTED"
+        assert er.review_notes == "not justified"
+
+    def test_withdraw_transition(self, sample_assignment, team_leader_user):
+        er = self._make(sample_assignment, team_leader_user)
+        er.withdraw()
+        er.save()
+        er.refresh_from_db()
+        assert er.status == "WITHDRAWN"
+
+    def test_cannot_approve_already_approved(self, sample_assignment, team_leader_user, rd_head_user):
+        er = self._make(sample_assignment, team_leader_user)
+        er.approve(rd_head_user)
+        er.save()
+        with pytest.raises(TransitionNotAllowed):
+            er.approve(rd_head_user)
+
+    def test_next_edit_number_classmethod(self, sample_assignment, team_leader_user):
+        assert EditRequest.next_edit_number(sample_assignment, EditRequest.Section.REVENUE) == 1
+        self._make(sample_assignment, team_leader_user, EditRequest.Section.REVENUE)
+        assert EditRequest.next_edit_number(sample_assignment, EditRequest.Section.REVENUE) == 2

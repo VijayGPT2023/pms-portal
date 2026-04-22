@@ -1052,6 +1052,101 @@ class ApprovalRequest(models.Model):
 
 
 # =============================================================================
+# Post-approval Edit Workflow (SCOPE_V2 §3.5)
+# =============================================================================
+
+class EditRequest(models.Model):
+    """
+    Post-approval edit workflow for Assignment sections.
+    After a section's first GH approval, any change requires an EditRequest.
+    Edits 1-3 per section route to GH/RD; edits 4+ route to DDG.
+    """
+
+    class Section(models.TextChoices):
+        COST = "COST", "Cost Estimation"
+        MILESTONE = "MILESTONE", "Milestones"
+        TEAM = "TEAM", "Team"
+        REVENUE = "REVENUE", "Revenue Allocation"
+
+    GH_EDIT_LIMIT = 3
+
+    assignment = models.ForeignKey(
+        Assignment, on_delete=models.CASCADE, related_name="edit_requests"
+    )
+    section = models.CharField(max_length=20, choices=Section.choices)
+    edit_number = models.IntegerField()
+    proposed_by = models.ForeignKey(
+        Officer, on_delete=models.PROTECT,
+        related_name="edit_requests_proposed",
+        to_field="officer_id", db_column="proposed_by_officer_id",
+    )
+    proposed_at = models.DateTimeField(auto_now_add=True)
+    reason = models.TextField()
+    change_data = models.TextField(blank=True, default="")  # JSON: old vs new
+
+    status = FSMField(default="PENDING", max_length=50)
+
+    reviewed_by = models.ForeignKey(
+        Officer, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="edit_requests_reviewed",
+        to_field="officer_id", db_column="reviewed_by_officer_id",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "edit_requests"
+        indexes = [
+            models.Index(fields=["assignment", "section"], name="idx_er_asgn_section"),
+            models.Index(fields=["status"], name="idx_er_status"),
+        ]
+        ordering = ["-proposed_at"]
+
+    def __str__(self):
+        return f"EditRequest #{self.edit_number} ({self.section}) on {self.assignment.assignment_no}"
+
+    @property
+    def required_approver_role(self):
+        return "GH" if self.edit_number <= self.GH_EDIT_LIMIT else "DDG"
+
+    @classmethod
+    def next_edit_number(cls, assignment, section):
+        last = cls.objects.filter(
+            assignment=assignment, section=section,
+        ).order_by("-edit_number").first()
+        return (last.edit_number + 1) if last else 1
+
+    def save(self, *args, **kwargs):
+        if not self.pk and not self.edit_number:
+            self.edit_number = self.next_edit_number(self.assignment, self.section)
+        super().save(*args, **kwargs)
+
+    @transition(field=status, source="PENDING", target="APPROVED")
+    def approve(self, reviewer, notes=""):
+        """Approver accepts the edit. Caller applies change_data to the Assignment."""
+        from django.utils import timezone
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.review_notes = notes
+
+    @transition(field=status, source="PENDING", target="REJECTED")
+    def reject(self, reviewer, notes):
+        if not notes:
+            raise ValueError("review_notes is required on rejection")
+        from django.utils import timezone
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.review_notes = notes
+
+    @transition(field=status, source="PENDING", target="WITHDRAWN")
+    def withdraw(self):
+        pass
+
+
+# =============================================================================
 # Audit & Activity Logging
 # =============================================================================
 
@@ -1599,6 +1694,7 @@ auditlog.register(InvoiceRequest)
 auditlog.register(PaymentReceipt)
 auditlog.register(RevenueShare)
 auditlog.register(ApprovalRequest)
+auditlog.register(EditRequest)
 auditlog.register(Officer, exclude_fields=["password", "last_login"])
 auditlog.register(GrievanceTicket)
 auditlog.register(UtilizationClaim)

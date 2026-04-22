@@ -11,7 +11,7 @@ from .models import (
     Assignment, Milestone, ExpenditureHead, ExpenditureItem, ExpenditureEntry,
     RevenueShare, InvoiceRequest, PaymentReceipt, OfficerRevenueLedger,
     InvoiceMilestoneLink, AssignmentTeam, Client, AssignmentClient,
-    ApprovalRequest, ActivityLog, VersionHistory, ConfigOption,
+    ApprovalRequest, EditRequest, ActivityLog, VersionHistory, ConfigOption,
     FinancialYearTarget, NonRevenueSuggestion,
     GrievanceTicket, GrievanceResponse, GrievanceEscalation,
     UtilizationClaim, ProposalDocument, FinanceOfficer,
@@ -173,6 +173,14 @@ class ClientAdmin(admin.ModelAdmin):
 class ApprovalRequestAdmin(admin.ModelAdmin):
     list_display = ("request_type", "reference_type", "reference_id", "status", "requested_by", "created_at")
     list_filter = ("request_type", "status")
+
+
+@admin.register(EditRequest)
+class EditRequestAdmin(admin.ModelAdmin):
+    list_display = ("assignment", "section", "edit_number", "status", "proposed_by", "reviewed_by", "proposed_at")
+    list_filter = ("section", "status")
+    search_fields = ("assignment__assignment_no", "proposed_by__officer_id")
+    readonly_fields = ("edit_number", "proposed_at", "created_at", "updated_at")
 
 
 @admin.register(ActivityLog)
