@@ -317,12 +317,13 @@ class Assignment(models.Model):
         CANCELLED = "Cancelled", "Cancelled"
 
     # --- Workflow stages (django-fsm) ---
+    # Labels renamed per SCOPE_V2 §3.2 — enum values unchanged (cosmetic only).
     class WorkflowStage(models.TextChoices):
-        REGISTRATION = "REGISTRATION", "Registration"
+        REGISTRATION = "REGISTRATION", "WO Registration"
         TL_ASSIGNMENT = "TL_ASSIGNMENT", "TL Assignment"
-        DETAIL_ENTRY = "DETAIL_ENTRY", "Detail Entry"
-        ACTIVE = "ACTIVE", "Active"
-        COMPLETED = "COMPLETED", "Completed"
+        DETAIL_ENTRY = "DETAIL_ENTRY", "Progressive Fill"
+        ACTIVE = "ACTIVE", "Execution"
+        COMPLETED = "COMPLETED", "Closure"
 
     class ApprovalStatus(models.TextChoices):
         DRAFT = "DRAFT", "Draft"

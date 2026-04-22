@@ -320,6 +320,22 @@ class TestOfficerRole:
 
 
 # =============================================================================
+# Assignment workflow-stage display labels (SCOPE_V2 §3.2)
+# =============================================================================
+
+class TestWorkflowStageLabels:
+    """Labels are user-visible; SCOPE_V2 freezes them. Enum values are unchanged."""
+
+    def test_labels_match_scope(self):
+        labels = dict(Assignment.WorkflowStage.choices)
+        assert labels["REGISTRATION"] == "WO Registration"
+        assert labels["TL_ASSIGNMENT"] == "TL Assignment"
+        assert labels["DETAIL_ENTRY"] == "Progressive Fill"
+        assert labels["ACTIVE"] == "Execution"
+        assert labels["COMPLETED"] == "Closure"
+
+
+# =============================================================================
 # EditRequest (SCOPE_V2 §3.5)
 # =============================================================================
 

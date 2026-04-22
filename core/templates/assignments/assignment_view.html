@@ -51,12 +51,7 @@
     <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
         <strong style="color: #92400e;">Workflow Stage:</strong>
         <span class="badge" style="background: #f59e0b; color: white; padding: 4px 10px;">
-            {% if assignment.workflow_stage == 'REGISTRATION' %}Registration
-            {% elif assignment.workflow_stage == 'TL_ASSIGNMENT' %}TL Assignment
-            {% elif assignment.workflow_stage == 'DETAIL_ENTRY' %}Detail Entry
-            {% elif assignment.workflow_stage == 'ACTIVE' %}Active
-            {% else %}{{ assignment.workflow_stage }}
-            {% endif %}
+            {{ assignment.get_workflow_stage_display|default:assignment.workflow_stage }}
         </span>
     </div>
     {% if assignment.registration_status == 'PENDING_APPROVAL' %}
