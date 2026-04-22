@@ -1160,10 +1160,14 @@ def head_assignment_hub(request):
                 assignment = Assignment.objects.get(id=assignment_id, office_id=office_id)
                 assignment.registration_status = "APPROVED"
                 assignment.approval_status = "APPROVED"
+                assignment.is_bulk_onboarded = True
                 if assignment.team_leader:
                     assignment.workflow_stage = "DETAIL_ENTRY"
-                assignment.save(update_fields=["registration_status", "approval_status", "workflow_stage"])
-                messages.success(request, f"'{assignment.title[:40]}' confirmed. TL can now fill details.")
+                assignment.save(update_fields=[
+                    "registration_status", "approval_status", "workflow_stage",
+                    "is_bulk_onboarded",
+                ])
+                messages.success(request, f"'{assignment.title[:40]}' confirmed. TL can now fill retrospective details.")
             except Assignment.DoesNotExist:
                 messages.error(request, "Assignment not found")
 
@@ -1223,6 +1227,75 @@ def head_assignment_hub(request):
         "filter_status": filter_status,
         "filter_tl": filter_tl,
         "filter_review": filter_review,
+    })
+
+
+@login_required
+def retrospective_fill(request, assignment_id):
+    """Retrospective data entry for bulk-onboarded assignments (SCOPE_V2 §3.6).
+
+    TL enters as-of date + physical progress %. Accessible to the assignment's
+    TL, the office's RD/GH, or admin. Only meaningful when the assignment is
+    flagged is_bulk_onboarded.
+    """
+    assignment = get_object_or_404(Assignment, pk=assignment_id)
+    user = request.user
+    role = getattr(user, "admin_role_id", "") or ""
+
+    is_tl = assignment.team_leader_id == user.officer_id
+    is_office_head = (
+        role in ("ADMIN", "DG", "DDG-I", "DDG-II", "RD_HEAD", "GROUP_HEAD")
+        and assignment.office_id == user.office_id
+    )
+    is_admin = user.is_staff or role == "ADMIN"
+    if not (is_tl or is_office_head or is_admin):
+        messages.error(request, "You do not have access to this assignment.")
+        return redirect("core:dashboard")
+
+    if not assignment.is_bulk_onboarded:
+        messages.info(request, "This assignment is not bulk-onboarded; retrospective fill does not apply.")
+        return redirect("core:assignment_view", assignment_id=assignment_id)
+
+    if request.method == "POST":
+        as_of_raw = request.POST.get("as_of_date", "").strip()
+        phys_raw = request.POST.get("physical_progress_percent", "").strip()
+
+        update_fields = []
+        if as_of_raw:
+            try:
+                assignment.bulk_onboarding_as_of_date = datetime.strptime(as_of_raw, "%Y-%m-%d").date()
+                update_fields.append("bulk_onboarding_as_of_date")
+            except ValueError:
+                messages.error(request, "Invalid date format. Use YYYY-MM-DD.")
+                return redirect("core:retrospective_fill", assignment_id=assignment_id)
+
+        if phys_raw:
+            try:
+                phys = float(phys_raw)
+            except ValueError:
+                messages.error(request, "Physical progress must be a number.")
+                return redirect("core:retrospective_fill", assignment_id=assignment_id)
+            if not (0 <= phys <= 100):
+                messages.error(request, "Physical progress must be between 0 and 100.")
+                return redirect("core:retrospective_fill", assignment_id=assignment_id)
+            assignment.physical_progress_percent = phys
+            update_fields.append("physical_progress_percent")
+
+        if update_fields:
+            assignment.save(update_fields=update_fields)
+            ActivityLog.objects.create(
+                actor=user,
+                action="UPDATE",
+                entity_type="assignment",
+                entity_id=assignment.pk,
+                remarks=f"Retrospective fill: as_of={as_of_raw or '-'}, phys={phys_raw or '-'}",
+            )
+            messages.success(request, "Retrospective data saved.")
+        return redirect("core:retrospective_fill", assignment_id=assignment_id)
+
+    return render(request, "assignments/retrospective_fill.html", {
+        "assignment": assignment,
+        "can_edit": is_tl or is_office_head or is_admin,
     })
 
 

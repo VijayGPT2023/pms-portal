@@ -407,6 +407,14 @@ class Assignment(models.Model):
     physical_progress_percent = models.FloatField(default=0)
     timeline_progress_percent = models.FloatField(default=0)
 
+    # --- Bulk Onboarding (SCOPE_V2 §3.6) ---
+    # Set when an assignment is confirmed via the Head Hub during the
+    # 3-month onboarding window. Signals that TL should fill retrospective
+    # data (as-of date, physical %, historic invoices/payments) rather
+    # than follow the fresh-registration path.
+    is_bulk_onboarded = models.BooleanField(default=False)
+    bulk_onboarding_as_of_date = models.DateField(null=True, blank=True)
+
     # --- Tracking ---
     details_filled = models.BooleanField(default=False)
     fy_period = models.CharField(max_length=20, blank=True, default="")
