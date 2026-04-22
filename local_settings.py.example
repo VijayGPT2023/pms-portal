@@ -1,0 +1,41 @@
+"""LOCAL DEPLOYMENT SETTINGS -- edit this file AFTER uploading to the server.
+
+INSTRUCTIONS:
+  1. After extracting the ZIP on the server, rename this file from
+     `local_settings.py.example` to `local_settings.py` using the File Manager
+     (right-click -> Rename).
+  2. Open `local_settings.py` in the File Manager editor.
+  3. Fill in the values below with YOUR actual credentials.
+  4. Save.
+  5. Click "Run Pip Install" then run_migrate.py then run_collectstatic.py then
+     run_createsuperuser.py, then Restart in the Python App panel.
+
+If this file is missing, settings.py falls back to SQLite (dev behaviour) --
+so a broken/missing local_settings.py will never crash the app; it will just
+connect to the wrong database.
+"""
+
+# --- Database credentials (from DirectAdmin -> Databases) --------------------
+MYSQL_DB       = 'npcindia_pms'     # full database name (with npcindia_ prefix)
+MYSQL_USER     = 'npcindia_pms'     # full username (with npcindia_ prefix)
+MYSQL_PASSWORD = 'PUT-YOUR-DB-PASSWORD-HERE'
+MYSQL_HOST     = 'localhost'
+MYSQL_PORT     = '3306'
+
+# --- Security: change this to a long random string --------------------------
+# Generate one from: https://www.random.org/strings/ (length=50, alphanumeric)
+SECRET_KEY = 'PUT-A-LONG-RANDOM-STRING-HERE-AT-LEAST-50-CHARACTERS'
+
+# --- Production flags -------------------------------------------------------
+DEBUG = False
+ALLOWED_HOSTS = 'pms.npcindia.info,www.pms.npcindia.info'
+CSRF_TRUSTED_ORIGINS = 'https://pms.npcindia.info,https://www.pms.npcindia.info'
+
+# --- Persistent data folder -------------------------------------------------
+# Uploads go here so they survive re-deploys (which overwrite the app folder).
+# Create this folder in File Manager BEFORE first run.
+PERSIST_DIR = '/home/npcindia/pms_data'
+
+# --- Log file for Passenger-side crashes ------------------------------------
+# Tail this file in File Manager when the site shows 502 / 500.
+LOG_FILE = '/home/npcindia/logs/pms_django.log'

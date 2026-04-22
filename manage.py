@@ -3,6 +3,18 @@
 import os
 import sys
 
+# DirectAdmin shared hosting: pymysql (pure Python) instead of mysqlclient.
+# Safe on dev too — only takes effect if pymysql is installed.
+# Django 6 requires mysqlclient >= 2.2.1; pymysql reports 1.4.6, so we
+# monkey-patch MySQLdb.version_info to satisfy the version check.
+try:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+    import MySQLdb
+    MySQLdb.version_info = (2, 2, 4, 'final', 0)
+except ImportError:
+    pass
+
 
 def main():
     """Run administrative tasks."""

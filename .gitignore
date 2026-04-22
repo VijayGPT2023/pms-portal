@@ -49,6 +49,11 @@ staticfiles/
 db.sqlite3
 uploads/
 
+# DirectAdmin deployment — local_settings.py contains the DB password
+local_settings.py
+pms_upload.zip
+pms_django.log
+
 # Large binary/data files
 Tally_MIS/
 tally/

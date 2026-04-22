@@ -1,13 +1,13 @@
 """
 Django settings for PMS Portal.
-Supports SQLite (dev) and PostgreSQL (production).
+Supports SQLite (dev) and MariaDB 10.6+ (production on DirectAdmin shared hosting).
 """
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load .env file if it exists
+# Load .env file if it exists (dev convenience)
 env_file = BASE_DIR / ".env"
 if env_file.exists():
     with open(env_file) as f:
@@ -17,11 +17,27 @@ if env_file.exists():
                 key, value = line.split('=', 1)
                 os.environ.setdefault(key.strip(), value.strip())
 
+# DirectAdmin-style config: user edits local_settings.py after upload.
+# Safe on dev (file absent) — falls back to env vars and dev defaults.
+try:
+    from local_settings import *  # noqa: F401, F403
+    _HAS_LOCAL = True
+except ImportError:
+    _HAS_LOCAL = False
+
+
+def _setting(name, default=None):
+    """Prefer local_settings value (already imported), then env var, then default."""
+    if name in globals():
+        return globals()[name]
+    return os.environ.get(name, default)
+
+
 # Security
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-change-me-in-production-123!")
-DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes")
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-CSRF_TRUSTED_ORIGINS = os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:8000").split(",")
+SECRET_KEY = _setting("SECRET_KEY", "django-insecure-change-me-in-production-123!")
+DEBUG = str(_setting("DEBUG", "True")).lower() in ("true", "1", "yes")
+ALLOWED_HOSTS = [h.strip() for h in str(_setting("ALLOWED_HOSTS", "localhost,127.0.0.1")).split(",") if h.strip()]
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in str(_setting("CSRF_TRUSTED_ORIGINS", "http://localhost:8000")).split(",") if o.strip()]
 
 # Application definition
 INSTALLED_APPS = [
@@ -74,37 +90,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "pms_portal.wsgi.application"
 
-# Database — SQLite for dev, PostgreSQL for production
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+# Database resolution order:
+#   1. MYSQL_DB set (via local_settings.py or env var) → MariaDB on DirectAdmin
+#   2. else → SQLite (dev)
+_MYSQL_DB = _setting("MYSQL_DB")
 
-if DATABASE_URL.startswith("postgres"):
-    # Render.com uses postgres:// but Django needs postgresql://
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+if _MYSQL_DB:
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": DATABASE_URL,
-            "CONN_MAX_AGE": 600,
-            "OPTIONS": {},
+            "ENGINE": "django.db.backends.mysql",
+            "NAME": _MYSQL_DB,
+            "USER": _setting("MYSQL_USER", ""),
+            "PASSWORD": _setting("MYSQL_PASSWORD", ""),
+            "HOST": _setting("MYSQL_HOST", "localhost"),
+            "PORT": str(_setting("MYSQL_PORT", "3306")),
+            "CONN_MAX_AGE": 280,  # under MariaDB wait_timeout + shared-host idle cutoffs
+            "OPTIONS": {
+                "charset": "utf8mb4",
+                "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+            },
         }
     }
-    # Use dj-database-url style parsing
-    import re
-    match = re.match(
-        r"postgresql://(?P<user>[^:]+):(?P<password>[^@]+)@(?P<host>[^:/]+):?(?P<port>\d+)?/(?P<name>.+)",
-        DATABASE_URL,
-    )
-    if match:
-        DATABASES["default"] = {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": match.group("name"),
-            "USER": match.group("user"),
-            "PASSWORD": match.group("password"),
-            "HOST": match.group("host"),
-            "PORT": match.group("port") or "5432",
-            "CONN_MAX_AGE": 600,
-        }
 else:
     DATABASES = {
         "default": {
@@ -159,8 +165,11 @@ STORAGES = {
 }
 
 # Media files (uploads)
+# On DirectAdmin, set PERSIST_DIR = /home/npcindia/pms_data so uploads survive
+# re-deploys (the app folder gets overwritten every time you extract the zip).
+PERSIST_DIR = _setting("PERSIST_DIR", str(BASE_DIR))
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "uploads"
+MEDIA_ROOT = Path(PERSIST_DIR) / "uploads"
 
 # File upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -171,6 +180,36 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # django-auditlog
 AUDITLOG_INCLUDE_ALL_MODELS = True
+
+# =============================================================================
+# Logging — critical on shared hosting where we have no SSH/console.
+# Passenger swallows tracebacks unless we write them to a file we can tail
+# via the DirectAdmin File Manager.
+# =============================================================================
+_LOG_FILE = _setting("LOG_FILE", "")
+if _LOG_FILE:
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "verbose": {
+                "format": "[{asctime}] {levelname} {name} {message}",
+                "style": "{",
+            },
+        },
+        "handlers": {
+            "file": {
+                "class": "logging.FileHandler",
+                "filename": _LOG_FILE,
+                "formatter": "verbose",
+            },
+        },
+        "loggers": {
+            "django": {"handlers": ["file"], "level": "INFO"},
+            "django.request": {"handlers": ["file"], "level": "WARNING", "propagate": False},
+            "core": {"handlers": ["file"], "level": "INFO"},
+        },
+    }
 
 # =============================================================================
 # Production Security (applied when DEBUG=False)

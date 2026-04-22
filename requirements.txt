@@ -1,32 +1,29 @@
-# Django stack
+# ============================================================================
+# PMS Portal requirements -- pinned for DirectAdmin shared hosting (Python 3.12)
+# ============================================================================
+# DO NOT add: mysqlclient, psycopg2, psycopg2-binary, cryptography, gunicorn,
+#             uwsgi, gevent -- all fail to compile on the server's old GCC.
+# Passenger is the WSGI server; pymysql is the pure-Python MySQL driver.
+# ============================================================================
+
+# --- Django stack ----------------------------------------------------------
 Django==6.0.3
-gunicorn==23.0.0
 django-htmx==1.27.0
 django-fsm==3.0.1
 django-auditlog==3.4.1
 django-widget-tweaks==1.5.1
 whitenoise==6.12.0
 
-# Database
-psycopg2-binary==2.9.9
+# --- Database driver (pure Python, no compilation) -------------------------
+pymysql==1.1.1
 
-# Auth
-bcrypt==4.1.2
-
-# Data processing
+# --- Data processing (pinned to versions with pre-built wheels for 3.12) ---
+numpy==1.26.4
+pandas==2.2.3
 openpyxl==3.1.5
-pandas==2.3.2
-python-multipart==0.0.21
+xlrd==2.0.2
 
-# Testing
-httpx==0.28.1
-pytest==9.0.2
-pytest-cov==7.1.0
-pytest-django==4.10.0
-
-# Legacy FastAPI (kept for reference during migration)
-# fastapi==0.128.0
-# Jinja2==3.1.6
-# starlette==0.50.0
-# uvicorn==0.40.0
-# itsdangerous==2.1.2
+# --- Supporting libs --------------------------------------------------------
+python-dateutil==2.9.0.post0
+pytz==2025.2
+greenlet==3.1.1
