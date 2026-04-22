@@ -5,10 +5,12 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
+from datetime import date, timedelta
+
 from core.models import (
     Assignment, Client, EditRequest, ExpenditureHead, ExpenditureItem,
     InvoiceRequest, Milestone, Office, Officer, OfficerRole,
-    PaymentReceipt, RevenueShare,
+    PaymentReceipt, RevenueShare, SiteConfig,
 )
 from django_fsm import TransitionNotAllowed
 
@@ -305,6 +307,48 @@ class TestClient:
 # =============================================================================
 # OfficerRole
 # =============================================================================
+
+class TestSiteConfig:
+    """SCOPE_V2 §3.6 — admin-configurable bulk onboarding window."""
+
+    def test_get_returns_default_when_missing(self, db):
+        assert SiteConfig.get("no_such_key", "fallback") == "fallback"
+
+    def test_set_and_get_roundtrip(self, db):
+        SiteConfig.set("test_key", "test_value")
+        assert SiteConfig.get("test_key") == "test_value"
+
+    def test_set_updates_existing(self, db):
+        SiteConfig.set("k", "v1")
+        SiteConfig.set("k", "v2")
+        assert SiteConfig.get("k") == "v2"
+        assert SiteConfig.objects.filter(key="k").count() == 1
+
+    def test_window_is_open_by_default(self, db):
+        """No close date configured → window is open (safe default)."""
+        assert SiteConfig.bulk_window_is_open() is True
+        assert SiteConfig.bulk_window_close_date() is None
+
+    def test_window_open_when_close_in_future(self, db):
+        future = (date.today() + timedelta(days=30)).isoformat()
+        SiteConfig.set(SiteConfig.KEY_BULK_WINDOW_CLOSE, future)
+        assert SiteConfig.bulk_window_is_open() is True
+
+    def test_window_open_when_close_is_today(self, db):
+        today = date.today().isoformat()
+        SiteConfig.set(SiteConfig.KEY_BULK_WINDOW_CLOSE, today)
+        assert SiteConfig.bulk_window_is_open() is True  # inclusive
+
+    def test_window_closed_when_close_in_past(self, db):
+        past = (date.today() - timedelta(days=1)).isoformat()
+        SiteConfig.set(SiteConfig.KEY_BULK_WINDOW_CLOSE, past)
+        assert SiteConfig.bulk_window_is_open() is False
+
+    def test_invalid_close_date_treated_as_unset(self, db):
+        SiteConfig.set(SiteConfig.KEY_BULK_WINDOW_CLOSE, "not-a-date")
+        assert SiteConfig.bulk_window_close_date() is None
+        assert SiteConfig.bulk_window_is_open() is True
+
 
 class TestOfficerRole:
     def test_multiple_roles(self, officer_user):

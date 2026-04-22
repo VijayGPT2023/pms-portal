@@ -26,6 +26,7 @@ from core.models import (
     ActivityLog,
     InvoiceRequest,
     PaymentReceipt,
+    SiteConfig,
 )
 
 # ---------------------------------------------------------------------------
@@ -1162,14 +1163,22 @@ def head_assignment_hub(request):
                 assignment = Assignment.objects.get(id=assignment_id, office_id=office_id)
                 assignment.registration_status = "APPROVED"
                 assignment.approval_status = "APPROVED"
-                assignment.is_bulk_onboarded = True
+                # Only flag as bulk-onboarded while the onboarding window is
+                # open (SCOPE_V2 §3.6). After window close, confirmed
+                # assignments follow the normal fresh-registration path.
+                window_open = SiteConfig.bulk_window_is_open()
+                if window_open:
+                    assignment.is_bulk_onboarded = True
                 if assignment.team_leader:
                     assignment.workflow_stage = "DETAIL_ENTRY"
                 assignment.save(update_fields=[
                     "registration_status", "approval_status", "workflow_stage",
                     "is_bulk_onboarded",
                 ])
-                messages.success(request, f"'{assignment.title[:40]}' confirmed. TL can now fill retrospective details.")
+                if window_open:
+                    messages.success(request, f"'{assignment.title[:40]}' confirmed. TL can now fill retrospective details.")
+                else:
+                    messages.success(request, f"'{assignment.title[:40]}' confirmed. Bulk-onboarding window is closed — TL follows the fresh registration flow.")
             except Assignment.DoesNotExist:
                 messages.error(request, "Assignment not found")
 
@@ -1229,6 +1238,8 @@ def head_assignment_hub(request):
         "filter_status": filter_status,
         "filter_tl": filter_tl,
         "filter_review": filter_review,
+        "bulk_window_open": SiteConfig.bulk_window_is_open(),
+        "bulk_window_close_date": SiteConfig.bulk_window_close_date(),
     })
 
 

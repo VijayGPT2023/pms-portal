@@ -1694,6 +1694,81 @@ class TrainingChecklist(models.Model):
 
 
 # =============================================================================
+# Site Configuration (SCOPE_V2 §3.6 — admin-editable knobs)
+# =============================================================================
+
+class SiteConfig(models.Model):
+    """Key-value settings editable from the admin panel.
+
+    Used for runtime-tunable knobs that aren't secrets (secrets go in env/
+    local_settings.py). Typed access via the helpers below; admins see and
+    edit raw string values.
+    """
+
+    # Well-known keys. Keep in sync with helper methods.
+    KEY_BULK_WINDOW_CLOSE = "bulk_onboarding_window_close"
+
+    key = models.CharField(max_length=100, unique=True)
+    value = models.TextField(blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        "Officer", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="site_config_updates",
+        to_field="officer_id", db_column="updated_by",
+    )
+
+    class Meta:
+        db_table = "site_config"
+        ordering = ["key"]
+
+    def __str__(self):
+        return f"{self.key} = {self.value[:40]}"
+
+    @classmethod
+    def get(cls, key, default=None):
+        try:
+            return cls.objects.get(key=key).value
+        except cls.DoesNotExist:
+            return default
+
+    @classmethod
+    def set(cls, key, value, user=None, description=""):
+        obj, _ = cls.objects.update_or_create(
+            key=key,
+            defaults={
+                "value": str(value),
+                "updated_by": user,
+                **({"description": description} if description else {}),
+            },
+        )
+        return obj
+
+    @classmethod
+    def bulk_window_close_date(cls):
+        """Return the configured close date (datetime.date) or None if unset."""
+        from datetime import date as _date
+        raw = cls.get(cls.KEY_BULK_WINDOW_CLOSE, "")
+        if not raw:
+            return None
+        try:
+            return _date.fromisoformat(raw.strip())
+        except ValueError:
+            return None
+
+    @classmethod
+    def bulk_window_is_open(cls):
+        """Window is open if no close date is set, or today <= close date.
+
+        Default (unset) is OPEN — never accidentally lock out a fresh
+        deployment. Admin configures a close date when ready to close.
+        """
+        from datetime import date as _date
+        close = cls.bulk_window_close_date()
+        return close is None or _date.today() <= close
+
+
+# =============================================================================
 # Register models with django-auditlog
 # =============================================================================
 
@@ -1704,6 +1779,7 @@ auditlog.register(PaymentReceipt)
 auditlog.register(RevenueShare)
 auditlog.register(ApprovalRequest)
 auditlog.register(EditRequest)
+auditlog.register(SiteConfig)
 auditlog.register(Officer, exclude_fields=["password", "last_login"])
 auditlog.register(GrievanceTicket)
 auditlog.register(UtilizationClaim)

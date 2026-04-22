@@ -54,6 +54,18 @@
 </div>
 {% endif %}
 
+<!-- Bulk Onboarding Window Status -->
+<div style="margin-bottom:12px; padding:8px 14px; border-radius:4px; font-size:12px;
+    {% if bulk_window_open %}background:#e8f4fd; border:1px solid #bee5eb; color:#0c5460;
+    {% else %}background:#fff3cd; border:1px solid #ffeeba; color:#856404;{% endif %}">
+    <strong>Bulk Onboarding Window:</strong>
+    {% if bulk_window_open %}
+        Open{% if bulk_window_close_date %} — closes {{ bulk_window_close_date|date:'d M Y' }}{% else %} — no close date set{% endif %}. Confirmed assignments will be flagged for retrospective fill.
+    {% else %}
+        Closed{% if bulk_window_close_date %} since {{ bulk_window_close_date|date:'d M Y' }}{% endif %}. New confirms follow the fresh registration flow. (Admins can extend via Django admin → SiteConfig → bulk_onboarding_window_close.)
+    {% endif %}
+</div>
+
 <!-- Merge Form (wraps entire table) -->
 <form method="POST" id="mergeForm">
 {% csrf_token %}

@@ -12,6 +12,7 @@ from .models import (
     RevenueShare, InvoiceRequest, PaymentReceipt, OfficerRevenueLedger,
     InvoiceMilestoneLink, AssignmentTeam, Client, AssignmentClient,
     ApprovalRequest, EditRequest, ActivityLog, VersionHistory, ConfigOption,
+    SiteConfig,
     FinancialYearTarget, NonRevenueSuggestion,
     GrievanceTicket, GrievanceResponse, GrievanceEscalation,
     UtilizationClaim, ProposalDocument, FinanceOfficer,
@@ -229,6 +230,13 @@ class TrainingProgrammeAdmin(admin.ModelAdmin):
 class ConfigOptionAdmin(admin.ModelAdmin):
     list_display = ("category", "option_value", "option_label", "sort_order", "is_active")
     list_filter = ("category", "is_active")
+
+
+@admin.register(SiteConfig)
+class SiteConfigAdmin(admin.ModelAdmin):
+    list_display = ("key", "value", "updated_by", "updated_at")
+    search_fields = ("key", "value")
+    readonly_fields = ("updated_at",)
 
 
 @admin.register(FinancialYearTarget)

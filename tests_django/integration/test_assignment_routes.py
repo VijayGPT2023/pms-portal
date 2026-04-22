@@ -1,9 +1,13 @@
 """
 Integration tests for assignment routes.
 """
+from datetime import date, timedelta
+
 import pytest
 from django.test import Client as TestClient
-from core.models import Assignment, InvoiceRequest, Milestone, PaymentReceipt
+from core.models import (
+    Assignment, InvoiceRequest, Milestone, PaymentReceipt, SiteConfig,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -237,3 +241,36 @@ class TestRetrospectiveHistoricPayment:
         )
         assert response.status_code == 302
         assert PaymentReceipt.objects.count() == 0
+
+
+class TestBulkOnboardingWindowGate:
+    """SCOPE_V2 §3.6 — window gate controls is_bulk_onboarded flagging on confirm."""
+
+    def test_confirm_flags_bulk_when_window_open(self, auth_client, sample_assignment):
+        # Window has never been configured → open by default.
+        response = auth_client.post("/head/assignments/", {
+            "action": "confirm",
+            "assignment_id": str(sample_assignment.id),
+        })
+        assert response.status_code == 302
+        sample_assignment.refresh_from_db()
+        assert sample_assignment.is_bulk_onboarded is True
+
+    def test_confirm_does_not_flag_when_window_closed(self, auth_client, sample_assignment):
+        past = (date.today() - timedelta(days=1)).isoformat()
+        SiteConfig.set(SiteConfig.KEY_BULK_WINDOW_CLOSE, past)
+        response = auth_client.post("/head/assignments/", {
+            "action": "confirm",
+            "assignment_id": str(sample_assignment.id),
+        })
+        assert response.status_code == 302
+        sample_assignment.refresh_from_db()
+        assert sample_assignment.is_bulk_onboarded is False
+        # But the approval still happened — confirm still advances the assignment.
+        assert sample_assignment.registration_status == "APPROVED"
+        assert sample_assignment.approval_status == "APPROVED"
+
+    def test_head_hub_shows_window_status(self, auth_client):
+        response = auth_client.get("/head/assignments/")
+        assert response.status_code == 200
+        assert b"Bulk Onboarding Window" in response.content
