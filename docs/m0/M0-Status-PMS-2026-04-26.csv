@@ -43,7 +43,7 @@ M0-REL-05,REL,2,One-click manual backup,APP,,TODO,,SA,Phase 4,"Use SiteConfig + 
 M0-REL-06,REL,1,Tested restore (DR drill),APP,,PARTIAL,"restore_db + verify_restore commands ready; runbook docs/runbooks/restore-from-backup.md — F.3",SA,Phase 1.5,"Code + runbook ready. Awaiting first MANUAL drill execution by SA"
 M0-REL-07,REL,2,Sandbox / staging DB,APP,,TODO,,SA,Phase 2.5,"Use DirectAdmin extra DB or local"
 M0-REL-08,REL,2,Restore validation queries,APP,,DONE,"core/management/commands/verify_restore.py — 8 canary checks — F.3",SA,,"Run after every restore: migrations sanity / table presence / FK integrity / recent audit"
-M0-REL-09,REL,1,Health probe,APP,,PARTIAL,"core/views/main.py:47-61 returns DB status; NO disk/queue check",SA,Phase 1.5,"Extend probe"
+M0-REL-09,REL,1,Health probe,APP,,DONE,"core/views/main.py health_check — F.4. 5 checks: db, migrations, disk, log_file, backup freshness",Sys,,"Returns 503 only on critical DB outage; warns (200) on degraded state per CLAUDE.md RULE 7"
 M0-REL-10,REL,1,Maintenance-mode toggle,APP,,TODO,,SA,Phase 1.5,"SiteConfig key + middleware"
 M0-REL-11,REL,1,Graceful error pages,APP,,PARTIAL,"Django default 404/500 — no custom branded pages",SA,Phase 1.5,"Add templates/404.html 500.html"
 M0-REL-12,REL,2,Email queue + retry,APP,,TODO,,SA,Phase 4,"django-mailer or celery-beat (heavyweight); revisit"

@@ -26,8 +26,13 @@ class TestHealthCheck:
     def test_health_check_returns_json(self):
         client = TestClient()
         response = client.get("/health/")
+        # 200 even when degraded (only HTTP 503 on critical DB outage).
+        # Test env has no LOG_FILE and no backups dir → 'degraded' is normal.
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ok"
-        assert data["database"] == "connected"
+        assert data["status"] in ("ok", "degraded")
         assert "Django" in data["framework"]
+        assert "checks" in data
+        db_check = next(c for c in data["checks"] if c["name"] == "database")
+        assert db_check["severity"] == "ok"
+        assert "connected" in db_check["detail"]
