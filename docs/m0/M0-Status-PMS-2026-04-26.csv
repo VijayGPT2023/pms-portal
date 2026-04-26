@@ -1,0 +1,209 @@
+m0_id,category,tier,capability,applicability,na_reason,status,evidence,owner,target_date,notes
+M0-IAM-01,IAM,1,User registration with email verification,APP,,PARTIAL,"core/views/main.py - admin creates officers; no formal verify-email step",SA,Phase 1.5,"For internal portal — admin-creation flow. Add welcome email + 'set password' link"
+M0-IAM-02,IAM,1,Login with rate-limited password attempts,APP,,PARTIAL,"core/backends.py EmailBackend; no rate limit",SA,Phase 1.5,"Login works but no rate-limit. Add django-axes."
+M0-IAM-03,IAM,1,Password reset via email link,APP,,PARTIAL,"Django built-in available; verify wired in urls",SA,Phase 1.5,"Confirm Django auth views routed"
+M0-IAM-04,IAM,1,Account lock after N failed attempts,APP,,DONE,"django-axes 8.3.1 — F.1 commit",SA,,"5 attempts → 1h lockout. Admin unlocks via /admin/axes/accessattempt/ or `python manage.py axes_reset_username <email>`"
+M0-IAM-05,IAM,2,Configure lockout policy,APP,,DONE,"settings.py AXES_FAILURE_LIMIT AXES_COOLOFF_TIME AXES_LOCKOUT_PARAMETERS",A,,"Editable in pms_portal/settings.py"
+M0-IAM-06,IAM,2,MFA (optional / per role),APP,,DEFERRED,,A,Phase 4,"Officer portal not handling sensitive citizen data; defer"
+M0-IAM-07,IAM,2,Manual email-verification override (admin),APP,,PARTIAL,"Django admin can edit user; no formal re-verify trigger",SA,Phase 4,"Low priority"
+M0-IAM-08,IAM,3,Single sign-on (Keycloak / SSO),APP,,DEFERRED,,A,Phase 5,"NPC enterprise SSO future"
+M0-IAM-09,IAM,2,Mobile-OTP login (DLT),NA,Internal officer portal — email-only login,,,,,,
+M0-IAM-10,IAM,2,Service-account / API-key auth,APP,,TODO,,SA,Phase 4,"Future Tally write-back may need this"
+M0-IAM-11,IAM,1,Session-fixation protection,APP,,DONE,"Django default — regenerates session id on login",,,,
+M0-IAM-12,IAM,3,Concurrent-session policy,APP,,TODO,,SA,Phase 4,"Low priority for officer portal"
+M0-SEC-01,SEC,1,HTTPS with valid TLS cert,APP,,DONE,"DirectAdmin Let's Encrypt auto-renew (commit 657fae0)",Sys,,
+M0-SEC-02,SEC,1,TLS 1.2+ only weak ciphers disabled,APP,,PARTIAL,"DirectAdmin default likely TLS 1.2+; not verified explicitly",SA,Phase 1.5,"Run ssllabs.com check; document"
+M0-SEC-03,SEC,1,Six security headers in lockstep,APP,,PARTIAL,"HSTS in settings.py:219; X-Frame via XFrameOptionsMiddleware; X-Content-Type via SecurityMiddleware. MISSING: CSP, Permissions-Policy, Referrer-Policy",SA,Phase 1.5,"Add 3 missing headers via django-csp + custom middleware"
+M0-SEC-04,SEC,2,CSP phased rollout,APP,,TODO,,SA,Phase 2.5,"Report-Only first → audit reports → enforce"
+M0-SEC-05,SEC,1,CSRF on all forms,APP,,DONE,"Django default + middleware:67",,,,
+M0-SEC-06,SEC,1,XSS protection,APP,,DONE,"Django auto-escape default in templates",,,,
+M0-SEC-07,SEC,1,SQL injection prevention (ORM only),APP,,DONE,"CLAUDE.md project rule — ORM only no raw SQL",,,,
+M0-SEC-08,SEC,1,File upload validation (allowlist),APP,,PARTIAL,"core/views/proposals.py:76-84 — extension allowlist + size; NO MIME or content scan",SA,Phase 2.5,"Add MIME sniff + ClamAV optional"
+M0-SEC-09,SEC,1,Filename sanitisation,APP,,PARTIAL,"Django default storage sanitises some chars; no formal sanitiser",SA,Phase 2.5,
+M0-SEC-10,SEC,1,Rate limiting per endpoint,APP,,PARTIAL,"django-axes covers /login/ — F.1",SA,Phase 4,"Login covered. Other sensitive endpoints (password reset register) still TODO via django-ratelimit"
+M0-SEC-11,SEC,2,Rate-limit alert threshold aligned,APP,,DONE,"Lockout email fires on every lockout (axes signal) — F.1",SA,,"AXES_FAILURE_LIMIT=5; email at 5 (i.e. 100% of limit)"
+M0-SEC-12,SEC,2,IP block / allowlist,APP,,TODO,,A,Phase 4,"DirectAdmin panel level OK for now"
+M0-SEC-13,SEC,2,Failed-login alert email,APP,,PARTIAL,"core/signals.py _email_on_lockout — wired to user_locked_out signal",SA,Phase 2.5,"Wired but mail_admins requires ADMINS + EMAIL_HOST in local_settings — pending email infra"
+M0-SEC-14,SEC,2,Suspicious-activity detection,APP,,TODO,,SA,Phase 4,"Manual review of activity_logs initially"
+M0-SEC-15,SEC,2,WAF active,APP,,PARTIAL,"DirectAdmin Imunify360 likely bundled; verify enabled",SA,Phase 1.5,"Check DirectAdmin Imunify status; document"
+M0-SEC-16,SEC,1,Cookie flags Secure/HttpOnly/SameSite,APP,,DONE,"settings.py:140-141 SESSION_COOKIE_HTTPONLY True SAMESITE Lax; SECURE in prod",,,,
+M0-SEC-17,SEC,1,Session timeout,APP,,DONE,"settings.py:139 SESSION_COOKIE_AGE 24h",,,,
+M0-SEC-18,SEC,1,Password policy + breach-list,APP,,PARTIAL,"settings.py:131-135 has MinLength CommonPassword Numeric — no breach-list",SA,Phase 4,"Add HIBP check optional"
+M0-SEC-19,SEC,1,Brute-force protection,APP,,DONE,"django-axes 8.3.1 — F.1 commit",SA,,"Lockout per IP and per (username, IP)"
+M0-SEC-20,SEC,1,Cross-DB query safety,NA,Single-tenant single-DB,,,,,,
+M0-SEC-21,SEC,1,No secrets in version control,APP,,DONE,"local_settings.py in .gitignore",,,,
+M0-SEC-22,SEC,2,Dependency vulnerability scan,APP,,TODO,,SA,Phase 4,"pip-audit weekly cron"
+M0-SEC-23,SEC,2,Pen-test before public launch,APP,,TODO,,A,Phase 4,"External vendor; ~2 weeks lead"
+M0-SEC-24,SEC,2,security.txt published,APP,,TODO,,SA,Phase 1.5,"Even internal — good practice"
+M0-REL-01,REL,1,Daily DB backup,APP,,TODO,"DEPLOY.md:204 has cron template — not confirmed scheduled",SA,Phase 1.5,"Add cron + verify running"
+M0-REL-02,REL,1,File-storage backup,APP,,TODO,"PERSIST_DIR /home/npcindia/pms_data — no backup cron",SA,Phase 1.5,"Add tar cron"
+M0-REL-03,REL,1,Backup retention policy,APP,,PARTIAL,"DEPLOY.md:213 30-day cron suggested — not confirmed",SA,Phase 1.5,
+M0-REL-04,REL,2,Backup list view in admin panel,APP,,TODO,,SA,Phase 4,
+M0-REL-05,REL,2,One-click manual backup,APP,,TODO,,SA,Phase 4,"Use SiteConfig + management command"
+M0-REL-06,REL,1,Tested restore (DR drill),APP,,TODO,,SA,Phase 1.5,"NEVER RUN — schedule first drill"
+M0-REL-07,REL,2,Sandbox / staging DB,APP,,TODO,,SA,Phase 2.5,"Use DirectAdmin extra DB or local"
+M0-REL-08,REL,2,Restore validation queries,APP,,TODO,,SA,Phase 1.5,"Bundle with -06"
+M0-REL-09,REL,1,Health probe,APP,,PARTIAL,"core/views/main.py:47-61 returns DB status; NO disk/queue check",SA,Phase 1.5,"Extend probe"
+M0-REL-10,REL,1,Maintenance-mode toggle,APP,,TODO,,SA,Phase 1.5,"SiteConfig key + middleware"
+M0-REL-11,REL,1,Graceful error pages,APP,,PARTIAL,"Django default 404/500 — no custom branded pages",SA,Phase 1.5,"Add templates/404.html 500.html"
+M0-REL-12,REL,2,Email queue + retry,APP,,TODO,,SA,Phase 4,"django-mailer or celery-beat (heavyweight); revisit"
+M0-REL-13,REL,2,Failed-job alerting,APP,,TODO,,SA,Phase 3,"Tied to cron heartbeat"
+M0-REL-14,REL,2,Backup integrity check,APP,,TODO,,SA,Phase 1.5,"Bundle with -01"
+M0-REL-15,REL,2,Off-host backup copy,APP,,TODO,,SA,Phase 4,"Need second hosting account or S3-compatible"
+M0-REL-16,REL,2,Pure-language exec-disabled fallback,NA,DirectAdmin allows exec for Python via Passenger,,,,,,
+M0-REL-17,REL,2,Manual-trigger endpoint per cron,APP,,TODO,,SA,Phase 3,
+M0-PERF-01,PERF,2,Page load <3s P95,APP,,PARTIAL,"~100 internal users; no formal P95 measurement",SA,Phase 4,"Run Lighthouse pre-launch"
+M0-PERF-02,PERF,2,Slow-request log,APP,,TODO,,SA,Phase 3,
+M0-PERF-03,PERF,1,DB query optimisation,APP,,PARTIAL,"select_related used in head_hub; no formal N+1 audit",SA,Phase 3,
+M0-PERF-04,PERF,2,Caching + clear-cache button,APP,,TODO,,SA,Phase 4,"Django default cache backend; no admin button"
+M0-PERF-05,PERF,2,CSS/JS minification,APP,,DONE,"WhiteNoise CompressedManifest settings.py:161",,,,
+M0-PERF-06,PERF,2,Image optimisation,APP,,PARTIAL,"Self-hosted images; no WebP pipeline",SA,Phase 4,
+M0-PERF-07,PERF,2,Browser cache headers,APP,,DONE,"WhiteNoise default",,,,
+M0-PERF-08,PERF,1,Asset cache-busting,APP,,DONE,"CompressedManifestStaticFilesStorage settings.py:161",,,,
+M0-PERF-09,PERF,3,CDN,NA,~100 internal users — no CDN benefit,,,,,,
+M0-PERF-10,PERF,2,Resource-usage monitoring,APP,,TODO,,SA,Phase 3,"Tied to OBS-07"
+M0-PERF-11,PERF,3,Weekly performance digest,APP,,TODO,,SA,Phase 4,
+M0-PERF-12,PERF,2,Async / queued slow ops,APP,,TODO,,SA,Phase 3,"Excel exports for large data; cron-based for now"
+M0-COMP-01,COMP,2,GIGW 3.0 audit passed,APP,,TODO,,A,Phase 2.5,"Pre-launch; engage NIC GIGW team"
+M0-COMP-02,COMP,1,CERT-In 180-day audit retention,APP,,PARTIAL,"django-auditlog stores forever; NO purge cron",SA,Phase 1.5,"Add purge management command + cron"
+M0-COMP-03,COMP,2,CERT-In 6-hour breach notification,APP,,TODO,,A,Phase 4,"Document procedure runbook"
+M0-COMP-04,COMP,1,DPDP consent capture,NA,Employment-basis processing per DPDP §7(b) — consent not required for officer data,,,,,,
+M0-COMP-05,COMP,1,DPDP data minimisation,APP,,PARTIAL,"Officer fields review: name email phone designation office — already minimal; document",SA,Phase 1.5,"Audit forms; document basis for each field"
+M0-COMP-06,COMP,2,DPDP right to erasure,APP,,PARTIAL,"HR retention overrides per DPDP Schedule 2; document policy",A,Phase 4,"Workflow on officer departure"
+M0-COMP-07,COMP,2,DPDP right to access (data export per user),APP,,TODO,,SA,Phase 4,"Officer 'Download my data' page"
+M0-COMP-08,COMP,1,DPDP data localisation (India),APP,,DONE,"DirectAdmin India DC confirmed",Sys,,
+M0-COMP-09,COMP,1,DPDP notice-of-purpose,APP,,TODO,,A,Phase 1.5,"Required even for employment basis; show on first login + privacy page"
+M0-COMP-10,COMP,2,WCAG 2.1 AA audit,APP,,TODO,,A,Phase 2.5,"Pre-launch; external audit"
+M0-COMP-11,COMP,2,STQC certification,NA,Internal officer portal — STQC not mandated,,,,,,
+M0-COMP-12,COMP,1,Privacy + Terms (CMS-editable),APP,,TODO,,SA,Phase 1.5,"Static templates first; CMS later"
+M0-COMP-13,COMP,1,Cookie consent banner,APP,,TODO,,SA,Phase 1.5,"Simple JS banner — DPDP-aligned"
+M0-COMP-14,COMP,2,Sector-specific compliance,NA,Performance management — no RBI/SEBI/IRDAI applicability,,,,,,
+M0-COMP-15,COMP,1,India-only hosting verification,APP,,DONE,"Same as -08; document on file",,,,
+M0-COMP-16,COMP,2,Sitemap + robots.txt,APP,,TODO,,SA,Phase 2.5,"Internal portal — robots Disallow / + sitemap for admin search"
+M0-OPS-01,OPS,1,Env separation (dev/staging/prod),APP,,PARTIAL,"dev (SQLite local) + prod (DirectAdmin MariaDB); NO formal staging",SA,Phase 2.5,"Add staging on DirectAdmin (subdomain)"
+M0-OPS-02,OPS,1,Config via .env or vault,APP,,DONE,"local_settings.py + .env pattern (commit 657fae0)",,,,
+M0-OPS-03,OPS,1,Secrets management,APP,,DONE,"local_settings.py.example template; gitignored",,,,
+M0-OPS-04,OPS,2,Zero-downtime deploy,APP,,TODO,,SA,Phase 4,"DirectAdmin extract+restart causes ~10s downtime; acceptable for internal portal"
+M0-OPS-05,OPS,1,Rollback procedure,APP,,PARTIAL,"DEPLOY.md describes re-upload-old-zip; not a documented runbook",SA,Phase 1.5,"Write docs/runbooks/rollback.md"
+M0-OPS-06,OPS,2,Feature flags,APP,,PARTIAL,"SiteConfig can serve; no formal framework",SA,Phase 4,
+M0-OPS-07,OPS,1,Log rotation 180-day,APP,,TODO,,SA,Phase 1.5,"Logrotate or Python rotating handler"
+M0-OPS-08,OPS,2,Cron monitoring + heartbeat,APP,,TODO,,SA,Phase 1.5,"Heartbeat table + admin dashboard"
+M0-OPS-09,OPS,1,Cron absolute paths,APP,,PARTIAL,"DirectAdmin panel cron — verify each entry uses absolute Python path",SA,Phase 1.5,
+M0-OPS-10,OPS,2,Deployment changelog,APP,,PARTIAL,"git log serves; no admin-visible page",SA,Phase 4,
+M0-OPS-11,OPS,1,Schema migration tracker,APP,,DONE,"django_migrations table — automatic",Sys,,
+M0-OPS-12,OPS,2,Hashed-asset deploy dance,APP,,PARTIAL,"manifest exists; no delete-old-files step",SA,Phase 2.5,
+M0-OPS-13,OPS,2,Pre-deploy smoke-test,APP,,PARTIAL,"run-uat.sh exists with 40+ endpoint tests",SA,Phase 3,"Add to deploy pipeline"
+M0-OPS-14,OPS,2,Post-deploy verification,APP,,TODO,,SA,Phase 3,"Smoke endpoint /smoke"
+M0-OPS-15,OPS,2,Hosting capability probe,APP,,TODO,,SA,Phase 1.5,"Verify exec/mail/disk/etc on DirectAdmin"
+M0-USR-01,USR,1,Profile view + edit,APP,,PARTIAL,"core/views/profile.py:12-35 — view exists; edit unclear",SA,Phase 1.5,"Verify edit fields work"
+M0-USR-02,USR,1,Password change,APP,,DONE,"profile/change-password URL exists",,,,
+M0-USR-03,USR,1,Forgot password,APP,,PARTIAL,"Django built-in; verify URL wired and email template",SA,Phase 1.5,
+M0-USR-04,USR,2,Notification preferences,APP,,TODO,,SA,Phase 4,
+M0-USR-05,USR,2,Activity history,APP,,TODO,,SA,Phase 4,
+M0-USR-06,USR,2,Sign out other devices,APP,,TODO,,SA,Phase 4,
+M0-USR-07,USR,2,Account deactivation,APP,,TODO,,SA,Phase 4,
+M0-USR-08,USR,2,Data download (DPDP access),APP,,TODO,,SA,Phase 4,"Tied to COMP-07"
+M0-USR-09,USR,2,Grievance / feedback form,APP,,PARTIAL,"GrievanceTicket GrievanceResponse GrievanceEscalation models exist core/models.py:1327; verify UI",SA,Phase 2.5,"Use Slice I Flag mechanism"
+M0-CMS-01,CMS,2,Notices & circulars,NA,Internal portal — officers receive notices via NIC mail not portal,,,,,,
+M0-CMS-02,CMS,2,Document library,NA,Internal portal — uses NIC fileserver,,,,,,
+M0-CMS-03,CMS,3,Hero banner,NA,Login page is functional — no marketing,,,,,,
+M0-CMS-04,CMS,3,Marquee text,NA,Internal portal,,,,,,
+M0-CMS-05,CMS,2,FAQ manager,APP,,TODO,,A,Phase 2.5,"Help articles for new TLs"
+M0-CMS-06,CMS,1,Static pages (Privacy/Terms/Contact),APP,,TODO,,SA,Phase 1.5,"Templates first then CMS"
+M0-CMS-07,CMS,3,Quick Links editor,NA,No public landing page,,,,,,
+M0-CMS-08,CMS,3,Footer links editor,NA,Internal portal — minimal footer,,,,,,
+M0-CMS-09,CMS,3,Team / Officials,NA,Officer master serves this purpose,,,,,,
+M0-CMS-10,CMS,3,Media coverage,NA,Internal portal,,,,,,
+M0-CMS-11,CMS,1,Site settings,APP,,PARTIAL,"SiteConfig model in core/models.py:1700 — only bulk_window key",A,Phase 2.5,"Extend with phone email address logo etc"
+M0-CMS-12,CMS,2,Email template editor,APP,,TODO,,A,Phase 2.5,"Template editor with variable substitution"
+M0-CMS-13,CMS,2,SMS template editor,NA,No SMS infrastructure,,,,,,
+M0-CMS-14,CMS,3,Tender / RFP / vacancy,NA,Internal portal,,,,,,
+M0-CMS-15,CMS,3,News / press release,NA,Internal portal,,,,,,
+M0-UAM-01,UAM,1,User list with search/filter,APP,,DONE,"Django admin Officer change list",A,,
+M0-UAM-02,UAM,1,User detail,APP,,DONE,"Django admin Officer detail",A,,
+M0-UAM-03,UAM,1,Edit user,APP,,DONE,"Django admin Officer edit",A,,
+M0-UAM-04,UAM,1,Lock/unlock account,APP,,DONE,"Django admin is_active + django-axes admin /admin/axes/accessattempt/ — F.1",A,,"Two paths: deactivate via Officer admin OR unlock lockout via axes admin"
+M0-UAM-05,UAM,1,Reset password (admin),APP,,DONE,"Django admin set password",A,,
+M0-UAM-06,UAM,2,Force email re-verification,APP,,TODO,,A,Phase 4,
+M0-UAM-07,UAM,2,Soft-delete,APP,,PARTIAL,"is_active works as soft-delete",A,Phase 4,"Add reason + audit"
+M0-UAM-08,UAM,2,Bulk import (CSV),APP,,PARTIAL,"scripts/migrate_officers_*.py exists — not admin UI",SA,Phase 4,
+M0-UAM-09,UAM,2,Export to Excel,APP,,DONE,"core/views/data_management.py:115 export_assignments includes officer sheet",A,,
+M0-UAM-10,UAM,3,Inactive auto-deactivation,APP,,TODO,,SA,Phase 4,"Officer attrition handled in Officer master separately"
+M0-UAM-11,UAM,3,User impersonation (audit-logged),APP,,TODO,,SA,Phase 4,"Useful for support; defer"
+M0-UAM-12,UAM,3,Bulk role re-assignment,APP,,TODO,,A,Phase 4,"Org restructure tool"
+M0-NTF-01,NTF,2,In-app notifications,APP,,TODO,,SA,Phase 2.5,"Useful for EditRequest approvals; bell + inbox"
+M0-NTF-02,NTF,1,Transactional emails,APP,,PARTIAL,"Django send_mail works (e.g. password reset); workflow status emails MISSING",SA,Phase 1.5,"Audit email coverage"
+M0-NTF-03,NTF,2,SMS OTP (DLT),NA,No SMS — email-only login,,,,,,
+M0-NTF-04,NTF,2,Template editor,APP,,TODO,,A,Phase 2.5,"Bundle with CMS-12"
+M0-NTF-05,NTF,2,Broadcast,APP,,TODO,,A,Phase 4,
+M0-NTF-06,NTF,2,Notification log + bounce,APP,,TODO,,SA,Phase 2.5,
+M0-NTF-07,NTF,2,Per-user preferences,APP,,TODO,,SA,Phase 4,"Tied to USR-04"
+M0-NTF-08,NTF,3,WhatsApp / push,NA,No infrastructure,,,,,,
+M0-NTF-09,NTF,2,Bounce handling,APP,,TODO,,SA,Phase 2.5,
+M0-NTF-10,NTF,2,Unsubscribe link,NA,Internal portal — all official communications,,,,,,
+M0-AUD-01,AUD,1,State-change audit log,APP,,DONE,"django-auditlog on 10 models — Assignment Milestone InvoiceRequest etc",Sys,,
+M0-AUD-02,AUD,1,Login/logout log,APP,,DONE,"core/signals.py _log_login + _log_logout — Django auth signals — F.1",SA,,"ActivityLog action=LOGIN / LOGOUT; failed-login goes to django-axes AccessAttempt"
+M0-AUD-03,AUD,1,Admin-action log + diff,APP,,DONE,"django-auditlog provides before/after",Sys,,
+M0-AUD-04,AUD,2,Document-download log,APP,,TODO,,SA,Phase 4,"Proposal documents — track downloads"
+M0-AUD-05,AUD,2,Failed-action log,APP,,PARTIAL,"Django request log to file; not in unified audit",SA,Phase 3,
+M0-AUD-06,AUD,2,Audit search interface,APP,,TODO,,A,Phase 3,"django-auditlog admin gives partial view"
+M0-AUD-07,AUD,2,Audit export (Excel/PDF),APP,,TODO,,A,Phase 3,
+M0-AUD-08,AUD,1,180-day retention,APP,,TODO,,Sys,Phase 1.5,"Management command + cron — half day work"
+M0-AUD-09,AUD,1,Tamper-evident,APP,,DONE,"auditlog table no UI write path",,,,
+M0-AUD-10,AUD,1,activity_logs as observability backbone,APP,,PARTIAL,"django-auditlog + ActivityLog separate; not unified",SA,Phase 3,"Pattern documented; refactor later"
+M0-CFG-01,CFG,1,Env vars,APP,,DONE,"local_settings.py and .env",,,,
+M0-CFG-02,CFG,1,Secrets encrypted,APP,,DONE,"local_settings.py gitignored; rotated quarterly",,,,
+M0-CFG-03,CFG,2,Feature flags,APP,,PARTIAL,"SiteConfig serves",A,Phase 4,
+M0-CFG-04,CFG,1,Site settings (admin),APP,,PARTIAL,"SiteConfig and ConfigOption — extend",A,Phase 2.5,"Add common settings (phone email logo)"
+M0-CFG-05,CFG,2,Rate limits configurable,APP,,TODO,,A,Phase 1.5,"Tied to SEC-10"
+M0-CFG-06,CFG,2,Field validation rules,APP,,PARTIAL,"Django form validation; per-form admin tuning ABSENT",SA,Phase 4,
+M0-CFG-07,CFG,2,Workflow rules,APP,,PARTIAL,"Bulk window via SiteConfig done; other workflow timers TODO",A,Phase 3,
+M0-CFG-08,CFG,2,Integration credentials masked,APP,,PARTIAL,"Tally creds in local_settings; admin can see",SA,Phase 4,
+M0-CFG-09,CFG,2,Test-integration buttons,APP,,TODO,,SA,Phase 3,"Bundle with INT-08"
+M0-CFG-10,CFG,2,Configuration changelog,APP,,TODO,,SA,Phase 4,"SiteConfig already has updated_by/at"
+M0-CFG-11,CFG,3,Bulk config export/import,APP,,TODO,,SA,Phase 5,
+M0-RPT-01,RPT,2,MIS dashboard,APP,,DONE,"6-tab Command Center core/views/mis.py — to be retired in Phase 3 per SCOPE_V2",A,Phase 3,"Replaced by 3 simpler dashboards"
+M0-RPT-02,RPT,2,Pre-built reports,APP,,DONE,"Delay/Physical/Financial reports core/views/reports.py",A,,
+M0-RPT-03,RPT,2,Custom date filter,APP,,DONE,"Reports support FY filter",A,,
+M0-RPT-04,RPT,2,Excel export,APP,,DONE,"openpyxl-based core/views/data_management.py:37-160",A,,
+M0-RPT-05,RPT,2,PDF export,APP,,TODO,,SA,Phase 4,"Add weasyprint; for performance reviews"
+M0-RPT-06,RPT,3,Email-scheduled reports,APP,,TODO,,SA,Phase 4,"Weekly digest"
+M0-RPT-07,RPT,3,Charts / heatmaps,APP,,DONE,"Chart.js 4.4.7 self-hosted",A,,
+M0-RPT-08,RPT,3,Drill-down,APP,,PARTIAL,"Limited drill in MIS; expand in Phase 3 rebuild",SA,Phase 3,
+M0-RPT-09,RPT,3,Third-party API/CSV export,APP,,TODO,,SA,Phase 5,
+M0-RPT-10,RPT,2,Async export for large data,APP,,TODO,,SA,Phase 4,"Currently sync; OK for ~2000 rows"
+M0-RPT-11,RPT,2,Report-access audit log,APP,,PARTIAL,"ActivityLog tracks SOME report access — gap analysis needed",SA,Phase 3,
+M0-OBS-01,OBS,1,Application logs,APP,,PARTIAL,"settings.py:189-212 file logger /home/npcindia/logs/pms_django.log; no structured format",SA,Phase 1.5,"OK for now; structured later"
+M0-OBS-02,OBS,2,Performance log,APP,,TODO,,SA,Phase 3,"Slow-request middleware"
+M0-OBS-03,OBS,1,Security log,APP,,PARTIAL,"Django security logger to same file",SA,Phase 1.5,"Separate file"
+M0-OBS-04,OBS,1,Audit log,APP,,DONE,"see AUD-01",,,,
+M0-OBS-05,OBS,2,Error monitoring,APP,,TODO,,SA,Phase 3,"GlitchTip self-hosted (DirectAdmin compatible)"
+M0-OBS-06,OBS,2,Uptime monitoring,APP,,TODO,,SA,Phase 3,"Uptime Kuma external instance"
+M0-OBS-07,OBS,2,Disk-space alerts,APP,,TODO,,SA,Phase 3,"DirectAdmin email alert"
+M0-OBS-08,OBS,3,Multi-channel alert escalation,APP,,DEFERRED,,A,Phase 5,"Email-only sufficient for now"
+M0-OBS-09,OBS,2,Three-stage diagnostic discipline,APP,,TODO,,SA,Phase 3,"Document in runbook"
+M0-OBS-10,OBS,2,Probe-script catalog,APP,,TODO,,SA,Phase 3,"db_probe mail_probe disk_probe tally_probe"
+M0-OBS-11,OBS,2,SQL-drift detection,APP,,TODO,,SA,Phase 3,
+M0-INT-01,INT,1,Adapter pattern + interface,APP,,PARTIAL,"Tally exists as scattered scripts in Tally_MIS/ — not clean adapter",SA,Phase 4,"Refactor to AbstractAdapter + TallyAdapter"
+M0-INT-02,INT,2,Mock / sandbox impl,APP,,TODO,,SA,Phase 4,
+M0-INT-03,INT,2,Async + retry,APP,,PARTIAL,"Tally scripts sync; no retry framework",SA,Phase 4,
+M0-INT-04,INT,2,Circuit-breaker,APP,,TODO,,SA,Phase 4,
+M0-INT-05,INT,2,Replay queue,APP,,TODO,,SA,Phase 4,
+M0-INT-06,INT,2,Credential rotation,APP,,TODO,,A,Phase 4,
+M0-INT-07,INT,2,Per-integration health-check,APP,,TODO,,SA,Phase 4,
+M0-INT-08,INT,2,Test-integration button,APP,,TODO,,A,Phase 3,
+M0-INT-09,INT,1,Webhook signature verification,NA,No inbound webhooks (Tally is pull-based),,,,,,
+M0-INT-10,INT,2,Webhook log,NA,No inbound webhooks,,,,,,
+M0-INT-11,INT,2,Rate-limit-respecting client,APP,,TODO,,SA,Phase 4,
+M0-INT-12,INT,2,Idempotency keys,APP,,TODO,,SA,Phase 4,
+M0-L10N-01,L10N,2,Bilingual UI (English + Hindi),APP,,TODO,,SA,Phase 2.5,"Big effort — 5d setup + per-page translation"
+M0-L10N-02,L10N,2,Translation source maintained,APP,,TODO,,SA,Phase 2.5,"django-rosetta or .po files"
+M0-L10N-03,L10N,2,Bilingual emails / SMS,APP,,TODO,,A,Phase 2.5,
+M0-L10N-04,L10N,1,DD/MM/YYYY date format,APP,,PARTIAL,"LANGUAGE_CODE en-us — should be en-IN; templates use various formats",SA,Phase 1.5,"Set en-in; standardise filter"
+M0-L10N-05,L10N,1,INR + lakhs/crores,APP,,PARTIAL,"Values shown as Lakhs in code; no consistent formatter",SA,Phase 2.5,"Add template filter"
+M0-L10N-06,L10N,1,April-March fiscal year,APP,,DONE,"_derive_fy() in core/views/assignments.py:1246",,,,
+M0-L10N-07,L10N,1,IST timezone,APP,,DONE,"settings.py:151 TIME_ZONE Asia/Kolkata",,,,
+M0-L10N-08,L10N,3,Devanagari numerals,NA,Officers comfortable with Latin,,,,,,
+M0-L10N-09,L10N,3,Regional languages,NA,National portal — English+Hindi suffices,,,,,,
+M0-L10N-10,L10N,2,Bilingual SEO meta,APP,,TODO,,SA,Phase 2.5,"Low priority for internal portal"
+M0-L10N-11,L10N,1,Self-hosted Indian-script fonts,APP,,PARTIAL,"Inter font self-hosted; Hindi font (Noto Sans Devanagari) needed when bilingual ships",SA,Phase 2.5,

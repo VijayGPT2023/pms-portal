@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Account locked — PMS Portal{% endblock %}
+
+{% block content %}
+<div style="max-width:520px; margin:60px auto; padding:30px; background:#fff3cd; border:1px solid #ffeeba; border-radius:8px; text-align:center;">
+    <h1 style="color:#856404; font-size:22px; margin:0 0 16px;">Account temporarily locked</h1>
+    <p style="color:#664d03; font-size:14px;">
+        Too many failed login attempts. For security, this account is locked for
+        approximately <strong>1 hour</strong>.
+    </p>
+    <p style="color:#664d03; font-size:13px; margin-top:18px;">
+        If you have forgotten your password, contact your administrator to reset it.
+        If you believe this is an error, the lockout will expire automatically.
+    </p>
+    <p style="color:#888; font-size:11px; margin-top:24px;">
+        Lockouts are logged for security review.
+    </p>
+</div>
+{% endblock %}

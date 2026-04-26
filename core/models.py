@@ -1170,6 +1170,8 @@ class ActivityLog(models.Model):
         REJECT = "REJECT", "Reject"
         ESCALATE = "ESCALATE", "Escalate"
         COMMENT = "COMMENT", "Comment"
+        LOGIN = "LOGIN", "Login"
+        LOGOUT = "LOGOUT", "Logout"
 
     actor = models.ForeignKey(
         Officer, on_delete=models.PROTECT, related_name="activity_logs",

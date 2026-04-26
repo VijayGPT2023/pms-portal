@@ -12,6 +12,7 @@ django-htmx==1.27.0
 django-fsm==3.0.1
 django-auditlog==3.4.1
 django-widget-tweaks==1.5.1
+django-axes==8.3.1
 whitenoise==6.12.0
 
 # --- Database driver (pure Python, no compilation) -------------------------

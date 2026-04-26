@@ -11,6 +11,16 @@ from core.models import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _disable_axes_in_tests(settings):
+    """
+    django-axes refuses to authenticate without a request object, which the
+    Django test client's .login() does not provide. Tests opt OUT of axes by
+    default; the dedicated lockout tests re-enable it explicitly.
+    """
+    settings.AXES_ENABLED = False
+
+
 @pytest.fixture
 def office(db):
     """Create the HQ office."""

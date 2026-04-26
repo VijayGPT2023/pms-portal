@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "django_fsm",
     "auditlog",
     "widget_tweaks",
+    "axes",
     # Project
     "core",
 ]
@@ -67,6 +68,8 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "auditlog.middleware.AuditlogMiddleware",
+    # AxesMiddleware MUST be last so it sees the resolved authentication outcome.
+    "axes.middleware.AxesMiddleware",
 ]
 
 ROOT_URLCONF = "pms_portal.urls"
@@ -122,11 +125,26 @@ else:
 # Custom User Model
 AUTH_USER_MODEL = "core.Officer"
 
-# Password validation
-# Authentication backends
+# Authentication backends.
+# AxesStandaloneBackend MUST be FIRST — it short-circuits authentication when
+# an account/IP is locked out, before any password check runs. EmailBackend
+# follows for the actual credential check.
 AUTHENTICATION_BACKENDS = [
+    "axes.backends.AxesStandaloneBackend",
     "core.backends.EmailBackend",
 ]
+
+# django-axes — login lockout (M0-IAM-04, IAM-05, SEC-10, SEC-19)
+# Tuned for an internal officer portal: tolerant of typos, hard against bots.
+AXES_FAILURE_LIMIT = 5                  # 5 failed attempts → lockout
+AXES_COOLOFF_TIME = 1                   # 1 hour lockout (in hours)
+AXES_RESET_ON_SUCCESS = True            # Successful login clears the counter
+AXES_LOCKOUT_PARAMETERS = ["ip_address", ["username", "ip_address"]]
+AXES_USERNAME_FORM_FIELD = "email"      # We log in with email, not username
+AXES_LOCKOUT_CALLABLE = None            # Use default lockout response
+AXES_VERBOSE = True                     # Detailed logging for security review
+# Optional: a friendlier locked-out template — falls back to default if absent
+AXES_LOCKOUT_TEMPLATE = "axes/lockout.html"
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

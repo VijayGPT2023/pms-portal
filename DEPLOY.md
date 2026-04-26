@@ -182,11 +182,23 @@ Also check `/home/npcindia/logs/pms_django.log` (created by Django's file logger
 2. Re-run `python make_deploy_zip.py`
 3. Upload `pms_upload.zip` to `/home/npcindia/pms_app/`, right-click → Extract (overwrite yes)
 4. If you changed `requirements.txt`: Run Pip Install again
-5. If you changed a model: Run `run_migrate.py` again
-6. If you changed CSS/JS: Run `run_collectstatic.py` again
+5. If you changed a model OR added an app: Run `run_migrate.py` again
+6. **Always run `run_collectstatic.py`** — manifest must be regenerated even if no asset files changed (CompressedManifestStaticFilesStorage needs it)
 7. Click **⟳ RESTART**
 
 **You do NOT need to re-run `run_createsuperuser.py`** — it's idempotent and will skip if admin already exists.
+
+### Pre-deploy checklist (per release)
+
+Before clicking deploy, confirm what changed since the last release and which steps are needed:
+
+| Change | Action |
+|---|---|
+| `requirements.txt` modified (new package) | **Run Pip Install (step 4)** |
+| New `core/migrations/000X_*.py` files | **Run `run_migrate.py` (step 5)** |
+| New `INSTALLED_APPS` entry | **Run `run_migrate.py` (step 5)** — third-party apps add their own tables |
+| `core/static/` or `core/templates/` changed | Run `run_collectstatic.py` (step 6) — always safe |
+| Only `.py` view / model code changed | Restart only |
 
 ---
 
