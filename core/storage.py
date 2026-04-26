@@ -1,20 +1,34 @@
 """
 Custom static-files storage classes.
 
-NonStrictManifestStaticFilesStorage tolerates missing JS source-map references.
-The minified vendor bundles we ship (chart.min.js, alpine.min.js, htmx.min.js)
-end with //# sourceMappingURL=...js.map comments. WhiteNoise's default
-CompressedManifestStaticFilesStorage parses these and fails hard if the .map
-file isn't present, blocking collectstatic.
+NonStrictManifestStaticFilesStorage is a hardened version of WhiteNoise's
+CompressedManifestStaticFilesStorage that:
 
-We don't need source maps in production (they're only useful when debugging
-unminified code in the browser), so the safe path is to set
-manifest_strict = False — WhiteNoise then logs warnings for missing references
-but still completes collectstatic and serves the page correctly.
+  1. Skips post-processing of JS files for `//# sourceMappingURL=...` rewrites.
+     Vendor minified bundles (chart.min.js, alpine.min.js, htmx.min.js) point
+     to .map files we don't ship. Default WhiteNoise tries to rewrite those
+     references to hashed equivalents, fails with MissingFileError, and aborts
+     collectstatic. We don't need source maps in production, so we drop the
+     JS post-process pattern entirely.
+
+  2. Sets manifest_strict = False as a belt-and-braces measure for missing
+     references at request-time.
+
+CSS post-processing (url(...), @import, sourceMappingURL) is preserved —
+none of our CSS references unresolved files.
 """
+from django.contrib.staticfiles.storage import HashedFilesMixin
 from whitenoise.storage import CompressedManifestStaticFilesStorage
 
 
 class NonStrictManifestStaticFilesStorage(CompressedManifestStaticFilesStorage):
-    """Tolerates missing source maps in vendored JS bundles."""
+    """Tolerates missing source-map references in vendored JS bundles."""
+
     manifest_strict = False
+
+    # Override patterns: keep CSS rules, drop JS rules. Files are still
+    # content-hashed and served cache-busted; only the *intra-file* URL
+    # rewriting is skipped for JS.
+    patterns = (
+        ("*.css", HashedFilesMixin.patterns[0][1]),
+    )
