@@ -35,9 +35,9 @@ M0-SEC-21,SEC,1,No secrets in version control,APP,,DONE,"local_settings.py in .g
 M0-SEC-22,SEC,2,Dependency vulnerability scan,APP,,TODO,,SA,Phase 4,"pip-audit weekly cron"
 M0-SEC-23,SEC,2,Pen-test before public launch,APP,,TODO,,A,Phase 4,"External vendor; ~2 weeks lead"
 M0-SEC-24,SEC,2,security.txt published,APP,,TODO,,SA,Phase 1.5,"Even internal — good practice"
-M0-REL-01,REL,1,Daily DB backup,APP,,TODO,"DEPLOY.md:204 has cron template — not confirmed scheduled",SA,Phase 1.5,"Add cron + verify running"
-M0-REL-02,REL,1,File-storage backup,APP,,TODO,"PERSIST_DIR /home/npcindia/pms_data — no backup cron",SA,Phase 1.5,"Add tar cron"
-M0-REL-03,REL,1,Backup retention policy,APP,,PARTIAL,"DEPLOY.md:213 30-day cron suggested — not confirmed",SA,Phase 1.5,
+M0-REL-01,REL,1,Daily DB backup,APP,,DONE,"core/management/commands/backup_db.py + DEPLOY.md cron — F.2",Sys,,"Engine-aware (SQLite copy / mysqldump). Output: db_YYYY-MM-DD_HHMMSS.sql.gz with integrity check"
+M0-REL-02,REL,1,File-storage backup,APP,,DONE,"core/management/commands/backup_files.py + DEPLOY.md cron — F.2",Sys,,"Tarballs MEDIA_ROOT to files_YYYY-MM-DD_HHMMSS.tar.gz"
+M0-REL-03,REL,1,Backup retention policy,APP,,DONE,"core/management/commands/cleanup_backups.py — F.2; settings BACKUP_RETENTION_DAYS=30 default",A,,"Configurable via local_settings.py"
 M0-REL-04,REL,2,Backup list view in admin panel,APP,,TODO,,SA,Phase 4,
 M0-REL-05,REL,2,One-click manual backup,APP,,TODO,,SA,Phase 4,"Use SiteConfig + management command"
 M0-REL-06,REL,1,Tested restore (DR drill),APP,,TODO,,SA,Phase 1.5,"NEVER RUN — schedule first drill"
@@ -48,7 +48,7 @@ M0-REL-10,REL,1,Maintenance-mode toggle,APP,,TODO,,SA,Phase 1.5,"SiteConfig key 
 M0-REL-11,REL,1,Graceful error pages,APP,,PARTIAL,"Django default 404/500 — no custom branded pages",SA,Phase 1.5,"Add templates/404.html 500.html"
 M0-REL-12,REL,2,Email queue + retry,APP,,TODO,,SA,Phase 4,"django-mailer or celery-beat (heavyweight); revisit"
 M0-REL-13,REL,2,Failed-job alerting,APP,,TODO,,SA,Phase 3,"Tied to cron heartbeat"
-M0-REL-14,REL,2,Backup integrity check,APP,,TODO,,SA,Phase 1.5,"Bundle with -01"
+M0-REL-14,REL,2,Backup integrity check,APP,,DONE,"backup_db verifies gzip header + CREATE TABLE marker; backup_files re-opens and counts entries — F.2",Sys,,
 M0-REL-15,REL,2,Off-host backup copy,APP,,TODO,,SA,Phase 4,"Need second hosting account or S3-compatible"
 M0-REL-16,REL,2,Pure-language exec-disabled fallback,NA,DirectAdmin allows exec for Python via Passenger,,,,,,
 M0-REL-17,REL,2,Manual-trigger endpoint per cron,APP,,TODO,,SA,Phase 3,

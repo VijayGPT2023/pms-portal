@@ -204,26 +204,60 @@ Before clicking deploy, confirm what changed since the last release and which st
 
 ## Daily backup (set up after first successful deploy)
 
-DirectAdmin → **Cron Jobs** → Add:
+The portal ships three management commands that handle DB backup, file backup,
+and old-backup cleanup. Wire them up via DirectAdmin cron — one entry each.
+
+First, create the backup directory in File Manager:
+- `/home/npcindia/pms_data/backups/`
+
+DirectAdmin → **Cron Jobs** → add THREE jobs:
+
+**1. DB backup (daily 02:00)**
 
 | Field | Value |
 |---|---|
 | Minute | `0` |
 | Hour | `2` |
 | Day / Month / Weekday | `*` |
-| Command | (see below, replace `YOUR-DB-PASSWORD`) |
+| Command | `cd /home/npcindia/pms_app && /home/npcindia/virtualenv/pms_app/3.12/bin/python manage.py backup_db >> /home/npcindia/logs/backup.log 2>&1` |
+
+**2. File backup (daily 02:30)**
+
+| Field | Value |
+|---|---|
+| Minute | `30` |
+| Hour | `2` |
+| Day / Month / Weekday | `*` |
+| Command | `cd /home/npcindia/pms_app && /home/npcindia/virtualenv/pms_app/3.12/bin/python manage.py backup_files >> /home/npcindia/logs/backup.log 2>&1` |
+
+**3. Cleanup old backups (daily 03:00)**
+
+| Field | Value |
+|---|---|
+| Minute | `0` |
+| Hour | `3` |
+| Day / Month / Weekday | `*` |
+| Command | `cd /home/npcindia/pms_app && /home/npcindia/virtualenv/pms_app/3.12/bin/python manage.py cleanup_backups >> /home/npcindia/logs/backup.log 2>&1` |
+
+Default retention is 30 days. To change, set `BACKUP_RETENTION_DAYS` in
+`local_settings.py` (e.g. `BACKUP_RETENTION_DAYS = 90` for statutory cases).
+
+**Each command writes integrity-checked, gzipped output to
+`/home/npcindia/pms_data/backups/`.** Naming:
+- `db_YYYY-MM-DD_HHMMSS.sql.gz` — full mysqldump
+- `files_YYYY-MM-DD_HHMMSS.tar.gz` — uploads tarball
+
+Tail `/home/npcindia/logs/backup.log` weekly to catch silent failures.
+
+### Manual backup before risky changes
+
+DirectAdmin → Setup Python App → Manage → "Execute python script". Paste:
 
 ```
-mysqldump -u npcindia_pms -p'YOUR-DB-PASSWORD' npcindia_pms > /home/npcindia/backups/pms_$(date +\%Y\%m\%d).sql 2>&1
+/home/npcindia/pms_app/manage.py backup_db
 ```
 
-First create `/home/npcindia/backups/` via File Manager. Keep the single quotes around the password.
-
-Backups older than 30 days — add a second cron:
-
-```
-find /home/npcindia/backups/ -name 'pms_*.sql' -mtime +30 -delete
-```
+(Same for `backup_files`. Output goes to the standard backup directory.)
 
 ---
 

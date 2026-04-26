@@ -193,6 +193,10 @@ MEDIA_ROOT = Path(PERSIST_DIR) / "uploads"
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024  # 10 MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
+# Backup retention (M0-REL-03). Cron deletes backups older than this.
+# Override in local_settings.py if statutory retention differs.
+BACKUP_RETENTION_DAYS = int(_setting("BACKUP_RETENTION_DAYS", "30"))
+
 # Default primary key
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
