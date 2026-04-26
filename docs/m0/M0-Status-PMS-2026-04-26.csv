@@ -40,9 +40,9 @@ M0-REL-02,REL,1,File-storage backup,APP,,DONE,"core/management/commands/backup_f
 M0-REL-03,REL,1,Backup retention policy,APP,,DONE,"core/management/commands/cleanup_backups.py — F.2; settings BACKUP_RETENTION_DAYS=30 default",A,,"Configurable via local_settings.py"
 M0-REL-04,REL,2,Backup list view in admin panel,APP,,TODO,,SA,Phase 4,
 M0-REL-05,REL,2,One-click manual backup,APP,,TODO,,SA,Phase 4,"Use SiteConfig + management command"
-M0-REL-06,REL,1,Tested restore (DR drill),APP,,TODO,,SA,Phase 1.5,"NEVER RUN — schedule first drill"
+M0-REL-06,REL,1,Tested restore (DR drill),APP,,PARTIAL,"restore_db + verify_restore commands ready; runbook docs/runbooks/restore-from-backup.md — F.3",SA,Phase 1.5,"Code + runbook ready. Awaiting first MANUAL drill execution by SA"
 M0-REL-07,REL,2,Sandbox / staging DB,APP,,TODO,,SA,Phase 2.5,"Use DirectAdmin extra DB or local"
-M0-REL-08,REL,2,Restore validation queries,APP,,TODO,,SA,Phase 1.5,"Bundle with -06"
+M0-REL-08,REL,2,Restore validation queries,APP,,DONE,"core/management/commands/verify_restore.py — 8 canary checks — F.3",SA,,"Run after every restore: migrations sanity / table presence / FK integrity / recent audit"
 M0-REL-09,REL,1,Health probe,APP,,PARTIAL,"core/views/main.py:47-61 returns DB status; NO disk/queue check",SA,Phase 1.5,"Extend probe"
 M0-REL-10,REL,1,Maintenance-mode toggle,APP,,TODO,,SA,Phase 1.5,"SiteConfig key + middleware"
 M0-REL-11,REL,1,Graceful error pages,APP,,PARTIAL,"Django default 404/500 — no custom branded pages",SA,Phase 1.5,"Add templates/404.html 500.html"
