@@ -71,9 +71,21 @@ MIDDLEWARE = [
     # MaintenanceModeMiddleware AFTER authentication (so it can bypass for staff)
     # but BEFORE AxesMiddleware (which short-circuits requests for locked-out IPs).
     "core.middleware.MaintenanceModeMiddleware",
+    # SecurityHeadersMiddleware: adds CSP, Permissions-Policy, Referrer-Policy.
+    # Position late so it operates on the final response.
+    "core.middleware.SecurityHeadersMiddleware",
     # AxesMiddleware MUST be last so it sees the resolved authentication outcome.
     "axes.middleware.AxesMiddleware",
 ]
+
+# SecurityMiddleware (already installed at the top of MIDDLEWARE) also reads:
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+
+# CSP enforcement toggle (default: Report-Only). Flip to True in local_settings.py
+# after auditing violation reports per SCOPE_V2 §3.2 phased rollout.
+CSP_ENFORCE = bool(_setting("CSP_ENFORCE", ""))
 
 ROOT_URLCONF = "pms_portal.urls"
 

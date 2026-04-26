@@ -13,8 +13,8 @@ M0-IAM-11,IAM,1,Session-fixation protection,APP,,DONE,"Django default — regene
 M0-IAM-12,IAM,3,Concurrent-session policy,APP,,TODO,,SA,Phase 4,"Low priority for officer portal"
 M0-SEC-01,SEC,1,HTTPS with valid TLS cert,APP,,DONE,"DirectAdmin Let's Encrypt auto-renew (commit 657fae0)",Sys,,
 M0-SEC-02,SEC,1,TLS 1.2+ only weak ciphers disabled,APP,,PARTIAL,"DirectAdmin default likely TLS 1.2+; not verified explicitly",SA,Phase 1.5,"Run ssllabs.com check; document"
-M0-SEC-03,SEC,1,Six security headers in lockstep,APP,,PARTIAL,"HSTS in settings.py:219; X-Frame via XFrameOptionsMiddleware; X-Content-Type via SecurityMiddleware. MISSING: CSP, Permissions-Policy, Referrer-Policy",SA,Phase 1.5,"Add 3 missing headers via django-csp + custom middleware"
-M0-SEC-04,SEC,2,CSP phased rollout,APP,,TODO,,SA,Phase 2.5,"Report-Only first → audit reports → enforce"
+M0-SEC-03,SEC,1,Six security headers in lockstep,APP,,DONE,"core/middleware.py SecurityHeadersMiddleware — F.8. Six headers: HSTS, X-Frame, X-Content-Type, CSP-Report-Only, Permissions-Policy, Referrer-Policy",SA,,"CSP in Report-Only mode; flip CSP_ENFORCE=True after audit (Phase 2.5)"
+M0-SEC-04,SEC,2,CSP phased rollout,APP,,PARTIAL,"Report-Only mode shipped — F.8. Enforce mode pending violation-report audit",SA,Phase 2.5,"Audit reports for 2-4 weeks then set CSP_ENFORCE=True in local_settings.py"
 M0-SEC-05,SEC,1,CSRF on all forms,APP,,DONE,"Django default + middleware:67",,,,
 M0-SEC-06,SEC,1,XSS protection,APP,,DONE,"Django auto-escape default in templates",,,,
 M0-SEC-07,SEC,1,SQL injection prevention (ORM only),APP,,DONE,"CLAUDE.md project rule — ORM only no raw SQL",,,,
@@ -45,7 +45,7 @@ M0-REL-07,REL,2,Sandbox / staging DB,APP,,TODO,,SA,Phase 2.5,"Use DirectAdmin ex
 M0-REL-08,REL,2,Restore validation queries,APP,,DONE,"core/management/commands/verify_restore.py — 8 canary checks — F.3",SA,,"Run after every restore: migrations sanity / table presence / FK integrity / recent audit"
 M0-REL-09,REL,1,Health probe,APP,,DONE,"core/views/main.py health_check — F.4. 5 checks: db, migrations, disk, log_file, backup freshness",Sys,,"Returns 503 only on critical DB outage; warns (200) on degraded state per CLAUDE.md RULE 7"
 M0-REL-10,REL,1,Maintenance-mode toggle,APP,,DONE,"core/middleware.py MaintenanceModeMiddleware + SiteConfig.KEY_MAINTENANCE_MODE — F.5",A,,"Toggle via Django admin → Site config → maintenance_mode_enabled = true. Staff bypass + /health/ /admin/ /login/ whitelisted"
-M0-REL-11,REL,1,Graceful error pages,APP,,PARTIAL,"Django default 404/500 — no custom branded pages",SA,Phase 1.5,"Add templates/404.html 500.html"
+M0-REL-11,REL,1,Graceful error pages,APP,,DONE,"core/templates/{403,404,500}.html — F.9 — branded with NPC identity and helpful next-steps",SA,,
 M0-REL-12,REL,2,Email queue + retry,APP,,TODO,,SA,Phase 4,"django-mailer or celery-beat (heavyweight); revisit"
 M0-REL-13,REL,2,Failed-job alerting,APP,,TODO,,SA,Phase 3,"Tied to cron heartbeat"
 M0-REL-14,REL,2,Backup integrity check,APP,,DONE,"backup_db verifies gzip header + CREATE TABLE marker; backup_files re-opens and counts entries — F.2",Sys,,
@@ -76,7 +76,7 @@ M0-COMP-09,COMP,1,DPDP notice-of-purpose,APP,,DONE,"core/templates/static_pages/
 M0-COMP-10,COMP,2,WCAG 2.1 AA audit,APP,,TODO,,A,Phase 2.5,"Pre-launch; external audit"
 M0-COMP-11,COMP,2,STQC certification,NA,Internal officer portal — STQC not mandated,,,,,,
 M0-COMP-12,COMP,1,Privacy + Terms (CMS-editable),APP,,PARTIAL,"core/templates/static_pages/{privacy,terms}.html — F.6 — published. CMS-editability pending",A,Phase 2.5,"Pages live; admin edits via SiteConfig in Phase 2.5"
-M0-COMP-13,COMP,1,Cookie consent banner,APP,,TODO,,SA,Phase 1.5,"Simple JS banner — DPDP-aligned"
+M0-COMP-13,COMP,1,Cookie consent banner,APP,,DONE,"base.html cookie-notice div + localStorage dismiss — F.7",SA,,"Internal portal uses essential cookies only; one-time NOTICE (not consent theatre) per anti-pattern guidance"
 M0-COMP-14,COMP,2,Sector-specific compliance,NA,Performance management — no RBI/SEBI/IRDAI applicability,,,,,,
 M0-COMP-15,COMP,1,India-only hosting verification,APP,,DONE,"Same as -08; document on file",,,,
 M0-COMP-16,COMP,2,Sitemap + robots.txt,APP,,TODO,,SA,Phase 2.5,"Internal portal — robots Disallow / + sitemap for admin search"
