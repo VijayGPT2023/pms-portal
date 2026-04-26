@@ -179,8 +179,10 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
 LOGOUT_REDIRECT_URL = "/login/"
 
-# Internationalization
-LANGUAGE_CODE = "en-us"
+# Internationalization (M0-L10N-04)
+# en-in gives Django the Indian English locale: DD/MM/YYYY date format,
+# Indian week start, etc. Bilingual (Hindi) UI scaffolding comes in Phase 2.5.
+LANGUAGE_CODE = "en-in"
 TIME_ZONE = "Asia/Kolkata"
 USE_I18N = True
 USE_TZ = True
@@ -211,6 +213,10 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 # Backup retention (M0-REL-03). Cron deletes backups older than this.
 # Override in local_settings.py if statutory retention differs.
 BACKUP_RETENTION_DAYS = int(_setting("BACKUP_RETENTION_DAYS", "30"))
+
+# Audit log retention (M0-AUD-08, M0-COMP-02). CERT-In requires 180 days.
+# `purge_audit_logs` cron uses this. Don't reduce below 180 without compliance review.
+AUDIT_LOG_RETENTION_DAYS = int(_setting("AUDIT_LOG_RETENTION_DAYS", "180"))
 
 # Default primary key
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

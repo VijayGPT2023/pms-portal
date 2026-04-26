@@ -239,6 +239,42 @@ DirectAdmin → **Cron Jobs** → add THREE jobs:
 | Day / Month / Weekday | `*` |
 | Command | `cd /home/npcindia/pms_app && /home/npcindia/virtualenv/pms_app/3.12/bin/python manage.py cleanup_backups >> /home/npcindia/logs/backup.log 2>&1` |
 
+**4. Purge old audit logs (daily 03:30)** — CERT-In 180-day retention
+
+| Field | Value |
+|---|---|
+| Minute | `30` |
+| Hour | `3` |
+| Day / Month / Weekday | `*` |
+| Command | `cd /home/npcindia/pms_app && /home/npcindia/virtualenv/pms_app/3.12/bin/python manage.py purge_audit_logs >> /home/npcindia/logs/backup.log 2>&1` |
+
+**5. Check cron heartbeats (every hour)** — alerts SA when any cron silently stops
+
+| Field | Value |
+|---|---|
+| Minute | `15` |
+| Hour | `*` |
+| Day / Month / Weekday | `*` |
+| Command | `cd /home/npcindia/pms_app && /home/npcindia/virtualenv/pms_app/3.12/bin/python manage.py check_heartbeats >> /home/npcindia/logs/heartbeat.log 2>&1` |
+
+Live cron health dashboard: Django admin → **Cron heartbeats**
+(`/admin/core/cronheartbeat/`). Each job shows 🟢/🟡/🔴 status + last
+run time + duration. `check_heartbeats` emails admins on any failure
+or overdue job.
+
+### Hosting capability probe
+
+After any DirectAdmin panel update or Python-App change, run:
+
+```
+/home/npcindia/pms_app/manage.py probe_hosting
+```
+
+This prints a one-page environment snapshot — Python/Django versions,
+package availability, mysqldump/mysql binary presence, FS writability,
+disk free, DB connectivity, env vars present. Catches "exec disabled"
+type breaks before they hit production.
+
 Default retention is 30 days. To change, set `BACKUP_RETENTION_DAYS` in
 `local_settings.py` (e.g. `BACKUP_RETENTION_DAYS = 90` for statutory cases).
 

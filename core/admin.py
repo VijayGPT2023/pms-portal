@@ -12,7 +12,7 @@ from .models import (
     RevenueShare, InvoiceRequest, PaymentReceipt, OfficerRevenueLedger,
     InvoiceMilestoneLink, AssignmentTeam, Client, AssignmentClient,
     ApprovalRequest, EditRequest, ActivityLog, VersionHistory, ConfigOption,
-    SiteConfig,
+    SiteConfig, CronHeartbeat,
     FinancialYearTarget, NonRevenueSuggestion,
     GrievanceTicket, GrievanceResponse, GrievanceEscalation,
     UtilizationClaim, ProposalDocument, FinanceOfficer,
@@ -237,6 +237,27 @@ class SiteConfigAdmin(admin.ModelAdmin):
     list_display = ("key", "value", "updated_by", "updated_at")
     search_fields = ("key", "value")
     readonly_fields = ("updated_at",)
+
+
+@admin.register(CronHeartbeat)
+class CronHeartbeatAdmin(admin.ModelAdmin):
+    list_display = (
+        "job_name", "_status_dot", "last_status", "last_run_at",
+        "last_duration_ms", "expected_interval_seconds",
+    )
+    list_filter = ("last_status",)
+    readonly_fields = ("last_run_at", "last_duration_ms", "last_error",
+                       "created_at", "updated_at")
+
+    def _status_dot(self, obj):
+        if obj.is_overdue():
+            return "🔴 OVERDUE"
+        if obj.last_status == "failure":
+            return "🟡 FAILED"
+        if obj.last_status == "success":
+            return "🟢 OK"
+        return "⏳ RUNNING"
+    _status_dot.short_description = "Health"
 
 
 @admin.register(FinancialYearTarget)

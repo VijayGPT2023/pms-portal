@@ -37,6 +37,11 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
+        from core.cron import heartbeat
+        with heartbeat("cleanup_backups", expected_interval_seconds=86400):
+            self._do(opts)
+
+    def _do(self, opts):
         days = opts["days"] if opts["days"] is not None else getattr(settings, "BACKUP_RETENTION_DAYS", 30)
         cutoff = time.time() - days * 86400
         out_dir = _backup_dir()

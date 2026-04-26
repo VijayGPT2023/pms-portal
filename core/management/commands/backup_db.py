@@ -39,25 +39,27 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
-        out_dir = Path(opts["out_dir"]) if opts["out_dir"] else _backup_dir()
-        out_dir.mkdir(parents=True, exist_ok=True)
-        ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        engine = settings.DATABASES["default"]["ENGINE"]
+        from core.cron import heartbeat
+        with heartbeat("backup_db", expected_interval_seconds=86400):
+            out_dir = Path(opts["out_dir"]) if opts["out_dir"] else _backup_dir()
+            out_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            engine = settings.DATABASES["default"]["ENGINE"]
 
-        if engine.endswith("sqlite3"):
-            target = out_dir / f"db_{ts}.sqlite3.gz"
-            self._backup_sqlite(target)
-        elif "mysql" in engine:
-            target = out_dir / f"db_{ts}.sql.gz"
-            self._backup_mysql(target)
-        else:
-            raise CommandError(f"Unsupported DB engine: {engine}")
+            if engine.endswith("sqlite3"):
+                target = out_dir / f"db_{ts}.sqlite3.gz"
+                self._backup_sqlite(target)
+            elif "mysql" in engine:
+                target = out_dir / f"db_{ts}.sql.gz"
+                self._backup_mysql(target)
+            else:
+                raise CommandError(f"Unsupported DB engine: {engine}")
 
-        self._integrity_check(target, engine)
-        size_mb = target.stat().st_size / (1024 * 1024)
-        self.stdout.write(self.style.SUCCESS(
-            f"Backup written: {target} ({size_mb:.2f} MB)"
-        ))
+            self._integrity_check(target, engine)
+            size_mb = target.stat().st_size / (1024 * 1024)
+            self.stdout.write(self.style.SUCCESS(
+                f"Backup written: {target} ({size_mb:.2f} MB)"
+            ))
 
     def _backup_sqlite(self, target):
         src = Path(settings.DATABASES["default"]["NAME"])

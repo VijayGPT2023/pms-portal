@@ -47,7 +47,7 @@ M0-REL-09,REL,1,Health probe,APP,,DONE,"core/views/main.py health_check — F.4.
 M0-REL-10,REL,1,Maintenance-mode toggle,APP,,DONE,"core/middleware.py MaintenanceModeMiddleware + SiteConfig.KEY_MAINTENANCE_MODE — F.5",A,,"Toggle via Django admin → Site config → maintenance_mode_enabled = true. Staff bypass + /health/ /admin/ /login/ whitelisted"
 M0-REL-11,REL,1,Graceful error pages,APP,,DONE,"core/templates/{403,404,500}.html — F.9 — branded with NPC identity and helpful next-steps",SA,,
 M0-REL-12,REL,2,Email queue + retry,APP,,TODO,,SA,Phase 4,"django-mailer or celery-beat (heavyweight); revisit"
-M0-REL-13,REL,2,Failed-job alerting,APP,,TODO,,SA,Phase 3,"Tied to cron heartbeat"
+M0-REL-13,REL,2,Failed-job alerting,APP,,DONE,"check_heartbeats command emails admins on overdue/failed jobs — F.11",Sys,,"Run hourly via cron"
 M0-REL-14,REL,2,Backup integrity check,APP,,DONE,"backup_db verifies gzip header + CREATE TABLE marker; backup_files re-opens and counts entries — F.2",Sys,,
 M0-REL-15,REL,2,Off-host backup copy,APP,,TODO,,SA,Phase 4,"Need second hosting account or S3-compatible"
 M0-REL-16,REL,2,Pure-language exec-disabled fallback,NA,DirectAdmin allows exec for Python via Passenger,,,,,,
@@ -65,7 +65,7 @@ M0-PERF-10,PERF,2,Resource-usage monitoring,APP,,TODO,,SA,Phase 3,"Tied to OBS-0
 M0-PERF-11,PERF,3,Weekly performance digest,APP,,TODO,,SA,Phase 4,
 M0-PERF-12,PERF,2,Async / queued slow ops,APP,,TODO,,SA,Phase 3,"Excel exports for large data; cron-based for now"
 M0-COMP-01,COMP,2,GIGW 3.0 audit passed,APP,,TODO,,A,Phase 2.5,"Pre-launch; engage NIC GIGW team"
-M0-COMP-02,COMP,1,CERT-In 180-day audit retention,APP,,PARTIAL,"django-auditlog stores forever; NO purge cron",SA,Phase 1.5,"Add purge management command + cron"
+M0-COMP-02,COMP,1,CERT-In 180-day audit retention,APP,,DONE,"purge_audit_logs cron — F.10. Targets auditlog.LogEntry + core.ActivityLog",Sys,,"Run daily via cron (DEPLOY.md)"
 M0-COMP-03,COMP,2,CERT-In 6-hour breach notification,APP,,TODO,,A,Phase 4,"Document procedure runbook"
 M0-COMP-04,COMP,1,DPDP consent capture,NA,Employment-basis processing per DPDP §7(b) — consent not required for officer data,,,,,,
 M0-COMP-05,COMP,1,DPDP data minimisation,APP,,PARTIAL,"Officer fields review: name email phone designation office — already minimal; document",SA,Phase 1.5,"Audit forms; document basis for each field"
@@ -86,15 +86,15 @@ M0-OPS-03,OPS,1,Secrets management,APP,,DONE,"local_settings.py.example template
 M0-OPS-04,OPS,2,Zero-downtime deploy,APP,,TODO,,SA,Phase 4,"DirectAdmin extract+restart causes ~10s downtime; acceptable for internal portal"
 M0-OPS-05,OPS,1,Rollback procedure,APP,,PARTIAL,"DEPLOY.md describes re-upload-old-zip; not a documented runbook",SA,Phase 1.5,"Write docs/runbooks/rollback.md"
 M0-OPS-06,OPS,2,Feature flags,APP,,PARTIAL,"SiteConfig can serve; no formal framework",SA,Phase 4,
-M0-OPS-07,OPS,1,Log rotation 180-day,APP,,TODO,,SA,Phase 1.5,"Logrotate or Python rotating handler"
-M0-OPS-08,OPS,2,Cron monitoring + heartbeat,APP,,TODO,,SA,Phase 1.5,"Heartbeat table + admin dashboard"
+M0-OPS-07,OPS,1,Log rotation 180-day,APP,,PARTIAL,"Audit log purge handles DB-side retention — F.10. File log rotation pending (logrotate)",SA,Phase 2.5,"Add logrotate config for /home/npcindia/logs/pms_django.log"
+M0-OPS-08,OPS,2,Cron monitoring + heartbeat,APP,,DONE,"core.cron.heartbeat() context manager + CronHeartbeat model + admin — F.11",Sys,,"5 jobs wrapped: backup_db, backup_files, cleanup_backups, purge_audit_logs, check_heartbeats. Admin dashboard at /admin/core/cronheartbeat/"
 M0-OPS-09,OPS,1,Cron absolute paths,APP,,PARTIAL,"DirectAdmin panel cron — verify each entry uses absolute Python path",SA,Phase 1.5,
 M0-OPS-10,OPS,2,Deployment changelog,APP,,PARTIAL,"git log serves; no admin-visible page",SA,Phase 4,
 M0-OPS-11,OPS,1,Schema migration tracker,APP,,DONE,"django_migrations table — automatic",Sys,,
 M0-OPS-12,OPS,2,Hashed-asset deploy dance,APP,,PARTIAL,"manifest exists; no delete-old-files step",SA,Phase 2.5,
 M0-OPS-13,OPS,2,Pre-deploy smoke-test,APP,,PARTIAL,"run-uat.sh exists with 40+ endpoint tests",SA,Phase 3,"Add to deploy pipeline"
 M0-OPS-14,OPS,2,Post-deploy verification,APP,,TODO,,SA,Phase 3,"Smoke endpoint /smoke"
-M0-OPS-15,OPS,2,Hosting capability probe,APP,,TODO,,SA,Phase 1.5,"Verify exec/mail/disk/etc on DirectAdmin"
+M0-OPS-15,OPS,2,Hosting capability probe,APP,,DONE,"core/management/commands/probe_hosting.py — F.12. 18+ checks: Python/Django versions, packages, binaries, FS writable, disk, DB, env vars",SA,,"Run after every panel update / hosting change"
 M0-USR-01,USR,1,Profile view + edit,APP,,PARTIAL,"core/views/profile.py:12-35 — view exists; edit unclear",SA,Phase 1.5,"Verify edit fields work"
 M0-USR-02,USR,1,Password change,APP,,DONE,"profile/change-password URL exists",,,,
 M0-USR-03,USR,1,Forgot password,APP,,PARTIAL,"Django built-in; verify URL wired and email template",SA,Phase 1.5,
@@ -148,7 +148,7 @@ M0-AUD-04,AUD,2,Document-download log,APP,,TODO,,SA,Phase 4,"Proposal documents 
 M0-AUD-05,AUD,2,Failed-action log,APP,,PARTIAL,"Django request log to file; not in unified audit",SA,Phase 3,
 M0-AUD-06,AUD,2,Audit search interface,APP,,TODO,,A,Phase 3,"django-auditlog admin gives partial view"
 M0-AUD-07,AUD,2,Audit export (Excel/PDF),APP,,TODO,,A,Phase 3,
-M0-AUD-08,AUD,1,180-day retention,APP,,TODO,,Sys,Phase 1.5,"Management command + cron — half day work"
+M0-AUD-08,AUD,1,180-day retention,APP,,DONE,"core/management/commands/purge_audit_logs.py + DEPLOY.md cron — F.10",Sys,,"Default 180 days from settings.AUDIT_LOG_RETENTION_DAYS"
 M0-AUD-09,AUD,1,Tamper-evident,APP,,DONE,"auditlog table no UI write path",,,,
 M0-AUD-10,AUD,1,activity_logs as observability backbone,APP,,PARTIAL,"django-auditlog + ActivityLog separate; not unified",SA,Phase 3,"Pattern documented; refactor later"
 M0-CFG-01,CFG,1,Env vars,APP,,DONE,"local_settings.py and .env",,,,
@@ -199,7 +199,7 @@ M0-INT-12,INT,2,Idempotency keys,APP,,TODO,,SA,Phase 4,
 M0-L10N-01,L10N,2,Bilingual UI (English + Hindi),APP,,TODO,,SA,Phase 2.5,"Big effort — 5d setup + per-page translation"
 M0-L10N-02,L10N,2,Translation source maintained,APP,,TODO,,SA,Phase 2.5,"django-rosetta or .po files"
 M0-L10N-03,L10N,2,Bilingual emails / SMS,APP,,TODO,,A,Phase 2.5,
-M0-L10N-04,L10N,1,DD/MM/YYYY date format,APP,,PARTIAL,"LANGUAGE_CODE en-us — should be en-IN; templates use various formats",SA,Phase 1.5,"Set en-in; standardise filter"
+M0-L10N-04,L10N,1,DD/MM/YYYY date format,APP,,DONE,"settings.py LANGUAGE_CODE = en-in — F.12. Django picks Indian English locale (DD/MM/YYYY)",SA,,"Per-template date filter audit deferred to Phase 2.5"
 M0-L10N-05,L10N,1,INR + lakhs/crores,APP,,PARTIAL,"Values shown as Lakhs in code; no consistent formatter",SA,Phase 2.5,"Add template filter"
 M0-L10N-06,L10N,1,April-March fiscal year,APP,,DONE,"_derive_fy() in core/views/assignments.py:1246",,,,
 M0-L10N-07,L10N,1,IST timezone,APP,,DONE,"settings.py:151 TIME_ZONE Asia/Kolkata",,,,

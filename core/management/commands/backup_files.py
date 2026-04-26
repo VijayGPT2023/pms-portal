@@ -28,6 +28,11 @@ class Command(BaseCommand):
                             help="Override source dir (default MEDIA_ROOT)")
 
     def handle(self, *args, **opts):
+        from core.cron import heartbeat
+        with heartbeat("backup_files", expected_interval_seconds=86400):
+            self._do(opts)
+
+    def _do(self, opts):
         out_dir = Path(opts["out_dir"]) if opts["out_dir"] else _backup_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
         source = Path(opts["source"]) if opts["source"] else Path(settings.MEDIA_ROOT)

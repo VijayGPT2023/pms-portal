@@ -1772,6 +1772,47 @@ class SiteConfig(models.Model):
 
 
 # =============================================================================
+# Cron heartbeat (M0-OPS-08, M0-REL-13)
+# =============================================================================
+
+class CronHeartbeat(models.Model):
+    """
+    One row per scheduled job. Updated on every run via core.cron.heartbeat().
+    Admin dashboard reads this to show red/amber/green status per job.
+    """
+
+    class Status(models.TextChoices):
+        SUCCESS = "success", "Success"
+        FAILURE = "failure", "Failure"
+        RUNNING = "running", "Running"
+
+    job_name = models.CharField(max_length=100, unique=True)
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    last_status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUCCESS)
+    last_error = models.TextField(blank=True, default="")
+    last_duration_ms = models.IntegerField(default=0)
+    # Used by `check_heartbeats` to decide if a job is overdue.
+    expected_interval_seconds = models.IntegerField(default=86400)  # daily by default
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "cron_heartbeat"
+        ordering = ["job_name"]
+
+    def __str__(self):
+        return f"{self.job_name} [{self.last_status} @ {self.last_run_at}]"
+
+    def is_overdue(self):
+        """True if last_run_at is older than 1.5x expected interval."""
+        from django.utils import timezone
+        if self.last_run_at is None:
+            return True  # never run
+        threshold = timezone.now() - timezone.timedelta(seconds=int(self.expected_interval_seconds * 1.5))
+        return self.last_run_at < threshold
+
+
+# =============================================================================
 # Register models with django-auditlog
 # =============================================================================
 
