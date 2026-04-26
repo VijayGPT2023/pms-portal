@@ -193,7 +193,9 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "core" / "static"]
 STORAGES = {
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        # Custom subclass of CompressedManifestStaticFilesStorage that tolerates
+        # missing JS source-map references — see core/storage.py.
+        "BACKEND": "core.storage.NonStrictManifestStaticFilesStorage"
         if not DEBUG
         else "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
