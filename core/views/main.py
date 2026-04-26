@@ -41,6 +41,27 @@ def logout_view(request):
     return redirect("core:login")
 
 
+# ---------------------------------------------------------------------------
+# Static legal / informational pages (M0-CMS-06, M0-COMP-09, M0-COMP-12)
+# Public (no @login_required) so unauthenticated users can read before login.
+# ---------------------------------------------------------------------------
+
+def privacy_view(request):
+    return render(request, "static_pages/privacy.html")
+
+
+def terms_view(request):
+    return render(request, "static_pages/terms.html")
+
+
+def about_view(request):
+    return render(request, "static_pages/about.html")
+
+
+def dpdp_notice_view(request):
+    return render(request, "static_pages/dpdp_notice.html")
+
+
 # Dashboard views are now in core/views/dashboard.py
 
 

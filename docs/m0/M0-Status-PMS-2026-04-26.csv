@@ -44,7 +44,7 @@ M0-REL-06,REL,1,Tested restore (DR drill),APP,,PARTIAL,"restore_db + verify_rest
 M0-REL-07,REL,2,Sandbox / staging DB,APP,,TODO,,SA,Phase 2.5,"Use DirectAdmin extra DB or local"
 M0-REL-08,REL,2,Restore validation queries,APP,,DONE,"core/management/commands/verify_restore.py — 8 canary checks — F.3",SA,,"Run after every restore: migrations sanity / table presence / FK integrity / recent audit"
 M0-REL-09,REL,1,Health probe,APP,,DONE,"core/views/main.py health_check — F.4. 5 checks: db, migrations, disk, log_file, backup freshness",Sys,,"Returns 503 only on critical DB outage; warns (200) on degraded state per CLAUDE.md RULE 7"
-M0-REL-10,REL,1,Maintenance-mode toggle,APP,,TODO,,SA,Phase 1.5,"SiteConfig key + middleware"
+M0-REL-10,REL,1,Maintenance-mode toggle,APP,,DONE,"core/middleware.py MaintenanceModeMiddleware + SiteConfig.KEY_MAINTENANCE_MODE — F.5",A,,"Toggle via Django admin → Site config → maintenance_mode_enabled = true. Staff bypass + /health/ /admin/ /login/ whitelisted"
 M0-REL-11,REL,1,Graceful error pages,APP,,PARTIAL,"Django default 404/500 — no custom branded pages",SA,Phase 1.5,"Add templates/404.html 500.html"
 M0-REL-12,REL,2,Email queue + retry,APP,,TODO,,SA,Phase 4,"django-mailer or celery-beat (heavyweight); revisit"
 M0-REL-13,REL,2,Failed-job alerting,APP,,TODO,,SA,Phase 3,"Tied to cron heartbeat"
@@ -72,10 +72,10 @@ M0-COMP-05,COMP,1,DPDP data minimisation,APP,,PARTIAL,"Officer fields review: na
 M0-COMP-06,COMP,2,DPDP right to erasure,APP,,PARTIAL,"HR retention overrides per DPDP Schedule 2; document policy",A,Phase 4,"Workflow on officer departure"
 M0-COMP-07,COMP,2,DPDP right to access (data export per user),APP,,TODO,,SA,Phase 4,"Officer 'Download my data' page"
 M0-COMP-08,COMP,1,DPDP data localisation (India),APP,,DONE,"DirectAdmin India DC confirmed",Sys,,
-M0-COMP-09,COMP,1,DPDP notice-of-purpose,APP,,TODO,,A,Phase 1.5,"Required even for employment basis; show on first login + privacy page"
+M0-COMP-09,COMP,1,DPDP notice-of-purpose,APP,,DONE,"core/templates/static_pages/dpdp_notice.html — F.6 — public page citing Section 5 + 7(b)(c)(g) legal basis",A,,"On-first-login banner deferred to Phase 2.5"
 M0-COMP-10,COMP,2,WCAG 2.1 AA audit,APP,,TODO,,A,Phase 2.5,"Pre-launch; external audit"
 M0-COMP-11,COMP,2,STQC certification,NA,Internal officer portal — STQC not mandated,,,,,,
-M0-COMP-12,COMP,1,Privacy + Terms (CMS-editable),APP,,TODO,,SA,Phase 1.5,"Static templates first; CMS later"
+M0-COMP-12,COMP,1,Privacy + Terms (CMS-editable),APP,,PARTIAL,"core/templates/static_pages/{privacy,terms}.html — F.6 — published. CMS-editability pending",A,Phase 2.5,"Pages live; admin edits via SiteConfig in Phase 2.5"
 M0-COMP-13,COMP,1,Cookie consent banner,APP,,TODO,,SA,Phase 1.5,"Simple JS banner — DPDP-aligned"
 M0-COMP-14,COMP,2,Sector-specific compliance,NA,Performance management — no RBI/SEBI/IRDAI applicability,,,,,,
 M0-COMP-15,COMP,1,India-only hosting verification,APP,,DONE,"Same as -08; document on file",,,,
@@ -109,7 +109,7 @@ M0-CMS-02,CMS,2,Document library,NA,Internal portal — uses NIC fileserver,,,,,
 M0-CMS-03,CMS,3,Hero banner,NA,Login page is functional — no marketing,,,,,,
 M0-CMS-04,CMS,3,Marquee text,NA,Internal portal,,,,,,
 M0-CMS-05,CMS,2,FAQ manager,APP,,TODO,,A,Phase 2.5,"Help articles for new TLs"
-M0-CMS-06,CMS,1,Static pages (Privacy/Terms/Contact),APP,,TODO,,SA,Phase 1.5,"Templates first then CMS"
+M0-CMS-06,CMS,1,Static pages (Privacy/Terms/Contact),APP,,DONE,"core/templates/static_pages/* — F.6. Privacy, Terms, About, DPDP Notice — public pages (no login required)",A,,"Hardcoded templates for now; CMS-editable upgrade in Phase 2.5"
 M0-CMS-07,CMS,3,Quick Links editor,NA,No public landing page,,,,,,
 M0-CMS-08,CMS,3,Footer links editor,NA,Internal portal — minimal footer,,,,,,
 M0-CMS-09,CMS,3,Team / Officials,NA,Officer master serves this purpose,,,,,,

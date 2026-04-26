@@ -27,6 +27,12 @@ urlpatterns = [
     path("logout/", views.logout_view, name="logout"),
     path("health/", views.health_check, name="health"),
 
+    # Static legal / informational pages (public, no login required)
+    path("privacy/", views.privacy_view, name="privacy"),
+    path("terms/", views.terms_view, name="terms"),
+    path("about/", views.about_view, name="about"),
+    path("dpdp-notice/", views.dpdp_notice_view, name="dpdp_notice"),
+
     # ── Dashboard ─────────────────────────────────────────────────────
     path("dashboard/", views.dashboard, name="dashboard"),
     path("dashboard/summary/", views.dashboard_summary_view, name="dashboard_summary"),

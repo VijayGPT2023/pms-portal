@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Terms of Use — PMS Portal{% endblock %}
+
+{% block content %}{% include "static_pages/_terms_body.html" %}{% endblock %}
+
+{% block content_unauthenticated %}
+<main style="max-width:1200px; margin:30px auto; padding:0 20px;">
+{% include "static_pages/_terms_body.html" %}
+</main>
+{% endblock %}

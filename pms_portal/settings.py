@@ -68,6 +68,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "auditlog.middleware.AuditlogMiddleware",
+    # MaintenanceModeMiddleware AFTER authentication (so it can bypass for staff)
+    # but BEFORE AxesMiddleware (which short-circuits requests for locked-out IPs).
+    "core.middleware.MaintenanceModeMiddleware",
     # AxesMiddleware MUST be last so it sees the resolved authentication outcome.
     "axes.middleware.AxesMiddleware",
 ]

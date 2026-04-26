@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}About PMS Portal{% endblock %}
+
+{% block content %}{% include "static_pages/_about_body.html" %}{% endblock %}
+
+{% block content_unauthenticated %}
+<main style="max-width:1200px; margin:30px auto; padding:0 20px;">
+{% include "static_pages/_about_body.html" %}
+</main>
+{% endblock %}

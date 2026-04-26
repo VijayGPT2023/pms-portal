@@ -1709,6 +1709,7 @@ class SiteConfig(models.Model):
 
     # Well-known keys. Keep in sync with helper methods.
     KEY_BULK_WINDOW_CLOSE = "bulk_onboarding_window_close"
+    KEY_MAINTENANCE_MODE = "maintenance_mode_enabled"
 
     key = models.CharField(max_length=100, unique=True)
     value = models.TextField(blank=True, default="")

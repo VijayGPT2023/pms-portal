@@ -1,0 +1,51 @@
+<div style="max-width:820px; margin:0 auto;">
+<h1>About the PMS Portal</h1>
+
+<h2>Purpose</h2>
+<p>The Performance Management System (PMS) Portal is a digital platform for tracking the work and
+revenue of officers of the National Productivity Council. It captures assignments, training
+programmes, and non-revenue activities; tracks physical and financial progress against milestones;
+and produces the management information for senior leadership.</p>
+
+<h2>Operated by</h2>
+<p>National Productivity Council (NPC), an autonomous organisation under the Department for
+Promotion of Industry and Internal Trade, Ministry of Commerce and Industry, Government of India.</p>
+
+<h2>Scope</h2>
+<ul>
+    <li>Internal-only portal for NPC officers and management.</li>
+    <li>Single source of truth for officer performance data.</li>
+    <li>Integrates with Tally for financial reconciliation.</li>
+</ul>
+
+<h2>Built with</h2>
+<ul>
+    <li>Django (web framework, Python)</li>
+    <li>MariaDB (database)</li>
+    <li>Self-hosted assets (no external CDNs) for GIGW 3.0 compliance</li>
+    <li>Hosted on infrastructure located within India for DPDP compliance</li>
+</ul>
+
+<h2>Compliance</h2>
+<p>The portal aims to comply with:</p>
+<ul>
+    <li>Guidelines for Indian Government Websites (GIGW) 3.0</li>
+    <li>Web Content Accessibility Guidelines (WCAG) 2.1 Level AA</li>
+    <li>Digital Personal Data Protection Act (DPDP), 2023</li>
+    <li>CERT-In Direction No. 20(3)/2022-CERT-In on cybersecurity practices</li>
+</ul>
+
+<h2>Contact</h2>
+<p>
+    <strong>System Administrator</strong><br>
+    Email: <em>pms-admin@npcindia.gov.in</em><br>
+    For functional questions: contact your Group Head / Regional Director.<br>
+    For grievances: see the <a href="{% url 'core:privacy' %}">Privacy Policy</a> contact.
+</p>
+
+<p style="margin-top:24px;">
+    <a href="{% url 'core:privacy' %}">Privacy Policy</a> &nbsp;|&nbsp;
+    <a href="{% url 'core:terms' %}">Terms of Use</a> &nbsp;|&nbsp;
+    <a href="{% url 'core:dpdp_notice' %}">DPDP Notice of Purpose</a>
+</p>
+</div>

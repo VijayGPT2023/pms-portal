@@ -2,12 +2,16 @@
 Core views package.
 Re-exports all views so existing imports like `from . import views` keep working.
 """
-# Auth, health — original views.py (now lives at core/views/main.py)
+# Auth, health, static pages — original views.py (now lives at core/views/main.py)
 from core.views.main import (
     root_redirect,
     login_view,
     logout_view,
     health_check,
+    privacy_view,
+    terms_view,
+    about_view,
+    dpdp_notice_view,
 )
 
 # Dashboard views
