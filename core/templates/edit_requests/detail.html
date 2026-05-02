@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}EditRequest #{{ er.pk }}{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:1100px; margin:0 auto; padding:20px;">
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:22px;">
+            EditRequest #{{ er.pk }} — {{ er.get_section_display }}
+        </h1>
+        <p style="color:#666; margin-top:4px;">
+            Assignment
+            <a href="{% url 'core:assignment_view' assignment_id=er.assignment.pk %}">
+                {{ er.assignment.assignment_no }} — {{ er.assignment.title|truncatechars:60 }}
+            </a>
+        </p>
+    </header>
+
+    <section class="card" style="border:1px solid #e5e7eb; border-radius:6px; padding:16px; margin-bottom:16px;">
+        <table style="width:100%; font-size:14px;">
+            <tr>
+                <th style="text-align:left; padding:4px; width:200px;">Edit number</th>
+                <td style="padding:4px;">{{ er.edit_number }} <span style="color:#666;">(approver: {{ er.required_approver_role }})</span></td>
+            </tr>
+            <tr>
+                <th style="text-align:left; padding:4px;">Status</th>
+                <td style="padding:4px;"><strong>{{ er.status }}</strong></td>
+            </tr>
+            <tr>
+                <th style="text-align:left; padding:4px;">Proposed by</th>
+                <td style="padding:4px;">{{ er.proposed_by.name }} on {{ er.proposed_at|date:"d M Y H:i" }}</td>
+            </tr>
+            <tr>
+                <th style="text-align:left; padding:4px; vertical-align:top;">Reason</th>
+                <td style="padding:4px; white-space:pre-wrap;">{{ er.reason }}</td>
+            </tr>
+            {% if er.reviewed_by %}
+            <tr>
+                <th style="text-align:left; padding:4px;">Reviewed by</th>
+                <td style="padding:4px;">{{ er.reviewed_by.name }} on {{ er.reviewed_at|date:"d M Y H:i" }}</td>
+            </tr>
+            <tr>
+                <th style="text-align:left; padding:4px; vertical-align:top;">Review notes</th>
+                <td style="padding:4px; white-space:pre-wrap;">{{ er.review_notes }}</td>
+            </tr>
+            {% endif %}
+        </table>
+    </section>
+
+    <section style="margin-bottom:24px;">
+        <h2 style="font-size:18px;">Diff</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div>
+                <h3 style="font-size:14px; color:#991b1b;">Before</h3>
+                <pre style="background:#fef2f2; border:1px solid #fecaca; padding:10px; border-radius:4px; overflow:auto; max-height:400px;">{% for row in old_snapshot %}{{ row|stringformat:'s' }}
+{% empty %}(empty){% endfor %}</pre>
+            </div>
+            <div>
+                <h3 style="font-size:14px; color:#166534;">After</h3>
+                <pre style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px; border-radius:4px; overflow:auto; max-height:400px;">{% for row in new_snapshot %}{{ row|stringformat:'s' }}
+{% empty %}(empty){% endfor %}</pre>
+            </div>
+        </div>
+    </section>
+
+    {% if can_approve %}
+    <section class="card" style="border:1px solid #e5e7eb; border-radius:6px; padding:16px; margin-bottom:16px;">
+        <h2 style="font-size:16px; margin-top:0;">Approve or Reject</h2>
+        <form method="post" action="{% url 'core:edit_request_approve' request_id=er.pk %}" style="display:inline-block; margin-right:8px;">
+            {% csrf_token %}
+            <input type="text" name="review_notes" placeholder="Optional notes" style="padding:8px; border:1px solid #d1d5db; border-radius:4px; width:300px;">
+            <button type="submit" class="btn btn-success" style="background:#16a34a; color:white; padding:8px 16px; border:0; border-radius:4px; cursor:pointer;">Approve & Apply</button>
+        </form>
+        <form method="post" action="{% url 'core:edit_request_reject' request_id=er.pk %}" style="display:inline-block;">
+            {% csrf_token %}
+            <input type="text" name="review_notes" placeholder="Rejection reason (required)" required style="padding:8px; border:1px solid #d1d5db; border-radius:4px; width:300px;">
+            <button type="submit" class="btn btn-danger" style="background:#dc2626; color:white; padding:8px 16px; border:0; border-radius:4px; cursor:pointer;">Reject</button>
+        </form>
+    </section>
+    {% endif %}
+
+    {% if can_withdraw %}
+    <section style="margin-bottom:16px;">
+        <form method="post" action="{% url 'core:edit_request_withdraw' request_id=er.pk %}" onsubmit="return confirm('Withdraw this request?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary" style="background:#6b7280; color:white; padding:8px 16px; border:0; border-radius:4px; cursor:pointer;">Withdraw</button>
+        </form>
+    </section>
+    {% endif %}
+
+    <p><a href="{% url 'core:edit_request_inbox' %}">&larr; Back to Inbox</a></p>
+
+</div>
+{% endblock %}

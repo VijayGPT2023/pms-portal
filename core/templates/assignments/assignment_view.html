@@ -103,6 +103,36 @@
         </span>
         {% endwith %}
     </div>
+
+    {# Propose-Edit links for approved sections (SCOPE_V2 §3.5) #}
+    {% if assignment.team_leader_id == request.user.officer_id or request.user.admin_role_id == 'ADMIN' %}
+    <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+        {% if assignment.cost_approval_status == 'APPROVED' %}
+        <a href="{% url 'core:edit_request_propose' assignment_id=assignment.pk section='COST' %}"
+           class="btn btn-sm" style="background:#fff; color:#1e40af; border:1px solid #1e40af; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px;">
+           Propose Cost Edit
+        </a>
+        {% endif %}
+        {% if assignment.team_approval_status == 'APPROVED' %}
+        <a href="{% url 'core:edit_request_propose' assignment_id=assignment.pk section='TEAM' %}"
+           class="btn btn-sm" style="background:#fff; color:#1e40af; border:1px solid #1e40af; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px;">
+           Propose Team Edit
+        </a>
+        {% endif %}
+        {% if assignment.milestone_approval_status == 'APPROVED' %}
+        <a href="{% url 'core:edit_request_propose' assignment_id=assignment.pk section='MILESTONE' %}"
+           class="btn btn-sm" style="background:#fff; color:#1e40af; border:1px solid #1e40af; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px;">
+           Propose Milestone Edit
+        </a>
+        {% endif %}
+        {% if assignment.revenue_approval_status == 'APPROVED' %}
+        <a href="{% url 'core:edit_request_propose' assignment_id=assignment.pk section='REVENUE' %}"
+           class="btn btn-sm" style="background:#fff; color:#1e40af; border:1px solid #1e40af; padding:4px 10px; border-radius:4px; text-decoration:none; font-size:12px;">
+           Propose Revenue Edit
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 {% endif %}
 

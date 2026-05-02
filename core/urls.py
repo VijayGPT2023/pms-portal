@@ -16,6 +16,7 @@ from .views import (
     data_management as data,
     non_revenue as nrev,
     profile as prof,
+    edit_requests as ereq,
 )
 
 app_name = "core"
@@ -79,6 +80,14 @@ urlpatterns = [
     path("approvals/revenue/<int:assignment_id>/reject/", appr.reject_revenue_shares, name="reject_revenue_shares"),
     path("approvals/tentative-date/<int:milestone_id>/approve/", appr.approve_tentative_date, name="approve_tentative_date"),
     path("approvals/tentative-date/<int:milestone_id>/reject/", appr.reject_tentative_date, name="reject_tentative_date"),
+
+    # ── EditRequest ladder (SCOPE_V2 §3.5) ────────────────────────────
+    path("edit-requests/", ereq.inbox, name="edit_request_inbox"),
+    path("edit-requests/<int:request_id>/", ereq.detail, name="edit_request_detail"),
+    path("edit-requests/<int:request_id>/approve/", ereq.approve, name="edit_request_approve"),
+    path("edit-requests/<int:request_id>/reject/", ereq.reject, name="edit_request_reject"),
+    path("edit-requests/<int:request_id>/withdraw/", ereq.withdraw, name="edit_request_withdraw"),
+    path("edit-requests/propose/<int:assignment_id>/<str:section>/", ereq.propose_form, name="edit_request_propose"),
 
     # ── Finance ───────────────────────────────────────────────────────
     path("finance/", fin.finance_dashboard, name="finance_dashboard"),

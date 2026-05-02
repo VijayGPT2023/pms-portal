@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Edit Requests{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:1200px; margin:0 auto; padding:20px;">
+
+    <header style="margin-bottom:24px;">
+        <h1 style="margin:0; font-size:24px;">Edit Requests</h1>
+        <p style="color:#666; margin-top:4px;">
+            Post-approval edit ladder for Cost, Team, Milestone, Revenue sections (SCOPE_V2 §3.5).
+        </p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <section style="margin-bottom:32px;">
+        <h2 style="font-size:18px;">Pending Your Review ({{ actionable|length }})</h2>
+        {% if actionable %}
+        <table class="data-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr style="background:#f3f4f6; text-align:left;">
+                    <th style="padding:8px;">#</th>
+                    <th style="padding:8px;">Assignment</th>
+                    <th style="padding:8px;">Section</th>
+                    <th style="padding:8px;">Edit #</th>
+                    <th style="padding:8px;">Approver Tier</th>
+                    <th style="padding:8px;">Proposed by</th>
+                    <th style="padding:8px;">Proposed at</th>
+                    <th style="padding:8px;">Reason</th>
+                    <th style="padding:8px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for er in actionable %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ er.pk }}</td>
+                    <td style="padding:8px;">
+                        <a href="{% url 'core:assignment_view' assignment_id=er.assignment.pk %}">
+                            {{ er.assignment.assignment_no }}
+                        </a>
+                    </td>
+                    <td style="padding:8px;">{{ er.get_section_display }}</td>
+                    <td style="padding:8px;">{{ er.edit_number }}</td>
+                    <td style="padding:8px;">{{ er.required_approver_role }}</td>
+                    <td style="padding:8px;">{{ er.proposed_by.name }}</td>
+                    <td style="padding:8px;">{{ er.proposed_at|date:"d M Y H:i" }}</td>
+                    <td style="padding:8px; max-width:300px;">{{ er.reason|truncatechars:80 }}</td>
+                    <td style="padding:8px;">
+                        <a class="btn btn-primary" href="{% url 'core:edit_request_detail' request_id=er.pk %}">Review</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No requests waiting for your review.</p>
+        {% endif %}
+    </section>
+
+    <section>
+        <h2 style="font-size:18px;">My Recent Requests</h2>
+        {% if mine %}
+        <table class="data-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr style="background:#f3f4f6; text-align:left;">
+                    <th style="padding:8px;">#</th>
+                    <th style="padding:8px;">Assignment</th>
+                    <th style="padding:8px;">Section</th>
+                    <th style="padding:8px;">Edit #</th>
+                    <th style="padding:8px;">Status</th>
+                    <th style="padding:8px;">Proposed at</th>
+                    <th style="padding:8px;">Reviewer</th>
+                    <th style="padding:8px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for er in mine %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ er.pk }}</td>
+                    <td style="padding:8px;">{{ er.assignment.assignment_no }}</td>
+                    <td style="padding:8px;">{{ er.get_section_display }}</td>
+                    <td style="padding:8px;">{{ er.edit_number }}</td>
+                    <td style="padding:8px;">
+                        <span class="badge badge-{{ er.status|lower }}">{{ er.status }}</span>
+                    </td>
+                    <td style="padding:8px;">{{ er.proposed_at|date:"d M Y H:i" }}</td>
+                    <td style="padding:8px;">{{ er.reviewed_by.name|default:"-" }}</td>
+                    <td style="padding:8px;">
+                        <a href="{% url 'core:edit_request_detail' request_id=er.pk %}">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">You haven't proposed any edits yet.</p>
+        {% endif %}
+    </section>
+
+</div>
+{% endblock %}
