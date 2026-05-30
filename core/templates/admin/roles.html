@@ -1,16 +1,113 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Role Management - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Role & Hierarchy Management</h1>
-</div>
+<div class="page-container" style="max-width:1100px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <div>
+            <h1 style="margin:0; font-size:24px;">Role &amp; Hierarchy Management</h1>
+            <p style="color:#666; margin-top:4px;">Stackable admin roles on top of the universal Officer base (SCOPE_V2 §4).</p>
+        </div>
+        <a class="btn" href="?show_history={% if show_history %}false{% else %}true{% endif %}">
+            {% if show_history %}Hide history{% else %}Show history{% endif %}
+        </a>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card" style="padding:16px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; margin-bottom:24px;">
+        <h2 style="font-size:18px; margin-top:0;">Assign Role</h2>
+        <form method="post" action="{% url 'core:assign_role' %}">
+            {% csrf_token %}
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end;">
+                <div style="flex:2; min-width:200px;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">Officer *</label>
+                    <select name="officer_id" required style="width:100%; padding:8px;">
+                        <option value="">— select —</option>
+                        {% for o in officers %}
+                        <option value="{{ o.officer_id }}">{{ o.name }} ({{ o.officer_id }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex:1; min-width:160px;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">Role *</label>
+                    <select name="role_type" required style="width:100%; padding:8px;">
+                        <option value="ADMIN">System Administrator</option>
+                        <option value="DG">Director General</option>
+                        <option value="DDG-I">Deputy DG - I</option>
+                        <option value="DDG-II">Deputy DG - II</option>
+                        <option value="RD_HEAD">Regional Director / Head</option>
+                        <option value="GROUP_HEAD">Group Head</option>
+                        <option value="TEAM_LEADER">Team Leader</option>
+                        <option value="FINANCE">Finance Officer</option>
+                    </select>
+                </div>
+                <div style="flex:1; min-width:140px;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">Scope</label>
+                    <select name="scope_type" style="width:100%; padding:8px;">
+                        <option value="GLOBAL">Global</option>
+                        <option value="OFFICE">Office</option>
+                        <option value="GROUP">Group</option>
+                    </select>
+                </div>
+                <div style="flex:1; min-width:140px;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">Scope Value</label>
+                    <input type="text" name="scope_value" placeholder="e.g. RDDEL" style="width:100%; padding:8px;">
+                </div>
+                <div style="flex:1; min-width:140px;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">Effective From</label>
+                    <input type="date" name="effective_from" value="{{ today }}" style="width:100%; padding:8px;">
+                </div>
+                <div style="flex:0;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">Primary</label>
+                    <input type="checkbox" name="is_primary" value="1" style="width:20px; height:20px;">
+                </div>
+            </div>
+            <input type="text" name="order_reference" placeholder="Order reference (optional)" style="width:100%; padding:8px; margin-top:10px;">
+            <button class="btn btn-primary" type="submit" style="margin-top:10px;">Assign Role</button>
+        </form>
+    </section>
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Current Roles{% if show_history %} (incl. history){% endif %}</h2>
+        {% if officer_roles %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Officer</th><th style="padding:8px;">Role</th><th style="padding:8px;">Scope</th><th style="padding:8px;">From</th><th style="padding:8px;">To</th><th style="padding:8px;"></th></tr></thead>
+            <tbody>
+                {% for r in officer_roles %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ r.officer.name }}</td>
+                    <td style="padding:8px;">{{ r.get_role_type_display }}{% if r.is_primary %} <span class="badge">primary</span>{% endif %}</td>
+                    <td style="padding:8px;">{{ r.scope_type }}{% if r.scope_value %}: {{ r.scope_value }}{% endif %}</td>
+                    <td style="padding:8px;">{{ r.effective_from|date:"d M Y"|default:"-" }}</td>
+                    <td style="padding:8px;">{{ r.effective_to|date:"d M Y"|default:"active" }}</td>
+                    <td style="padding:8px;">
+                        {% if not r.effective_to %}
+                        <form method="post" action="{% url 'core:remove_role' %}" style="display:inline;" onsubmit="return confirm('End this role?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="role_id" value="{{ r.pk }}">
+                            <input type="hidden" name="effective_to" value="{{ today }}">
+                            <button class="btn" type="submit">End</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No roles to show.</p>
+        {% endif %}
+    </section>
+
+    <p style="margin-top:16px;"><a href="{% url 'core:user_management' %}">← Back to user management</a></p>
+
 </div>
 {% endblock %}

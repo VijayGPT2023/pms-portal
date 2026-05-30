@@ -1,16 +1,95 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}User Management - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>User Management</h1>
-</div>
+<div class="page-container" style="max-width:1200px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">User Management</h1>
+        <p style="color:#666; margin-top:4px;">Officers, their primary admin role, and password reset.</p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    {% if reset_result %}
+    <div class="alert" style="padding:12px; border-radius:6px; background:#ecfdf5; border:1px solid #6ee7b7; margin-bottom:16px;">
+        Password reset for <strong>{{ reset_result.name }}</strong>. New password:
+        <code style="background:#fff; padding:2px 8px; border-radius:4px;">{{ reset_result.password }}</code>
+        — share securely; it is shown only once.
+    </div>
+    {% endif %}
+
+    <form method="get" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <input type="text" name="search" value="{{ search|default:'' }}" placeholder="Search name/email" style="padding:6px; min-width:200px;">
+        <select name="filter_office" style="padding:6px;">
+            <option value="">All offices</option>
+            {% for o in offices %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name }}</option>
+            {% endfor %}
+        </select>
+        <select name="filter_role" style="padding:6px;">
+            <option value="">All roles</option>
+            {% for code, label in roles.items %}
+            <option value="{{ code }}" {% if filter_role == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn" type="submit">Filter</button>
+    </form>
+
+    {% if officers %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px;">Officer ID</th>
+                <th style="padding:8px;">Name</th>
+                <th style="padding:8px;">Email</th>
+                <th style="padding:8px;">Office</th>
+                <th style="padding:8px;">Admin Role</th>
+                <th style="padding:8px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for o in officers %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;">{{ o.officer_id }}</td>
+                <td style="padding:8px;">{{ o.name }}</td>
+                <td style="padding:8px;">{{ o.email }}</td>
+                <td style="padding:8px;">{{ o.office.office_id|default:"-" }}</td>
+                <td style="padding:8px;">
+                    <form method="post" action="{% url 'core:update_user_role' %}" style="display:flex; gap:4px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="officer_id" value="{{ o.officer_id }}">
+                        <select name="role" style="padding:4px;">
+                            <option value="" {% if not o.admin_role_id %}selected{% endif %}>Officer (none)</option>
+                            {% for code, label in roles.items %}
+                            <option value="{{ code }}" {% if o.admin_role_id == code %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn" type="submit">Set</button>
+                    </form>
+                </td>
+                <td style="padding:8px;">
+                    <form method="post" action="{% url 'core:reset_user_password' %}" style="display:inline;" onsubmit="return confirm('Reset password for {{ o.name|escapejs }}?');">
+                        {% csrf_token %}
+                        <input type="hidden" name="officer_id" value="{{ o.officer_id }}">
+                        <button class="btn" type="submit">Reset PW</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No officers match the filter.</p>
+    {% endif %}
+
+    <p style="margin-top:16px;"><a href="{% url 'core:roles_management' %}">→ Role &amp; hierarchy management</a></p>
+
 </div>
 {% endblock %}

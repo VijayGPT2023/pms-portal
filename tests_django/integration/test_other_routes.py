@@ -165,6 +165,14 @@ class TestAdminRoutes:
     def test_user_management_loads_for_admin(self, auth_client):
         response = auth_client.get("/admin-panel/users/")
         assert response.status_code == 200
+        assert b"User Management" in response.content
+        assert b"coming soon" not in response.content
+
+    def test_roles_management_loads_for_admin(self, auth_client):
+        response = auth_client.get("/admin-panel/roles/")
+        assert response.status_code == 200
+        assert b"Assign Role" in response.content
+        assert b"coming soon" not in response.content
 
 
 class TestDataRoutes:
