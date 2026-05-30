@@ -1,16 +1,89 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Development Work Details - PMS Portal{% endblock %}
+{% block title %}{{ suggestion.suggestion_number }} - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Development Work Details</h1>
-</div>
+<div class="page-container" style="max-width:900px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+        <div>
+            <h1 style="margin:0; font-size:24px;">{{ suggestion.suggestion_number }}</h1>
+            <p style="color:#666; margin-top:4px;">
+                {{ suggestion.get_activity_type_display }} ·
+                <span class="badge badge-{{ suggestion.approval_status|lower }}">{{ suggestion.status }}</span>
+            </p>
+        </div>
+        <a class="btn" href="{% url 'core:non_revenue_list' %}">Back</a>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <table style="width:100%; border-collapse:collapse;">
+            <tr><td style="padding:6px; font-weight:600; width:200px;">Title</td><td style="padding:6px;">{{ suggestion.title }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Office</td><td style="padding:6px;">{{ suggestion.office.office_name }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Owner</td><td style="padding:6px;">{{ suggestion.officer.name|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Man-days booked</td><td style="padding:6px; font-weight:700;">{{ suggestion.man_days|floatformat:1 }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Dates</td><td style="padding:6px;">{{ suggestion.target_start_date|date:"d M Y"|default:"-" }} → {{ suggestion.target_end_date|date:"d M Y"|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Beneficiary</td><td style="padding:6px;">{{ suggestion.beneficiary|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Description</td><td style="padding:6px; white-space:pre-wrap;">{{ suggestion.description|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Expected Outcome</td><td style="padding:6px;">{{ suggestion.expected_outcome|default:"-" }}</td></tr>
+            {% if suggestion.current_update %}
+            <tr><td style="padding:6px; font-weight:600;">Latest Update</td><td style="padding:6px;">{{ suggestion.current_update }}</td></tr>
+            {% endif %}
+            {% if suggestion.approval_status == "REJECTED" %}
+            <tr><td style="padding:6px; font-weight:600;">Rejection reason</td><td style="padding:6px;">{{ suggestion.rejection_reason }}</td></tr>
+            {% endif %}
+        </table>
+    </section>
+
+    {% if is_head and suggestion.approval_status == "PENDING" %}
+    <section class="card" style="padding:16px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Head Approval</h2>
+        <form method="post" action="{% url 'core:non_revenue_approve' suggestion_id=suggestion.pk %}" style="display:inline-block; margin-right:8px;">
+            {% csrf_token %}
+            <select name="officer_id" style="padding:6px;">
+                <option value="">— allocate to officer (optional) —</option>
+                {% for o in officers %}
+                <option value="{{ o.officer_id }}">{{ o.name }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-primary" type="submit">Approve</button>
+        </form>
+        <form method="post" action="{% url 'core:non_revenue_reject' suggestion_id=suggestion.pk %}" style="display:inline-block;">
+            {% csrf_token %}
+            <input type="text" name="rejection_reason" placeholder="Reason" style="padding:6px; width:240px;">
+            <button class="btn" type="submit" style="background:#fee2e2;">Reject</button>
+        </form>
+    </section>
+    {% endif %}
+
+    {% if can_edit and suggestion.status == "IN_PROGRESS" %}
+    <section class="card" style="padding:16px; border:1px solid #fde68a; background:#fefce8; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Progress Update</h2>
+        <form method="post" action="{% url 'core:non_revenue_update' suggestion_id=suggestion.pk %}">
+            {% csrf_token %}
+            <div style="margin-bottom:10px;">
+                <label style="font-weight:600;">Man-days booked (total)</label><br>
+                <input type="number" step="0.5" min="0" name="man_days" value="{{ suggestion.man_days|floatformat:1 }}" style="padding:6px; width:160px;">
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="font-weight:600;">Update note</label><br>
+                <textarea name="current_update" rows="2" style="width:100%; max-width:480px; padding:6px;">{{ suggestion.current_update }}</textarea>
+            </div>
+            <button class="btn btn-primary" type="submit">Save Update</button>
+        </form>
+        <form method="post" action="{% url 'core:non_revenue_complete' suggestion_id=suggestion.pk %}" style="margin-top:8px;">
+            {% csrf_token %}
+            <button class="btn" type="submit">Mark Complete</button>
+        </form>
+    </section>
+    {% endif %}
+
 </div>
 {% endblock %}

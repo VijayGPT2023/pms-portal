@@ -183,15 +183,17 @@ urlpatterns = [
     path("proposals/link/<int:assignment_id>/submit/", prop.link_proposal, name="link_proposal"),
     path("proposals/api/search-activities/", prop.search_activities_api, name="search_activities_api"),
 
-    # ── Non-Revenue / Development Work ────────────────────────────────
-    path("non-revenue/", nrev.list_suggestions, name="list_suggestions"),
-    path("non-revenue/create/", nrev.create_suggestion_form, name="create_suggestion_form"),
-    path("non-revenue/create/submit/", nrev.create_suggestion, name="create_suggestion"),
-    path("non-revenue/view/<int:suggestion_id>/", nrev.view_suggestion, name="view_suggestion"),
-    path("non-revenue/approve/<int:suggestion_id>/", nrev.approve_suggestion, name="approve_suggestion"),
-    path("non-revenue/reject/<int:suggestion_id>/", nrev.reject_suggestion, name="reject_suggestion"),
-    path("non-revenue/update/<int:suggestion_id>/", nrev.update_suggestion_progress, name="update_suggestion_progress"),
-    path("non-revenue/complete/<int:suggestion_id>/", nrev.complete_suggestion, name="complete_suggestion"),
+    # ── Non-Revenue / Development Work (SCOPE_V2 §3.4) ─────────────────
+    path("non-revenue/", nrev.list_suggestions, name="non_revenue_list"),
+    path("non-revenue/create/", nrev.create_suggestion_form, name="non_revenue_create_form"),
+    path("non-revenue/create/submit/", nrev.create_suggestion, name="non_revenue_create"),
+    path("non-revenue/view/<int:suggestion_id>/", nrev.view_suggestion, name="non_revenue_view"),
+    path("non-revenue/approve/<int:suggestion_id>/", nrev.approve_suggestion, name="non_revenue_approve"),
+    path("non-revenue/reject/<int:suggestion_id>/", nrev.reject_suggestion, name="non_revenue_reject"),
+    path("non-revenue/update/<int:suggestion_id>/", nrev.update_suggestion_progress, name="non_revenue_update"),
+    path("non-revenue/complete/<int:suggestion_id>/", nrev.complete_suggestion, name="non_revenue_complete"),
+    # Back-compat alias (base.html historically linked list_suggestions)
+    path("non-revenue/list/", nrev.list_suggestions, name="list_suggestions"),
 
     # ── Pre-WO Pipeline (SCOPE_V2 §3.1) ───────────────────────────────
     path("pre-wo/", prewo.list_records, name="pre_wo_list"),

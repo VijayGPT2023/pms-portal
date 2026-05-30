@@ -1293,6 +1293,8 @@ class NonRevenueSuggestion(models.Model):
     justification = models.TextField(blank=True, default="")
     expected_outcome = models.TextField(blank=True, default="")
     notional_value = models.FloatField(default=0)
+    # SCOPE_V2 §3.4 — non-revenue work is booked in man-days only.
+    man_days = models.FloatField(default=0)
     target_start_date = models.DateField(null=True, blank=True)
     target_end_date = models.DateField(null=True, blank=True)
     status = models.CharField(

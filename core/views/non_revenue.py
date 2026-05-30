@@ -115,7 +115,8 @@ def create_suggestion(request):
         office=office,
         justification=request.POST.get("justification", ""),
         expected_outcome=request.POST.get("expected_outcome", ""),
-        notional_value=float(request.POST.get("notional_value", 0)),
+        notional_value=float(request.POST.get("notional_value", 0) or 0),
+        man_days=float(request.POST.get("man_days", 0) or 0),
         target_start_date=request.POST.get("target_start_date") or None,
         target_end_date=request.POST.get("target_end_date") or None,
         status="PENDING_APPROVAL",
@@ -206,6 +207,9 @@ def update_suggestion_progress(request, suggestion_id):
         raise Http404("Not authorized")
 
     suggestion.current_update = request.POST.get("current_update", "")
+    man_days = request.POST.get("man_days")
+    if man_days not in (None, ""):
+        suggestion.man_days = float(man_days or 0)
     status = request.POST.get("status")
     if status:
         suggestion.status = status

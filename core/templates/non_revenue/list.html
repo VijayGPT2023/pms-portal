@@ -1,16 +1,70 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Development Work - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Development Work</h1>
-</div>
+<div class="page-container" style="max-width:1200px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <div>
+            <h1 style="margin:0; font-size:24px;">Development Work (Non-Revenue)</h1>
+            <p style="color:#666; margin-top:4px;">Man-day-based activities — no cost or revenue (SCOPE_V2 §3.4).</p>
+        </div>
+        <a class="btn btn-primary" href="{% url 'core:non_revenue_create_form' %}">+ New Task</a>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <form method="get" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; align-items:center;">
+        <select name="office" style="padding:6px;">
+            <option value="">All offices</option>
+            {% for o in offices %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn" type="submit">Filter</button>
+        {% if is_head %}<a class="btn" href="?view=pending_approval">Pending Approval ({{ pending_approval_count }})</a>{% endif %}
+        <a class="btn" href="?view=my_created">My Tasks</a>
+        <a class="btn" href="?view=my_allocated">Allocated to Me</a>
+    </form>
+
+    {% if suggestions %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px;">Task #</th>
+                <th style="padding:8px;">Title</th>
+                <th style="padding:8px;">Type</th>
+                <th style="padding:8px;">Office</th>
+                <th style="padding:8px;">Owner</th>
+                <th style="padding:8px;">Man-days</th>
+                <th style="padding:8px;">Status</th>
+                <th style="padding:8px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in suggestions %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;">{{ s.suggestion_number }}</td>
+                <td style="padding:8px;">{{ s.title|truncatechars:50 }}</td>
+                <td style="padding:8px;">{{ s.get_activity_type_display }}</td>
+                <td style="padding:8px;">{{ s.office.office_name }}</td>
+                <td style="padding:8px;">{{ s.officer.name|default:"-" }}</td>
+                <td style="padding:8px;">{{ s.man_days|floatformat:1 }}</td>
+                <td style="padding:8px;"><span class="badge badge-{{ s.approval_status|lower }}">{{ s.status }}</span></td>
+                <td style="padding:8px;"><a href="{% url 'core:non_revenue_view' suggestion_id=s.pk %}">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No development work recorded yet. Click "New Task" to add one.</p>
+    {% endif %}
+
 </div>
 {% endblock %}

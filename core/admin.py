@@ -269,7 +269,7 @@ class FinancialYearTargetAdmin(admin.ModelAdmin):
 
 @admin.register(NonRevenueSuggestion)
 class NonRevenueSuggestionAdmin(admin.ModelAdmin):
-    list_display = ("suggestion_number", "title", "office", "status", "notional_value")
+    list_display = ("suggestion_number", "title", "office", "status", "man_days")
     list_filter = ("status", "activity_type")
 
 
