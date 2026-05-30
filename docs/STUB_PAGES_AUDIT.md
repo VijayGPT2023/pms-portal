@@ -1,8 +1,9 @@
 # Stub Pages Audit & Port Plan
 
-> **PROGRESS (2026-05-30):** Cleanup done (`91a8b53`) + **Tier-1 fully ported**:
-> Training (`4e9a6e1`), Finance (`a971e16`), Clients (`55b912c`), User/Roles (`d0cb4d0`).
-> 14 stub pages → real UI, all with not-a-stub tests. Tier 2 & 3 remain.
+> **COMPLETE (2026-05-31):** ALL stub pages ported. Cleanup (`91a8b53`),
+> Tier-1 (`4e9a6e1`,`a971e16`,`55b912c`,`d0cb4d0`), Tier-2+3 (`568028b`).
+> 32 pages → real UI. `TestNoStubsRemain` sweep confirms 0 placeholders remain.
+> 264 tests green. No model/migration changes in the whole port effort.
 
 **Date:** 2026-05-30
 **Trigger:** UAT on pms.npcindia.info showed ~36 pages displaying
