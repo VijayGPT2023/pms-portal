@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ record.record_number }} - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:900px; margin:0 auto; padding:20px;">
+
+    <header style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+        <div>
+            <h1 style="margin:0; font-size:24px;">{{ record.record_number }}</h1>
+            <p style="color:#666; margin-top:4px;">
+                {{ record.get_stage_display }} ·
+                <span class="badge badge-{{ record.approval_status|lower }}">{{ record.get_approval_status_display }}</span> ·
+                Outcome: {{ record.get_outcome_display }}
+            </p>
+        </div>
+        <div style="display:flex; gap:8px;">
+            {% if can_edit %}<a class="btn" href="{% url 'core:pre_wo_edit_form' record_id=record.pk %}">Edit</a>{% endif %}
+            <a class="btn" href="{% url 'core:pre_wo_list' %}">Back</a>
+        </div>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <table style="width:100%; border-collapse:collapse;">
+            <tr><td style="padding:6px; font-weight:600; width:200px;">Title</td><td style="padding:6px;">{{ record.title }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Client / Prospect</td><td style="padding:6px;">{{ record.client|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Office</td><td style="padding:6px;">{{ record.office.office_name }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Domain</td><td style="padding:6px;">{{ record.domain|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Expected Value</td><td style="padding:6px;">₹ {{ record.expected_value|floatformat:0 }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Expected Date</td><td style="padding:6px;">{{ record.expected_date|date:"d M Y"|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Owner</td><td style="padding:6px;">{{ record.owner.name|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Description</td><td style="padding:6px; white-space:pre-wrap;">{{ record.description|default:"-" }}</td></tr>
+            {% if record.approval_status == "APPROVED" %}
+            <tr><td style="padding:6px; font-weight:600;">Approved by</td><td style="padding:6px;">{{ record.approved_by.name|default:"-" }} on {{ record.approved_at|date:"d M Y H:i" }}</td></tr>
+            {% endif %}
+            {% if record.approval_status == "REJECTED" %}
+            <tr><td style="padding:6px; font-weight:600;">Rejection reason</td><td style="padding:6px;">{{ record.rejection_reason }}</td></tr>
+            {% endif %}
+            {% if record.converted_assignment %}
+            <tr><td style="padding:6px; font-weight:600;">Converted to</td><td style="padding:6px;"><a href="{% url 'core:assignment_view' assignment_id=record.converted_assignment.pk %}">{{ record.converted_assignment.assignment_no }}</a></td></tr>
+            {% endif %}
+            {% if record.outcome_reason %}
+            <tr><td style="padding:6px; font-weight:600;">Outcome note</td><td style="padding:6px;">{{ record.outcome_reason }}</td></tr>
+            {% endif %}
+        </table>
+    </section>
+
+    {% if can_approve %}
+    <section class="card" style="padding:16px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Head Approval</h2>
+        <form method="post" action="{% url 'core:pre_wo_approve' record_id=record.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button class="btn btn-primary" type="submit">Approve</button>
+        </form>
+        <form method="post" action="{% url 'core:pre_wo_reject' record_id=record.pk %}" style="display:inline-block; margin-left:8px;">
+            {% csrf_token %}
+            <input type="text" name="rejection_reason" placeholder="Reason for rejection" style="padding:6px; width:280px;">
+            <button class="btn" type="submit" style="background:#fee2e2;">Reject</button>
+        </form>
+    </section>
+    {% endif %}
+
+    {% if can_close %}
+    <section class="card" style="padding:16px; border:1px solid #fde68a; background:#fefce8; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Close Record</h2>
+        <form method="post" action="{% url 'core:pre_wo_close' record_id=record.pk %}">
+            {% csrf_token %}
+            <div style="margin-bottom:10px;">
+                <label style="font-weight:600;">Outcome</label><br>
+                <select name="outcome" id="outcome-select" style="padding:6px; width:240px;" onchange="document.getElementById('conv-row').style.display = this.value === 'CONVERTED_TO_WO' ? 'block' : 'none';">
+                    <option value="CONVERTED_TO_WO">Converted to WO</option>
+                    <option value="DROPPED">Dropped</option>
+                    <option value="ON_HOLD">On Hold</option>
+                </select>
+            </div>
+            <div id="conv-row" style="margin-bottom:10px;">
+                <label style="font-weight:600;">Link Work Order (optional)</label><br>
+                <select name="assignment_id" style="padding:6px; width:100%; max-width:480px;">
+                    <option value="">— none —</option>
+                    {% for a in open_assignments %}
+                    <option value="{{ a.pk }}">{{ a.assignment_no }} — {{ a.title|truncatechars:50 }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-bottom:10px;">
+                <label style="font-weight:600;">Note</label><br>
+                <textarea name="outcome_reason" rows="2" style="width:100%; max-width:480px; padding:6px;"></textarea>
+            </div>
+            <button class="btn btn-primary" type="submit">Close Record</button>
+        </form>
+    </section>
+    {% endif %}
+
+</div>
+{% endblock %}

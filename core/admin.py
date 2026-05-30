@@ -17,6 +17,7 @@ from .models import (
     GrievanceTicket, GrievanceResponse, GrievanceEscalation,
     UtilizationClaim, ProposalDocument, FinanceOfficer,
     TrainingProgramme, TrainerAllocation, TrainingParticipant, TrainingChecklist,
+    PreWORecord,
 )
 
 
@@ -270,6 +271,14 @@ class FinancialYearTargetAdmin(admin.ModelAdmin):
 class NonRevenueSuggestionAdmin(admin.ModelAdmin):
     list_display = ("suggestion_number", "title", "office", "status", "notional_value")
     list_filter = ("status", "activity_type")
+
+
+@admin.register(PreWORecord)
+class PreWORecordAdmin(admin.ModelAdmin):
+    list_display = ("record_number", "stage", "title", "office", "approval_status", "outcome", "created_at")
+    list_filter = ("stage", "approval_status", "outcome", "office")
+    search_fields = ("record_number", "title", "client")
+    readonly_fields = ("created_at", "updated_at")
 
 
 # Simple registrations for remaining models

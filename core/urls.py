@@ -17,6 +17,7 @@ from .views import (
     non_revenue as nrev,
     profile as prof,
     edit_requests as ereq,
+    pre_wo as prewo,
 )
 
 app_name = "core"
@@ -191,6 +192,17 @@ urlpatterns = [
     path("non-revenue/reject/<int:suggestion_id>/", nrev.reject_suggestion, name="reject_suggestion"),
     path("non-revenue/update/<int:suggestion_id>/", nrev.update_suggestion_progress, name="update_suggestion_progress"),
     path("non-revenue/complete/<int:suggestion_id>/", nrev.complete_suggestion, name="complete_suggestion"),
+
+    # ── Pre-WO Pipeline (SCOPE_V2 §3.1) ───────────────────────────────
+    path("pre-wo/", prewo.list_records, name="pre_wo_list"),
+    path("pre-wo/create/", prewo.create_form, name="pre_wo_create_form"),
+    path("pre-wo/create/submit/", prewo.create_record, name="pre_wo_create"),
+    path("pre-wo/<int:record_id>/", prewo.view_record, name="pre_wo_view"),
+    path("pre-wo/<int:record_id>/edit/", prewo.edit_form, name="pre_wo_edit_form"),
+    path("pre-wo/<int:record_id>/edit/submit/", prewo.edit_record, name="pre_wo_edit"),
+    path("pre-wo/<int:record_id>/approve/", prewo.approve_record, name="pre_wo_approve"),
+    path("pre-wo/<int:record_id>/reject/", prewo.reject_record, name="pre_wo_reject"),
+    path("pre-wo/<int:record_id>/close/", prewo.close_record, name="pre_wo_close"),
 
     # ── Profile ───────────────────────────────────────────────────────
     path("profile/", prof.view_profile, name="profile"),

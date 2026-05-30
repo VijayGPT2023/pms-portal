@@ -1813,6 +1813,100 @@ class CronHeartbeat(models.Model):
 
 
 # =============================================================================
+# Pre-WO Pipeline (SCOPE_V2 §3.1)
+# =============================================================================
+
+class PreWORecord(models.Model):
+    """Pre-Work-Order pipeline record.
+
+    Three optional funnel stages: Enquiry -> Preliminary Visit -> Proposal.
+    Any Officer creates; GH/RD approves. Tracks conversion to a Work Order.
+    A single stage-tagged model (not three tables) so the conversion funnel
+    is a trivial group-by and the schema stays minimal per V2.
+
+    Applies to NEW records only — never the 1,727 imported assignments (D2).
+    """
+
+    class Stage(models.TextChoices):
+        ENQUIRY = "ENQUIRY", "Enquiry"
+        PRELIM_VISIT = "PRELIM_VISIT", "Preliminary Visit"
+        PROPOSAL = "PROPOSAL", "Proposal"
+
+    class ApprovalStatus(models.TextChoices):
+        PENDING = "PENDING", "Pending"
+        APPROVED = "APPROVED", "Approved"
+        REJECTED = "REJECTED", "Rejected"
+
+    class Outcome(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        CONVERTED = "CONVERTED_TO_WO", "Converted to WO"
+        DROPPED = "DROPPED", "Dropped"
+        ON_HOLD = "ON_HOLD", "On Hold"
+
+    record_number = models.CharField(max_length=100, unique=True)
+    stage = models.CharField(
+        max_length=20, choices=Stage.choices, default=Stage.ENQUIRY
+    )
+    title = models.CharField(max_length=500)
+    client = models.CharField(max_length=500, blank=True, default="")
+    description = models.TextField(blank=True, default="")
+    domain = models.CharField(max_length=100, blank=True, default="")
+    expected_value = models.FloatField(default=0)  # raw Rs
+    expected_date = models.DateField(null=True, blank=True)
+
+    office = models.ForeignKey(
+        Office, on_delete=models.PROTECT, related_name="pre_wo_records",
+        to_field="office_id", db_column="office_id",
+    )
+    owner = models.ForeignKey(
+        Officer, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="owned_pre_wo_records",
+        to_field="officer_id", db_column="owner_officer_id",
+    )
+
+    approval_status = models.CharField(
+        max_length=20, choices=ApprovalStatus.choices,
+        default=ApprovalStatus.PENDING,
+    )
+    approved_by = models.ForeignKey(
+        Officer, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="approved_pre_wo_records",
+        to_field="officer_id", db_column="approved_by",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    rejection_reason = models.TextField(blank=True, default="")
+
+    outcome = models.CharField(
+        max_length=20, choices=Outcome.choices, default=Outcome.OPEN
+    )
+    outcome_reason = models.TextField(blank=True, default="")
+    converted_assignment = models.ForeignKey(
+        "Assignment", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="source_pre_wo_records",
+    )
+
+    created_by = models.ForeignKey(
+        Officer, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="created_pre_wo_records",
+        to_field="officer_id", db_column="created_by",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "pre_wo_records"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["stage"], name="idx_prewo_stage"),
+            models.Index(fields=["outcome"], name="idx_prewo_outcome"),
+            models.Index(fields=["office"], name="idx_prewo_office"),
+        ]
+
+    def __str__(self):
+        return f"{self.record_number} - {self.title}"
+
+
+# =============================================================================
 # Register models with django-auditlog
 # =============================================================================
 
@@ -1828,3 +1922,4 @@ auditlog.register(Officer, exclude_fields=["password", "last_login"])
 auditlog.register(GrievanceTicket)
 auditlog.register(UtilizationClaim)
 auditlog.register(TrainingProgramme)
+auditlog.register(PreWORecord)
