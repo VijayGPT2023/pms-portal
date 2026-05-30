@@ -17,6 +17,7 @@ from .models import (
     GrievanceTicket, GrievanceResponse, GrievanceEscalation,
     UtilizationClaim, ProposalDocument, FinanceOfficer,
     TrainingProgramme, TrainerAllocation, TrainingParticipant, TrainingChecklist,
+    TrainingRevenueLedger,
     PreWORecord,
 )
 
@@ -299,6 +300,7 @@ admin.site.register(FinanceOfficer)
 admin.site.register(TrainerAllocation)
 admin.site.register(TrainingParticipant)
 admin.site.register(TrainingChecklist)
+admin.site.register(TrainingRevenueLedger)
 
 # Admin site branding
 admin.site.site_header = "PMS Portal Administration"

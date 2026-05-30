@@ -1610,6 +1610,22 @@ class TrainingProgramme(models.Model):
     fee_per_participant = models.FloatField(default=0)
     budgeted_revenue = models.FloatField(default=0)
     actual_revenue = models.FloatField(default=0)
+
+    # --- Post-event completion + 80-20 recognition (SCOPE_V2 §3.3) ---
+    # Step 1 (on completion): TL enters actuals + invoice -> 80% recognized.
+    # Step 2 (on payment): TL records payment -> 20% recognized.
+    actual_participants = models.IntegerField(default=0)
+    actual_expenditure = models.FloatField(default=0)
+    invoice_number = models.CharField(max_length=100, blank=True, default="")
+    invoice_amount = models.FloatField(default=0)
+    invoice_date = models.DateField(null=True, blank=True)
+    payment_amount = models.FloatField(default=0)
+    payment_date = models.DateField(null=True, blank=True)
+    revenue_recognized_80 = models.FloatField(default=0)
+    revenue_recognized_20 = models.FloatField(default=0)
+    completion_registered = models.BooleanField(default=False)
+    payment_recorded = models.BooleanField(default=False)
+    fy_period = models.CharField(max_length=20, blank=True, default="")
     application_start_date = models.DateField(null=True, blank=True)
     application_end_date = models.DateField(null=True, blank=True)
     remarks = models.TextField(blank=True, default="")
@@ -1695,6 +1711,41 @@ class TrainingChecklist(models.Model):
         db_table = "training_checklist"
         unique_together = [("programme", "step_order")]
         ordering = ["step_order"]
+
+
+class TrainingRevenueLedger(models.Model):
+    """Faculty-wise revenue entries for training (mirrors OfficerRevenueLedger).
+
+    Kept separate from the assignment ledger so the audited assignment 80-20
+    logic is untouched. Revenue MIS unions both. Split is by
+    TrainerAllocation.revenue_share_percent (SCOPE_V2 §3.3).
+    """
+
+    class RevenueType(models.TextChoices):
+        COMPLETION_80 = "COMPLETION_80", "80% on Completion"
+        PAYMENT_20 = "PAYMENT_20", "20% on Payment"
+
+    officer = models.ForeignKey(
+        Officer, on_delete=models.PROTECT, related_name="training_revenue_ledger",
+        to_field="officer_id", db_column="officer_id",
+    )
+    programme = models.ForeignKey(
+        TrainingProgramme, on_delete=models.CASCADE, related_name="revenue_ledger",
+    )
+    revenue_type = models.CharField(max_length=20, choices=RevenueType.choices)
+    share_percent = models.FloatField()
+    amount = models.FloatField()
+    fy_period = models.CharField(max_length=20, blank=True, default="")
+    transaction_date = models.DateField()
+    remarks = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "training_revenue_ledger"
+        indexes = [
+            models.Index(fields=["officer"], name="idx_trl_officer"),
+            models.Index(fields=["programme"], name="idx_trl_programme"),
+        ]
 
 
 # =============================================================================
@@ -1924,4 +1975,5 @@ auditlog.register(Officer, exclude_fields=["password", "last_login"])
 auditlog.register(GrievanceTicket)
 auditlog.register(UtilizationClaim)
 auditlog.register(TrainingProgramme)
+auditlog.register(TrainingRevenueLedger)
 auditlog.register(PreWORecord)

@@ -9,16 +9,36 @@ from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+from django.contrib import messages
+from django.db import transaction
+from django.views.decorators.http import require_POST
+
 from core.models import (
     ActivityLog, InvoiceRequest, Officer, Office,
     TrainerAllocation, TrainingChecklist, TrainingParticipant,
-    TrainingProgramme,
+    TrainingProgramme, TrainingRevenueLedger,
 )
 
 
 def _is_head_or_admin(user):
     return user.is_staff or user.admin_role_id in (
         "ADMIN", "DG", "DDG-I", "DDG-II", "RD_HEAD", "GROUP_HEAD",
+    )
+
+
+def _current_fy():
+    """Return current financial year string e.g. '2025-26'."""
+    today = date.today()
+    if today.month >= 4:
+        return f"{today.year}-{str(today.year + 1)[2:]}"
+    return f"{today.year - 1}-{str(today.year)[2:]}"
+
+
+def _can_manage_programme(user, programme):
+    return (
+        _is_head_or_admin(user)
+        or programme.coordinator == user
+        or programme.created_by == user
     )
 
 
@@ -509,3 +529,127 @@ def reject_training_revenue(request, programme_id):
     programme.remarks = request.POST.get("rejection_remarks", "")
     programme.save(update_fields=["revenue_approval_status", "remarks"])
     return redirect("core:approvals_list")
+
+
+# ============================================================
+# Post-event completion + 80-20 revenue recognition (SCOPE_V2 §3.3)
+# ============================================================
+
+def _split_to_faculty(programme, total_amount, revenue_type, fy_period):
+    """Create TrainingRevenueLedger rows split by faculty revenue_share_percent.
+
+    Falls back to an even split across trainers if shares don't sum to ~100.
+    """
+    trainers = list(TrainerAllocation.objects.filter(programme=programme).select_related("officer"))
+    if not trainers:
+        return
+    total_pct = sum(t.revenue_share_percent or 0 for t in trainers)
+    even = 100.0 / len(trainers)
+    use_even = abs(total_pct - 100.0) > 0.01
+
+    for t in trainers:
+        pct = even if use_even else (t.revenue_share_percent or 0)
+        if pct <= 0:
+            continue
+        TrainingRevenueLedger.objects.create(
+            officer_id=t.officer_id,
+            programme=programme,
+            revenue_type=revenue_type,
+            share_percent=pct,
+            amount=total_amount * (pct / 100.0),
+            fy_period=fy_period,
+            transaction_date=date.today(),
+            remarks=f"{dict(TrainingRevenueLedger.RevenueType.choices)[revenue_type]} for {programme.programme_number}",
+        )
+
+
+@login_required
+@require_POST
+def register_completion(request, programme_id):
+    """Step 1: TL registers post-event actuals + invoice -> 80% recognized."""
+    programme = get_object_or_404(TrainingProgramme, pk=programme_id)
+    if not _can_manage_programme(request.user, programme):
+        messages.error(request, "You cannot register completion for this programme.")
+        return redirect("core:training_view", programme_id=programme_id)
+    if programme.completion_registered:
+        messages.error(request, "Completion already registered.")
+        return redirect("core:training_view", programme_id=programme_id)
+
+    try:
+        invoice_amount = float(request.POST.get("invoice_amount", 0) or 0)
+    except ValueError:
+        invoice_amount = 0.0
+    if invoice_amount <= 0:
+        messages.error(request, "Invoice amount is required to recognize revenue.")
+        return redirect("core:training_view", programme_id=programme_id)
+
+    fy_period = request.POST.get("fy_period") or _current_fy()
+
+    with transaction.atomic():
+        programme.actual_participants = int(request.POST.get("actual_participants", 0) or 0)
+        programme.actual_expenditure = float(request.POST.get("actual_expenditure", 0) or 0)
+        programme.invoice_number = request.POST.get("invoice_number", "").strip()
+        programme.invoice_amount = invoice_amount
+        programme.invoice_date = request.POST.get("invoice_date") or None
+        programme.fy_period = fy_period
+        programme.revenue_recognized_80 = invoice_amount * 0.80
+        programme.actual_revenue = invoice_amount
+        programme.completion_registered = True
+        programme.stage = "CONDUCTED"
+        programme.save()
+
+        _split_to_faculty(programme, programme.revenue_recognized_80, "COMPLETION_80", fy_period)
+
+        ActivityLog.objects.create(
+            actor=request.user, action="UPDATE",
+            entity_type="training_programme", entity_id=programme.pk,
+            remarks=f"Completion registered; 80% ({programme.revenue_recognized_80:.0f}) recognized",
+        )
+
+    messages.success(request, "Completion registered. 80% revenue recognized.")
+    return redirect("core:training_view", programme_id=programme_id)
+
+
+@login_required
+@require_POST
+def record_training_payment(request, programme_id):
+    """Step 2: TL records payment receipt -> 20% recognized."""
+    programme = get_object_or_404(TrainingProgramme, pk=programme_id)
+    if not _can_manage_programme(request.user, programme):
+        messages.error(request, "You cannot record payment for this programme.")
+        return redirect("core:training_view", programme_id=programme_id)
+    if not programme.completion_registered:
+        messages.error(request, "Register completion (80%) before recording payment.")
+        return redirect("core:training_view", programme_id=programme_id)
+    if programme.payment_recorded:
+        messages.error(request, "Payment already recorded.")
+        return redirect("core:training_view", programme_id=programme_id)
+
+    try:
+        payment_amount = float(request.POST.get("payment_amount", 0) or 0)
+    except ValueError:
+        payment_amount = 0.0
+    if payment_amount <= 0:
+        messages.error(request, "Payment amount is required.")
+        return redirect("core:training_view", programme_id=programme_id)
+
+    fy_period = request.POST.get("fy_period") or programme.fy_period or _current_fy()
+
+    with transaction.atomic():
+        programme.payment_amount = payment_amount
+        programme.payment_date = request.POST.get("payment_date") or None
+        programme.revenue_recognized_20 = payment_amount * 0.20
+        programme.payment_recorded = True
+        programme.stage = "CLOSED"
+        programme.save()
+
+        _split_to_faculty(programme, programme.revenue_recognized_20, "PAYMENT_20", fy_period)
+
+        ActivityLog.objects.create(
+            actor=request.user, action="UPDATE",
+            entity_type="training_programme", entity_id=programme.pk,
+            remarks=f"Payment recorded; 20% ({programme.revenue_recognized_20:.0f}) recognized",
+        )
+
+    messages.success(request, "Payment recorded. 20% revenue recognized.")
+    return redirect("core:training_view", programme_id=programme_id)

@@ -150,6 +150,9 @@ urlpatterns = [
     path("training/revenue/<int:programme_id>/submit/", trn.submit_training_revenue, name="submit_training_revenue"),
     path("training/revenue/<int:programme_id>/approve/", trn.approve_training_revenue, name="approve_training_revenue"),
     path("training/revenue/<int:programme_id>/reject/", trn.reject_training_revenue, name="reject_training_revenue"),
+    # Post-event 80-20 recognition (SCOPE_V2 §3.3)
+    path("training/<int:programme_id>/register-completion/", trn.register_completion, name="training_register_completion"),
+    path("training/<int:programme_id>/record-payment/", trn.record_training_payment, name="training_record_payment"),
 
     # ── Utilization ───────────────────────────────────────────────────
     path("utilization/", util.utilization_list, name="utilization_list"),

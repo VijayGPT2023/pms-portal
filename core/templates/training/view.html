@@ -1,16 +1,102 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Training Details - PMS Portal{% endblock %}
+{% block title %}{{ programme.programme_number }} - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Training Programme Details</h1>
-</div>
+<div class="page-container" style="max-width:960px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+        <div>
+            <h1 style="margin:0; font-size:24px;">{{ programme.title }}</h1>
+            <p style="color:#666; margin-top:4px;">{{ programme.programme_number }} · Stage: {{ programme.stage }}</p>
+        </div>
+        <a class="btn" href="{% url 'core:training_list' %}">Back</a>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <table style="width:100%; border-collapse:collapse;">
+            <tr><td style="padding:6px; font-weight:600; width:220px;">Office</td><td style="padding:6px;">{{ programme.office.office_name }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Coordinator</td><td style="padding:6px;">{{ programme.coordinator.name|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Dates</td><td style="padding:6px;">{{ programme.training_start_date|date:"d M Y"|default:"-" }} → {{ programme.training_end_date|date:"d M Y"|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Budgeted</td><td style="padding:6px;">{{ programme.budgeted_participants }} participants × ₹{{ programme.fee_per_participant|floatformat:0 }} = ₹{{ programme.budgeted_revenue|floatformat:0 }}</td></tr>
+        </table>
+    </section>
+
+    <!-- Faculty -->
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Faculty</h2>
+        {% if trainers %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:6px;">Name</th><th style="padding:6px;">Role</th><th style="padding:6px;">Revenue %</th></tr></thead>
+            <tbody>
+                {% for t in trainers %}
+                <tr style="border-top:1px solid #e5e7eb;"><td style="padding:6px;">{{ t.officer.name }}</td><td style="padding:6px;">{{ t.trainer_role }}</td><td style="padding:6px;">{{ t.revenue_share_percent|floatformat:0 }}%</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No faculty allocated yet.</p>
+        {% endif %}
+        {% if can_edit %}<a class="btn" style="margin-top:10px;" href="{% url 'core:trainer_allocation_form' programme_id=programme.pk %}">Manage Faculty</a>{% endif %}
+    </section>
+
+    <!-- 80-20 recognition (SCOPE_V2 §3.3) -->
+    <section class="card" style="padding:16px; border:1px solid #6ee7b7; background:#ecfdf5; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Revenue Recognition (80-20)</h2>
+
+        {% if programme.completion_registered %}
+        <p>✅ <strong>Completion registered.</strong> Invoice ₹{{ programme.invoice_amount|floatformat:0 }} ·
+           80% recognized = ₹{{ programme.revenue_recognized_80|floatformat:0 }} ·
+           {{ programme.actual_participants }} participants.</p>
+        {% elif can_edit %}
+        <form method="post" action="{% url 'core:training_register_completion' programme_id=programme.pk %}" style="margin-bottom:8px;">
+            {% csrf_token %}
+            <p style="margin-top:0; color:#555;">Step 1 — enter post-event actuals + invoice to recognize 80%.</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+                <input type="number" name="actual_participants" placeholder="Actual participants" style="padding:6px;">
+                <input type="number" step="0.01" name="actual_expenditure" placeholder="Expenditure ₹" style="padding:6px;">
+                <input type="text" name="invoice_number" placeholder="Invoice #" style="padding:6px;">
+                <input type="number" step="0.01" name="invoice_amount" placeholder="Invoice amount ₹ *" required style="padding:6px;">
+                <input type="date" name="invoice_date" style="padding:6px;">
+            </div>
+            <button class="btn btn-primary" type="submit">Register Completion (80%)</button>
+        </form>
+        {% else %}
+        <p style="color:#666;">Pending completion registration by the coordinator.</p>
+        {% endif %}
+
+        <hr style="border:none; border-top:1px solid #d1fae5; margin:14px 0;">
+
+        {% if programme.payment_recorded %}
+        <p>✅ <strong>Payment recorded.</strong> ₹{{ programme.payment_amount|floatformat:0 }} ·
+           20% recognized = ₹{{ programme.revenue_recognized_20|floatformat:0 }}.</p>
+        {% elif programme.completion_registered and can_edit %}
+        <form method="post" action="{% url 'core:training_record_payment' programme_id=programme.pk %}">
+            {% csrf_token %}
+            <p style="margin-top:0; color:#555;">Step 2 — record payment receipt to recognize 20%.</p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:8px;">
+                <input type="number" step="0.01" name="payment_amount" placeholder="Payment amount ₹ *" required style="padding:6px;">
+                <input type="date" name="payment_date" style="padding:6px;">
+            </div>
+            <button class="btn btn-primary" type="submit">Record Payment (20%)</button>
+        </form>
+        {% elif not programme.completion_registered %}
+        <p style="color:#666;">Register completion first to unlock payment recording.</p>
+        {% endif %}
+    </section>
+
+    <!-- Participants count -->
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Participants ({{ participants|length }})</h2>
+        <p style="color:#666;">Registered participant count. Final actuals captured at completion.</p>
+    </section>
+
 </div>
 {% endblock %}
