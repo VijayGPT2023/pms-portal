@@ -1,16 +1,51 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Expenditure Entry - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Expenditure Entry</h1>
-</div>
+<div class="page-container" style="max-width:720px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Expenditure Entry</h1>
+        <p style="color:#666; margin-top:4px;">{{ assignment.assignment_no }} — record an actual expense.</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'core:expenditure_entry' assignment_id=assignment.pk %}" class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        {% csrf_token %}
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:2;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Expenditure Head *</label>
+                <select name="head_id" required style="width:100%; padding:8px;">
+                    {% for h in expenditure_heads %}
+                    <option value="{{ h.id }}">{{ h.head_code }} — {{ h.head_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Amount (₹) *</label>
+                <input type="number" step="0.01" name="amount" required style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Date</label>
+                <input type="date" name="entry_date" style="width:100%; padding:8px;">
+            </div>
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block; font-weight:600; margin-bottom:4px;">Voucher Reference</label>
+            <input type="text" name="voucher_reference" style="width:100%; padding:8px;">
+        </div>
+        <div style="margin-bottom:18px;">
+            <label style="display:block; font-weight:600; margin-bottom:4px;">Description</label>
+            <textarea name="description" rows="2" style="width:100%; padding:8px;"></textarea>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Save Entry</button>
+            <a class="btn" href="{% url 'core:assignment_view' assignment_id=assignment.pk %}">Back</a>
+        </div>
+    </form>
 </div>
 {% endblock %}

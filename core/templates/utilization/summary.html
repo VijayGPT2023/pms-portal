@@ -1,16 +1,48 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Utilization Summary - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Utilization Summary</h1>
-</div>
+<div class="page-container" style="max-width:1100px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Utilization Summary</h1>
+        <p style="color:#666; margin-top:4px;">Officer man-day utilization for {{ filter_month }} (≈{{ working_days }} working days).</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
-    </div>
+    <form method="get" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <input type="month" name="month" value="{{ filter_month|default:'' }}" style="padding:6px;">
+        <select name="office" style="padding:6px;">
+            <option value="">All offices</option>
+            {% for o in offices %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn" type="submit">Filter</button>
+    </form>
+
+    {% if summary %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f3f4f6; text-align:left;">
+            <th style="padding:8px;">Officer</th><th style="padding:8px;">Office</th>
+            <th style="padding:8px; text-align:right;">Claimed</th><th style="padding:8px; text-align:right;">Approved</th>
+            <th style="padding:8px; text-align:right;">Claims</th><th style="padding:8px; text-align:right;">Utilization %</th>
+        </tr></thead>
+        <tbody>
+            {% for o in summary %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;">{{ o.name }}</td>
+                <td style="padding:8px;">{{ o.office_id|default:"-" }}</td>
+                <td style="padding:8px; text-align:right;">{{ o.total_claimed|default:0|floatformat:1 }}</td>
+                <td style="padding:8px; text-align:right;">{{ o.total_approved|default:0|floatformat:1 }}</td>
+                <td style="padding:8px; text-align:right;">{{ o.claim_count }}</td>
+                <td style="padding:8px; text-align:right;">
+                    {% widthratio o.total_approved|default:0 working_days 100 %}%
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No utilization data for this month.</p>
+    {% endif %}
 </div>
 {% endblock %}

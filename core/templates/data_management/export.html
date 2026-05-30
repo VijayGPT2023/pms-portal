@@ -1,16 +1,23 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Export Data - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Export Data</h1>
-</div>
+<div class="page-container" style="max-width:680px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Export Data</h1>
+        <p style="color:#666; margin-top:4px;">Download assignment data for offline analysis.</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card" style="padding:20px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Assignments Export</h2>
+        <p style="color:#666;">Exports all assignments visible to you as a spreadsheet.</p>
+        <a class="btn btn-primary" href="{% url 'core:export_assignments' %}">Download Assignments</a>
+    </section>
 </div>
 {% endblock %}

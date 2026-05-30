@@ -1,16 +1,30 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Import Data - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Import Data</h1>
-</div>
+<div class="page-container" style="max-width:680px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Import Data</h1>
+        <p style="color:#666; margin-top:4px;">Upload a spreadsheet to bulk-import records.</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card" style="padding:20px; border:1px solid #e5e7eb; border-radius:8px;">
+        <form method="post" action="{% url 'core:import_data' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div style="margin-bottom:14px;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Spreadsheet File (.xlsx / .csv) *</label>
+                <input type="file" name="file" accept=".xlsx,.xls,.csv" required style="width:100%; padding:8px;">
+            </div>
+            <button class="btn btn-primary" type="submit">Upload &amp; Import</button>
+            <a class="btn" href="{% url 'core:dashboard' %}">Cancel</a>
+        </form>
+        <p style="color:#888; margin-top:14px; font-size:13px;">Imports run through full validation — invalid rows are reported, not silently skipped.</p>
+    </section>
 </div>
 {% endblock %}

@@ -1,16 +1,61 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Configuration - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>System Configuration</h1>
-</div>
+<div class="page-container" style="max-width:1000px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">System Configuration</h1>
+        <p style="color:#666; margin-top:4px;">Dropdown options used across the portal (domains, client types, etc.).</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card" style="padding:16px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px; margin-bottom:24px;">
+        <h2 style="font-size:18px; margin-top:0;">Add Option</h2>
+        <form method="post" action="{% url 'core:add_config_option' %}">
+            {% csrf_token %}
+            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end;">
+                <div style="flex:1; min-width:140px;"><label style="display:block; font-weight:600; margin-bottom:4px;">Category *</label><input type="text" name="category" required style="width:100%; padding:8px;"></div>
+                <div style="flex:1; min-width:140px;"><label style="display:block; font-weight:600; margin-bottom:4px;">Value *</label><input type="text" name="option_value" required style="width:100%; padding:8px;"></div>
+                <div style="flex:1; min-width:140px;"><label style="display:block; font-weight:600; margin-bottom:4px;">Label</label><input type="text" name="option_label" style="width:100%; padding:8px;"></div>
+                <div style="flex:1; min-width:120px;"><label style="display:block; font-weight:600; margin-bottom:4px;">Parent</label><input type="text" name="parent_value" style="width:100%; padding:8px;"></div>
+                <div style="flex:0;"><label style="display:block; font-weight:600; margin-bottom:4px;">Sort</label><input type="number" name="sort_order" value="0" style="width:70px; padding:8px;"></div>
+                <button class="btn btn-primary" type="submit">Add</button>
+            </div>
+        </form>
+    </section>
+
+    {% for category, options in config_by_category.items %}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:16px;">
+        <h2 style="font-size:17px; margin-top:0;">{{ category }}</h2>
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:6px;">Value</th><th style="padding:6px;">Label</th><th style="padding:6px;">Parent</th><th style="padding:6px;">Sort</th><th style="padding:6px;"></th></tr></thead>
+            <tbody>
+                {% for opt in options %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:6px;">{{ opt.option_value }}</td>
+                    <td style="padding:6px;">{{ opt.option_label|default:"-" }}</td>
+                    <td style="padding:6px;">{{ opt.parent_value|default:"-" }}</td>
+                    <td style="padding:6px;">{{ opt.sort_order }}</td>
+                    <td style="padding:6px;">
+                        <form method="post" action="{% url 'core:delete_config_option' %}" style="display:inline;" onsubmit="return confirm('Delete this option?');">
+                            {% csrf_token %}
+                            <input type="hidden" name="category" value="{{ opt.category }}">
+                            <input type="hidden" name="option_value" value="{{ opt.option_value }}">
+                            <button class="btn" type="submit">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% empty %}
+    <p style="color:#666;">No configuration options defined yet.</p>
+    {% endfor %}
 </div>
 {% endblock %}

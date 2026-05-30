@@ -1,16 +1,57 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Assignments - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Assignments List</h1>
-</div>
+<div class="page-container" style="max-width:1200px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Assignments</h1>
+        <p style="color:#666; margin-top:4px;">All work orders / assignments in scope.</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <form method="get" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <select name="filter_office" style="padding:6px;">
+            <option value="">All offices</option>
+            {% for o in offices %}
+            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name }}</option>
+            {% endfor %}
+        </select>
+        <select name="filter_status" style="padding:6px;">
+            <option value="">All statuses</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn" type="submit">Filter</button>
+    </form>
+
+    {% if assignments %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f3f4f6; text-align:left;">
+            <th style="padding:8px;">Assignment #</th><th style="padding:8px;">Title</th><th style="padding:8px;">Office</th>
+            <th style="padding:8px;">Type</th><th style="padding:8px;">Status</th><th style="padding:8px; text-align:right;">Value</th><th style="padding:8px;"></th>
+        </tr></thead>
+        <tbody>
+            {% for a in assignments %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;">{{ a.assignment_no }}</td>
+                <td style="padding:8px;">{{ a.title|truncatechars:40 }}</td>
+                <td style="padding:8px;">{{ a.office.office_id|default:"-" }}</td>
+                <td style="padding:8px;">{{ a.get_type_display|default:a.type }}</td>
+                <td style="padding:8px;"><span class="badge">{{ a.status }}</span></td>
+                <td style="padding:8px; text-align:right;">₹{{ a.gross_value|default:0|floatformat:0 }}</td>
+                <td style="padding:8px;"><a href="{% url 'core:assignment_view' assignment_id=a.pk %}">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No assignments match the filter.</p>
+    {% endif %}
 </div>
 {% endblock %}

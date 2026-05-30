@@ -1,16 +1,52 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Utilization Claims - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Utilization Claims</h1>
-</div>
+<div class="page-container" style="max-width:1100px; margin:0 auto; padding:20px;">
+    <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <div>
+            <h1 style="margin:0; font-size:24px;">Utilization Claims</h1>
+            <p style="color:#666; margin-top:4px;">Man-day claims against assignments.</p>
+        </div>
+        <a class="btn btn-primary" href="{% url 'core:new_claim_form' %}">+ New Claim</a>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <form method="get" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <input type="month" name="month" value="{{ filter_month|default:'' }}" style="padding:6px;">
+        <input type="text" name="status" value="{{ filter_status|default:'' }}" placeholder="Status" style="padding:6px;">
+        <button class="btn" type="submit">Filter</button>
+        <a class="btn" href="{% url 'core:pending_approval' %}">Pending Approval</a>
+        <a class="btn" href="{% url 'core:utilization_summary' %}">Summary</a>
+    </form>
+
+    {% if claims %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f3f4f6; text-align:left;">
+            <th style="padding:8px;">Claim #</th><th style="padding:8px;">Month</th><th style="padding:8px;">Type</th>
+            <th style="padding:8px;">Assignment</th><th style="padding:8px; text-align:right;">Man-days</th><th style="padding:8px;">Status</th><th style="padding:8px;"></th>
+        </tr></thead>
+        <tbody>
+            {% for c in claims %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;">{{ c.claim_number }}</td>
+                <td style="padding:8px;">{{ c.claim_month }}</td>
+                <td style="padding:8px;">{{ claim_type_labels|default_if_none:'' }}{{ c.claim_type }}</td>
+                <td style="padding:8px;">{{ c.assignment.assignment_no|default:"-" }}</td>
+                <td style="padding:8px; text-align:right;">{{ c.man_days_claimed|floatformat:1 }}</td>
+                <td style="padding:8px;"><span class="badge">{{ c.status }}</span></td>
+                <td style="padding:8px;">{% if c.status == "DRAFT" %}<a href="{% url 'core:edit_claim_form' claim_id=c.pk %}">Edit</a>{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No claims yet. Click "New Claim" to add one.</p>
+    {% endif %}
 </div>
 {% endblock %}

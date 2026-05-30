@@ -1,16 +1,45 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}My Profile - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>My Profile</h1>
-</div>
+<div class="page-container" style="max-width:760px; margin:0 auto; padding:20px;">
+    <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">My Profile</h1>
+        <a class="btn" href="{% url 'core:change_password_form' %}">Change Password</a>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
-    </div>
+    {% if message %}<div class="alert" style="padding:10px; border-radius:4px; background:#ecfdf5; border:1px solid #6ee7b7; margin-bottom:16px;">{{ message }}</div>{% endif %}
+    {% if error %}<div class="alert" style="padding:10px; border-radius:4px; background:#fef2f2; border:1px solid #fecaca; margin-bottom:16px;">{{ error }}</div>{% endif %}
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <table style="width:100%; border-collapse:collapse;">
+            <tr><td style="padding:6px; font-weight:600; width:180px;">Name</td><td style="padding:6px;">{{ officer.name }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Officer ID</td><td style="padding:6px;">{{ officer.officer_id }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Email</td><td style="padding:6px;">{{ officer.email }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Designation</td><td style="padding:6px;">{{ officer.designation|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Office</td><td style="padding:6px;">{{ office_name|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Admin Role</td><td style="padding:6px;">{{ officer.admin_role_id|default:"Officer" }}</td></tr>
+        </table>
+    </section>
+
+    <section style="display:flex; gap:12px; margin-bottom:20px;">
+        <div style="flex:1; padding:16px; text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+            <div style="font-size:26px; font-weight:700;">{{ stats.assignment_count|default:0 }}</div><div style="color:#555;">Assignments</div>
+        </div>
+        <div style="flex:1; padding:16px; text-align:center; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px;">
+            <div style="font-size:22px; font-weight:700;">₹{{ stats.total_revenue|default:0|floatformat:0 }}</div><div style="color:#555;">My Revenue Share</div>
+        </div>
+    </section>
+
+    {% if roles %}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">My Roles</h2>
+        <ul>
+            {% for r in roles %}
+            <li>{{ r.get_role_type_display }}{% if r.scope_value %} ({{ r.scope_type }}: {{ r.scope_value }}){% endif %}</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
 </div>
 {% endblock %}

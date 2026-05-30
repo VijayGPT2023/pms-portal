@@ -1,16 +1,43 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Pending Approval - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Claims Pending Approval</h1>
-</div>
+<div class="page-container" style="max-width:1100px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Claims Pending Approval</h1>
+        <p style="color:#666; margin-top:4px;">Claims awaiting your TL approval.</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    {% if claims %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead><tr style="background:#f3f4f6; text-align:left;">
+            <th style="padding:8px;">Claim #</th><th style="padding:8px;">Officer</th><th style="padding:8px;">Month</th>
+            <th style="padding:8px;">Assignment</th><th style="padding:8px; text-align:right;">Man-days</th><th style="padding:8px;">Action</th>
+        </tr></thead>
+        <tbody>
+            {% for c in claims %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;">{{ c.claim_number }}</td>
+                <td style="padding:8px;">{{ c.officer.name|default:"-" }}</td>
+                <td style="padding:8px;">{{ c.claim_month }}</td>
+                <td style="padding:8px;">{{ c.assignment.assignment_no|default:"-" }}</td>
+                <td style="padding:8px; text-align:right;">{{ c.man_days_claimed|floatformat:1 }}</td>
+                <td style="padding:8px;">
+                    <form method="post" action="{% url 'core:tl_approve' claim_id=c.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-primary" type="submit">Approve</button></form>
+                    <form method="post" action="{% url 'core:tl_reject' claim_id=c.pk %}" style="display:inline;">{% csrf_token %}<input type="text" name="tl_remarks" placeholder="reason" style="padding:4px; width:120px;"><button class="btn" type="submit">Reject</button></form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No claims pending your approval.</p>
+    {% endif %}
 </div>
 {% endblock %}

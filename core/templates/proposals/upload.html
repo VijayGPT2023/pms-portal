@@ -1,16 +1,68 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Upload Document - PMS Portal{% endblock %}
+{% block title %}Documents - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Upload Document</h1>
-</div>
+<div class="page-container" style="max-width:820px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Documents</h1>
+        <p style="color:#666; margin-top:4px;">{{ assignment.assignment_no }} — {{ assignment.title|truncatechars:50 }}</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Uploaded Documents</h2>
+        {% if documents %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">File</th><th style="padding:8px;">Type</th><th style="padding:8px;">Size</th><th style="padding:8px;"></th></tr></thead>
+            <tbody>
+                {% for d in documents %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ d.file_name }}</td>
+                    <td style="padding:8px;">{{ d.document_type }}</td>
+                    <td style="padding:8px;">{{ d.file_size|filesizeformat }}</td>
+                    <td style="padding:8px;">
+                        <a href="{% url 'core:download_document' document_id=d.pk %}">Download</a>
+                        {% if can_manage %} · <form method="post" action="{% url 'core:delete_document' document_id=d.pk %}" style="display:inline;" onsubmit="return confirm('Delete this document?');">{% csrf_token %}<button class="btn" type="submit">Delete</button></form>{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No documents uploaded yet.</p>
+        {% endif %}
+    </section>
+
+    {% if can_manage %}
+    <section class="card" style="padding:16px; border:1px solid #bfdbfe; background:#eff6ff; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Upload New Document</h2>
+        <p style="color:#666; margin-top:0;">Max {{ max_upload_size_mb }} MB. Allowed: {{ allowed_extensions }}</p>
+        <form method="post" action="{% url 'core:upload_document' assignment_id=assignment.pk %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div style="display:flex; gap:12px; margin-bottom:12px; flex-wrap:wrap; align-items:end;">
+                <div style="flex:1; min-width:160px;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">Type</label>
+                    <select name="document_type" style="width:100%; padding:8px;">
+                        {% for dt in document_types %}
+                        <option value="{{ dt }}">{{ dt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex:2; min-width:200px;">
+                    <label style="display:block; font-weight:600; margin-bottom:4px;">File *</label>
+                    <input type="file" name="file" required style="width:100%; padding:6px;">
+                </div>
+            </div>
+            <input type="text" name="description" placeholder="Description (optional)" style="width:100%; padding:8px; margin-bottom:12px;">
+            <button class="btn btn-primary" type="submit">Upload</button>
+            <a class="btn" href="{% url 'core:proposal_list' %}">Back</a>
+        </form>
+    </section>
+    {% endif %}
 </div>
 {% endblock %}

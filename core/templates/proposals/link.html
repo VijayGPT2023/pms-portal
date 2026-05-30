@@ -1,16 +1,42 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Link Proposal - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Link Proposal to Assignment</h1>
-</div>
+<div class="page-container" style="max-width:760px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Link Proposal to Assignment</h1>
+        <p style="color:#666; margin-top:4px;">{{ assignment.assignment_no }} — {{ assignment.title|truncatechars:50 }}</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    {% if linked_proposal %}
+    <div class="alert" style="padding:12px; border-radius:6px; background:#ecfdf5; border:1px solid #6ee7b7; margin-bottom:16px;">
+        Currently linked: <strong>{{ linked_proposal.file_name }}</strong>
+    </div>
+    {% endif %}
+
+    {% if can_manage %}
+    <form method="post" action="{% url 'core:link_proposal' assignment_id=assignment.pk %}" class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        {% csrf_token %}
+        <div style="margin-bottom:14px;">
+            <label style="display:block; font-weight:600; margin-bottom:4px;">Select Proposal Document</label>
+            <select name="document_id" style="width:100%; padding:8px;">
+                <option value="">— none —</option>
+                {% for d in available_proposals %}
+                <option value="{{ d.pk }}" {% if linked_proposal and linked_proposal.pk == d.pk %}selected{% endif %}>{{ d.file_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button class="btn btn-primary" type="submit">Link</button>
+        <a class="btn" href="{% url 'core:assignment_view' assignment_id=assignment.pk %}">Back</a>
+    </form>
+    {% else %}
+    <p style="color:#666;">You do not have permission to manage proposal links here.</p>
+    {% endif %}
 </div>
 {% endblock %}

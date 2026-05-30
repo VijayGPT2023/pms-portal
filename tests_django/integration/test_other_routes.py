@@ -187,3 +187,42 @@ class TestDataRoutes:
     def test_subdomains_api(self, auth_client):
         response = auth_client.get("/data/api/subdomains/ES/")
         assert response.status_code == 200
+
+
+class TestNoStubsRemain:
+    """Regression guard: every ported page renders real content, not the
+    'coming soon' placeholder. One sweep over all GET pages touched in the
+    Tier 1-3 stub-port effort."""
+
+    SIMPLE_GET_PAGES = [
+        "/training/", "/training/create/",
+        "/finance/", "/clients/", "/clients/new/", "/clients/mis/",
+        "/admin-panel/users/", "/admin-panel/roles/",
+        "/utilization/", "/utilization/new/", "/utilization/pending-approval/",
+        "/utilization/pending-rectification/", "/utilization/summary/",
+        "/proposals/", "/mis/assignments/",
+        "/reports/delays/", "/profile/", "/profile/change-password/",
+        "/data/export/", "/data/import/", "/data/admin/config/",
+        "/mis/pre-wo/", "/mis/revenue/", "/mis/non-revenue/",
+        "/pre-wo/", "/non-revenue/",
+    ]
+
+    def test_no_coming_soon_anywhere(self, auth_client):
+        failures = []
+        for url in self.SIMPLE_GET_PAGES:
+            resp = auth_client.get(url)
+            if resp.status_code != 200:
+                failures.append(f"{url} -> HTTP {resp.status_code}")
+            elif b"being ported from FastAPI" in resp.content or b"Content coming soon" in resp.content:
+                failures.append(f"{url} -> still a stub")
+        assert not failures, "Pages failing/stubbed: " + "; ".join(failures)
+
+    def test_expenditure_form_renders(self, auth_client, sample_assignment, expenditure_heads):
+        resp = auth_client.get(f"/assignment/expenditure/{sample_assignment.id}/")
+        assert resp.status_code == 200
+        assert b"coming soon" not in resp.content
+
+    def test_expenditure_entry_renders(self, auth_client, sample_assignment, expenditure_heads):
+        resp = auth_client.get(f"/assignment/expenditure-entry/{sample_assignment.id}/")
+        assert resp.status_code == 200
+        assert b"coming soon" not in resp.content

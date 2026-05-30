@@ -1,16 +1,40 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Cost Estimate - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Cost Estimate</h1>
-</div>
+<div class="page-container" style="max-width:900px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Cost Estimate</h1>
+        <p style="color:#666; margin-top:4px;">{{ assignment.assignment_no }} — estimated vs actual by expenditure head.</p>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'core:manage_expenditure' assignment_id=assignment.pk %}">
+        {% csrf_token %}
+        <table class="data-table" style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+            <thead><tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px;">Head</th><th style="padding:8px;">Estimated (₹)</th><th style="padding:8px;">Actual (₹)</th><th style="padding:8px;">Remarks</th>
+            </tr></thead>
+            <tbody>
+                {% for h in expenditure_heads %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:6px;">{{ h.head_code }} — {{ h.head_name }}</td>
+                    <td style="padding:6px;"><input type="number" step="0.01" name="estimated_{{ h.id }}" style="width:130px; padding:6px;"></td>
+                    <td style="padding:6px;"><input type="number" step="0.01" name="actual_{{ h.id }}" style="width:130px; padding:6px;"></td>
+                    <td style="padding:6px;"><input type="text" name="remarks_{{ h.id }}" style="width:100%; padding:6px;"></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Save Cost Estimate</button>
+            <a class="btn" href="{% url 'core:assignment_view' assignment_id=assignment.pk %}">Back</a>
+        </div>
+    </form>
 </div>
 {% endblock %}

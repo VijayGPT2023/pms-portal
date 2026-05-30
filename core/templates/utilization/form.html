@@ -1,16 +1,55 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Utilization Form - PMS Portal{% endblock %}
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Utilization Claim - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Utilization Claim</h1>
-</div>
+<div class="page-container" style="max-width:720px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">{% if is_edit %}Edit Claim{% else %}New Utilization Claim{% endif %}</h1>
+    </header>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
     </div>
+    {% endif %}
+
+    <form method="post" action="{% if is_edit %}{% url 'core:update_claim' claim_id=claim.pk %}{% else %}{% url 'core:create_claim' %}{% endif %}" class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        {% csrf_token %}
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Claim Type *</label>
+                <select name="claim_type" required style="width:100%; padding:8px;">
+                    {% for code, label in claim_types %}
+                    <option value="{{ code }}" {% if claim.claim_type == code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Activity Date *</label>
+                <input type="date" name="activity_date" required value="{{ claim.activity_date|date:'Y-m-d' }}" style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Man-days *</label>
+                <input type="number" step="0.5" min="0" name="man_days_claimed" required value="{{ claim.man_days_claimed|default:0 }}" style="width:100%; padding:8px;">
+            </div>
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block; font-weight:600; margin-bottom:4px;">Assignment (optional)</label>
+            <select name="assignment_id" style="width:100%; padding:8px;">
+                <option value="">— none —</option>
+                {% for a in assignments %}
+                <option value="{{ a.pk }}" {% if claim.assignment_id == a.pk %}selected{% endif %}>{{ a.assignment_no }} — {{ a.title|truncatechars:40 }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="margin-bottom:18px;">
+            <label style="display:block; font-weight:600; margin-bottom:4px;">Activity Description</label>
+            <textarea name="activity_description" rows="3" style="width:100%; padding:8px;">{{ claim.activity_description|default:'' }}</textarea>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">{% if is_edit %}Save{% else %}Create{% endif %}</button>
+            <a class="btn" href="{% url 'core:utilization_list' %}">Cancel</a>
+        </div>
+    </form>
 </div>
 {% endblock %}
