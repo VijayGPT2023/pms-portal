@@ -1,16 +1,83 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Finance Dashboard - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Finance Dashboard</h1>
-</div>
+<div class="page-container" style="max-width:1200px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Finance Dashboard</h1>
+        <p style="color:#666; margin-top:4px;">Invoice approvals & payments — drives the 80-20 revenue recognition.</p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <section style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
+        <div style="flex:1; min-width:160px; padding:16px; text-align:center; background:#fefce8; border:1px solid #fde68a; border-radius:8px;">
+            <div style="font-size:28px; font-weight:700;">{{ stats.pending_count|default:0 }}</div><div style="color:#555;">Pending Invoices</div>
+        </div>
+        <div style="flex:1; min-width:160px; padding:16px; text-align:center; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;">
+            <div style="font-size:28px; font-weight:700;">{{ stats.approved_count|default:0 }}</div><div style="color:#555;">Approved</div>
+        </div>
+        <div style="flex:1; min-width:160px; padding:16px; text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+            <div style="font-size:22px; font-weight:700;">₹{{ stats.pending_value|default:0|floatformat:0 }}</div><div style="color:#555;">Pending Value</div>
+        </div>
+        <div style="flex:1; min-width:160px; padding:16px; text-align:center; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px;">
+            <div style="font-size:22px; font-weight:700;">₹{{ stats.approved_value|default:0|floatformat:0 }}</div><div style="color:#555;">Approved Value</div>
+        </div>
+    </section>
+
+    <section class="card" style="padding:16px; border:1px solid #fde68a; background:#fffbeb; border-radius:8px; margin-bottom:24px;">
+        <h2 style="font-size:18px; margin-top:0;">Pending Invoice Requests ({{ pending_invoices|length }})</h2>
+        {% if pending_invoices %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Request #</th><th style="padding:8px;">Assignment</th><th style="padding:8px;">Type</th><th style="padding:8px; text-align:right;">Amount</th><th style="padding:8px;">Requested by</th><th style="padding:8px;"></th></tr></thead>
+            <tbody>
+                {% for inv in pending_invoices %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ inv.request_number }}</td>
+                    <td style="padding:8px;">{{ inv.assignment.assignment_no }}</td>
+                    <td style="padding:8px;">{{ inv.get_invoice_type_display }}</td>
+                    <td style="padding:8px; text-align:right;">₹{{ inv.invoice_amount|floatformat:0 }}</td>
+                    <td style="padding:8px;">{{ inv.requested_by.name|default:"-" }}</td>
+                    <td style="padding:8px;">
+                        <form method="post" action="{% url 'core:approve_invoice' request_id=inv.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-primary" type="submit">Approve</button></form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No pending invoice requests.</p>
+        {% endif %}
+    </section>
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Recently Approved / Invoiced</h2>
+        {% if approved_invoices %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Request #</th><th style="padding:8px;">Assignment</th><th style="padding:8px; text-align:right;">Amount</th><th style="padding:8px;">Status</th><th style="padding:8px;"></th></tr></thead>
+            <tbody>
+                {% for inv in approved_invoices %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ inv.request_number }}</td>
+                    <td style="padding:8px;">{{ inv.assignment.assignment_no }}</td>
+                    <td style="padding:8px; text-align:right;">₹{{ inv.invoice_amount|floatformat:0 }}</td>
+                    <td style="padding:8px;"><span class="badge">{{ inv.get_status_display }}</span></td>
+                    <td style="padding:8px;"><a href="{% url 'core:payment_form' invoice_id=inv.pk %}">Record Payment</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">Nothing approved yet.</p>
+        {% endif %}
+    </section>
+
 </div>
 {% endblock %}

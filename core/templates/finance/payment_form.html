@@ -1,16 +1,83 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Record Payment - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Record Payment</h1>
-</div>
+<div class="page-container" style="max-width:760px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Record Payment</h1>
+        <p style="color:#666; margin-top:4px;">Invoice {{ invoice.request_number }} — {{ invoice.assignment.assignment_no }}</p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <section style="display:flex; gap:12px; margin-bottom:20px;">
+        <div style="flex:1; padding:14px; text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ invoice.invoice_amount|floatformat:0 }}</div><div style="color:#555;">Invoice Amount</div>
+        </div>
+        <div style="flex:1; padding:14px; text-align:center; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ total_paid|default:0|floatformat:0 }}</div><div style="color:#555;">Paid So Far</div>
+        </div>
+        <div style="flex:1; padding:14px; text-align:center; background:#fefce8; border:1px solid #fde68a; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ remaining|default:0|floatformat:0 }}</div><div style="color:#555;">Remaining</div>
+        </div>
+    </section>
+
+    <form method="post" action="{% url 'core:record_payment' invoice_id=invoice.pk %}" class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        {% csrf_token %}
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Amount Received (₹) *</label>
+                <input type="number" step="0.01" name="amount_received" required style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Receipt Date *</label>
+                <input type="date" name="receipt_date" required style="width:100%; padding:8px;">
+            </div>
+        </div>
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Payment Mode</label>
+                <select name="payment_mode" style="width:100%; padding:8px;">
+                    <option value="NEFT">NEFT</option><option value="RTGS">RTGS</option>
+                    <option value="CHEQUE">Cheque</option><option value="DD">DD</option>
+                    <option value="UPI">UPI</option><option value="CASH">Cash</option>
+                </select>
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Reference No.</label>
+                <input type="text" name="reference_number" style="width:100%; padding:8px;">
+            </div>
+        </div>
+        <div style="margin-bottom:18px;">
+            <label style="display:block; font-weight:600; margin-bottom:4px;">Remarks</label>
+            <textarea name="remarks" rows="2" style="width:100%; padding:8px;"></textarea>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Record Payment (recognizes 20%)</button>
+            <a class="btn" href="{% url 'core:finance_dashboard' %}">Cancel</a>
+        </div>
+    </form>
+
+    {% if payments %}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-top:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Payments Received</h2>
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Receipt #</th><th style="padding:8px; text-align:right;">Amount</th><th style="padding:8px;">Date</th><th style="padding:8px;">Mode</th></tr></thead>
+            <tbody>
+                {% for pay in payments %}
+                <tr style="border-top:1px solid #e5e7eb;"><td style="padding:8px;">{{ pay.receipt_number }}</td><td style="padding:8px; text-align:right;">₹{{ pay.amount_received|floatformat:0 }}</td><td style="padding:8px;">{{ pay.receipt_date|date:"d M Y" }}</td><td style="padding:8px;">{{ pay.payment_mode }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+
 </div>
 {% endblock %}

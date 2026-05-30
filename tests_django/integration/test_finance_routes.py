@@ -17,12 +17,16 @@ class TestFinanceDashboard:
     def test_finance_dashboard_loads(self, auth_client):
         response = auth_client.get("/finance/")
         assert response.status_code == 200
+        assert b"Finance Dashboard" in response.content
+        assert b"coming soon" not in response.content  # real template, not stub
 
 
 class TestInvoiceRequest:
     def test_invoice_form_loads(self, auth_client, sample_assignment):
         response = auth_client.get(f"/finance/invoice-request/{sample_assignment.id}/")
         assert response.status_code == 200
+        assert b"Raise Invoice Request" in response.content
+        assert b"coming soon" not in response.content
 
 
 class TestPayment:
@@ -37,6 +41,8 @@ class TestPayment:
         )
         response = auth_client.get(f"/finance/payment/{inv.id}/")
         assert response.status_code == 200
+        assert b"Record Payment" in response.content
+        assert b"coming soon" not in response.content
 
 
 class TestRevenueModel:
