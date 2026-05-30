@@ -22,18 +22,18 @@
             <span class="badge" style="background: #dbeafe; color: #1d4ed8; padding: 6px 16px; margin-top: 10px;">Revenue Work</span>
         </a>
 
-        <a href="{% url 'core:register_activity' %}" class="type-card"
+        <a href="{% url 'core:training_create_form' %}" class="type-card"
            style="display: block; text-decoration: none; color: inherit; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; width: 280px; text-align: center; transition: all 0.2s;">
             <h3 style="color: #2d3748; margin-bottom: 10px;">Training Programme</h3>
             <p style="color: #718096;">Training programs, workshops, and capacity building</p>
             <span class="badge" style="background: #fef3c7; color: #92400e; padding: 6px 16px; margin-top: 10px;">Training</span>
         </a>
 
-        <a href="{% url 'core:new_assignment' %}?type=DEVELOPMENT" class="type-card"
+        <a href="{% url 'core:non_revenue_create_form' %}" class="type-card"
            style="display: block; text-decoration: none; color: inherit; border: 2px solid #e2e8f0; border-radius: 12px; padding: 30px; width: 280px; text-align: center; transition: all 0.2s;">
             <h3 style="color: #2d3748; margin-bottom: 10px;">Development Work</h3>
-            <p style="color: #718096;">Internal projects, research, proposals (notional value)</p>
-            <span class="badge" style="background: #d1fae5; color: #047857; padding: 6px 16px; margin-top: 10px;">Notional Value</span>
+            <p style="color: #718096;">Non-revenue activity booked in man-days (SCOPE_V2 §3.4)</p>
+            <span class="badge" style="background: #d1fae5; color: #047857; padding: 6px 16px; margin-top: 10px;">Non-Revenue</span>
         </a>
     </div>
 </div>

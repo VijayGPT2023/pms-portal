@@ -55,12 +55,13 @@ class TestReportRoutes:
         response = auth_client.get("/reports/delays/")
         assert response.status_code == 200
 
-    def test_physical_progress(self, auth_client):
-        response = auth_client.get("/reports/physical-progress/")
+    def test_physical_progress_tab(self, auth_client):
+        # Standalone report retired (SCOPE_V2 §3.8) — now a dashboard tab.
+        response = auth_client.get("/dashboard/?active_tab=physical_progress")
         assert response.status_code == 200
 
-    def test_financial_progress(self, auth_client):
-        response = auth_client.get("/reports/financial-progress/")
+    def test_financial_progress_tab(self, auth_client):
+        response = auth_client.get("/dashboard/?active_tab=financial_progress")
         assert response.status_code == 200
 
     def test_delay_summary_api(self, auth_client):
@@ -80,12 +81,14 @@ class TestProposalRoutes:
 
 
 class TestMISRoutes:
-    def test_mis_dashboard(self, auth_client):
-        response = auth_client.get("/mis/")
+    # Legacy 6-tab MIS retired (SCOPE_V2 §3.8). MIS V2 dashboards covered
+    # by test_mis_v2.py.
+    def test_mis_pre_wo(self, auth_client):
+        response = auth_client.get("/mis/pre-wo/")
         assert response.status_code == 200
 
-    def test_mis_csv_export(self, auth_client):
-        response = auth_client.get("/mis/export/csv/")
+    def test_mis_revenue(self, auth_client):
+        response = auth_client.get("/mis/revenue/")
         assert response.status_code == 200
 
 

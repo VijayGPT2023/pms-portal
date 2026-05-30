@@ -6,7 +6,6 @@ from .views import (
     approvals as appr,
     finance as fin,
     revenue as rev,
-    mis,
     clients as cli,
     training as trn,
     utilization as util,
@@ -116,14 +115,10 @@ urlpatterns = [
     path("revenue/flag/<int:flag_id>/withdraw/", rev.withdraw_flag, name="revenue_withdraw_flag"),
 
     # ── MIS V2 — three simpler dashboards (SCOPE_V2 §3.8) ──────────────
+    # Legacy 6-tab MIS Command Center retired per SCOPE_V2 §3.8 (D12).
     path("mis/pre-wo/", mis_v2.pre_wo_mis, name="mis_pre_wo"),
     path("mis/revenue/", mis_v2.revenue_mis, name="mis_revenue"),
     path("mis/non-revenue/", mis_v2.non_revenue_mis, name="mis_non_revenue"),
-
-    # ── MIS (legacy 6-tab — retired from nav, URLs kept for old links) ─
-    path("mis/", mis.mis_dashboard, name="mis_dashboard"),
-    path("mis/export/csv/", mis.mis_export_csv, name="mis_export_csv"),
-    path("mis/office/<str:office_id>/", mis.office_detail, name="mis_office_detail"),
 
     # ── Clients ───────────────────────────────────────────────────────
     path("clients/", cli.client_list, name="client_list"),
@@ -180,10 +175,10 @@ urlpatterns = [
     path("utilization/summary/", util.utilization_summary, name="utilization_summary"),
 
     # ── Reports ───────────────────────────────────────────────────────
+    # Standalone Physical/Financial progress retired — now dashboard tabs
+    # (?active_tab=physical_progress / financial_progress). Delay report kept.
     path("reports/delays/", rpt.delay_dashboard, name="delay_dashboard"),
     path("reports/delays/api/summary/", rpt.delay_summary_api, name="delay_summary_api"),
-    path("reports/physical-progress/", rpt.physical_progress, name="physical_progress"),
-    path("reports/financial-progress/", rpt.financial_progress, name="financial_progress"),
     path("reports/api/dashboard-summary/", rpt.dashboard_summary_api, name="dashboard_summary_api"),
 
     # ── Proposals ─────────────────────────────────────────────────────
