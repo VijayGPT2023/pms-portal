@@ -12,18 +12,36 @@ class TestClientRoutes:
     def test_client_list_loads(self, auth_client):
         response = auth_client.get("/clients/")
         assert response.status_code == 200
+        assert b"Client Database" in response.content
+        assert b"coming soon" not in response.content
 
     def test_new_client_form(self, auth_client):
         response = auth_client.get("/clients/new/")
         assert response.status_code == 200
+        assert b"New Client" in response.content
+        assert b"coming soon" not in response.content
 
     def test_client_view(self, auth_client, sample_client):
         response = auth_client.get(f"/clients/{sample_client.id}/view/")
         assert response.status_code == 200
+        assert b"Linked Assignments" in response.content
+        assert b"coming soon" not in response.content
 
     def test_client_mis(self, auth_client):
         response = auth_client.get("/clients/mis/")
         assert response.status_code == 200
+        assert b"Client Analytics" in response.content
+        assert b"coming soon" not in response.content
+
+    def test_create_client_roundtrip(self, auth_client):
+        resp = auth_client.post("/clients/new/submit/", {
+            "client_name": "UAT Test Ministry",
+            "client_type": "Central Government",
+            "city": "New Delhi",
+        })
+        assert resp.status_code == 302
+        from core.models import Client
+        assert Client.objects.filter(client_name="UAT Test Ministry").exists()
 
 
 class TestTrainingRoutes:

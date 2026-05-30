@@ -1,16 +1,73 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Client Details - PMS Portal{% endblock %}
+{% block title %}{{ client.client_name }} - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Client Details</h1>
-</div>
+<div class="page-container" style="max-width:1000px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px;">
+        <div>
+            <h1 style="margin:0; font-size:24px;">{{ client.client_name }}</h1>
+            <p style="color:#666; margin-top:4px;">{{ client.client_code }} · {{ client.client_type|default:"—" }} · {{ client.city|default:"" }}</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <a class="btn" href="{% url 'core:edit_client_form' client_id=client.pk %}">Edit</a>
+            <a class="btn" href="{% url 'core:client_list' %}">Back</a>
+        </div>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <section style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+            <div style="font-size:26px; font-weight:700;">{{ stats.total_assignments|default:0 }}</div><div style="color:#555;">Assignments</div>
+        </div>
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ stats.total_value|default:0|floatformat:0 }}</div><div style="color:#555;">Total Value</div>
+        </div>
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#fefce8; border:1px solid #fde68a; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ stats.total_invoiced|default:0|floatformat:0 }}</div><div style="color:#555;">Invoiced</div>
+        </div>
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ stats.total_received|default:0|floatformat:0 }}</div><div style="color:#555;">Received</div>
+        </div>
+    </section>
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Contact</h2>
+        <table style="width:100%; border-collapse:collapse;">
+            <tr><td style="padding:6px; font-weight:600; width:160px;">Person</td><td style="padding:6px;">{{ client.contact_person|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Email</td><td style="padding:6px;">{{ client.contact_email|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Phone</td><td style="padding:6px;">{{ client.contact_phone|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">GSTIN / PAN</td><td style="padding:6px;">{{ client.gstin|default:"-" }} / {{ client.pan|default:"-" }}</td></tr>
+            <tr><td style="padding:6px; font-weight:600;">Address</td><td style="padding:6px;">{{ client.address|default:"-" }}</td></tr>
+        </table>
+    </section>
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Linked Assignments</h2>
+        {% if assignments %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Assignment</th><th style="padding:8px;">Title</th><th style="padding:8px; text-align:right;">Billing %</th></tr></thead>
+            <tbody>
+                {% for ac in assignments %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;"><a href="{% url 'core:assignment_view' assignment_id=ac.assignment.pk %}">{{ ac.assignment.assignment_no }}</a></td>
+                    <td style="padding:8px;">{{ ac.assignment.title|truncatechars:45 }}</td>
+                    <td style="padding:8px; text-align:right;">{{ ac.billing_share_percent|default:0|floatformat:0 }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No assignments linked to this client.</p>
+        {% endif %}
+    </section>
+
 </div>
 {% endblock %}

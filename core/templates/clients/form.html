@@ -1,16 +1,87 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Client Form - PMS Portal{% endblock %}
+{% block title %}{% if is_edit %}Edit{% else %}New{% endif %} Client - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Client Form</h1>
-</div>
+<div class="page-container" style="max-width:760px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="margin-bottom:24px;">
+        <h1 style="margin:0; font-size:24px;">{% if is_edit %}Edit Client{% else %}New Client{% endif %}</h1>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <form method="post" action="{% if is_edit %}{% url 'core:update_client' client_id=client.pk %}{% else %}{% url 'core:create_client' %}{% endif %}">
+        {% csrf_token %}
+
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:2;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Client Name *</label>
+                <input type="text" name="client_name" required value="{{ client.client_name|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Type</label>
+                <select name="client_type" style="width:100%; padding:8px;">
+                    <option value="">—</option>
+                    {% for t in client_types %}
+                    <option value="{{ t }}" {% if client.client_type == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+            <label style="display:block; font-weight:600; margin-bottom:4px;">Address</label>
+            <textarea name="address" rows="2" style="width:100%; padding:8px;">{{ client.address|default:'' }}</textarea>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">City</label>
+                <input type="text" name="city" value="{{ client.city|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">State</label>
+                <input type="text" name="state" value="{{ client.state|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-bottom:14px;">
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Contact Person</label>
+                <input type="text" name="contact_person" value="{{ client.contact_person|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Contact Email</label>
+                <input type="email" name="contact_email" value="{{ client.contact_email|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">Contact Phone</label>
+                <input type="text" name="contact_phone" value="{{ client.contact_phone|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-bottom:18px;">
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">GSTIN</label>
+                <input type="text" name="gstin" value="{{ client.gstin|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+            <div style="flex:1;">
+                <label style="display:block; font-weight:600; margin-bottom:4px;">PAN</label>
+                <input type="text" name="pan" value="{{ client.pan|default:'' }}" style="width:100%; padding:8px;">
+            </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">{% if is_edit %}Save{% else %}Create{% endif %}</button>
+            <a class="btn" href="{% url 'core:client_list' %}">Cancel</a>
+        </div>
+    </form>
+
 </div>
 {% endblock %}

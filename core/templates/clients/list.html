@@ -1,16 +1,62 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Clients - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Client Database</h1>
-</div>
+<div class="page-container" style="max-width:1200px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+        <h1 style="margin:0; font-size:24px;">Client Database</h1>
+        <a class="btn btn-primary" href="{% url 'core:new_client_form' %}">+ New Client</a>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <form method="get" style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <input type="text" name="search" value="{{ filter_search|default:'' }}" placeholder="Search name/code" style="padding:6px; min-width:200px;">
+        <select name="type" style="padding:6px;">
+            <option value="">All types</option>
+            {% for t in client_types %}
+            <option value="{{ t }}" {% if filter_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+        <input type="text" name="city" value="{{ filter_city|default:'' }}" placeholder="City" style="padding:6px;">
+        <button class="btn" type="submit">Filter</button>
+    </form>
+
+    {% if clients %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px;">Code</th>
+                <th style="padding:8px;">Name</th>
+                <th style="padding:8px;">Type</th>
+                <th style="padding:8px;">City</th>
+                <th style="padding:8px;">Contact</th>
+                <th style="padding:8px;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in clients %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;">{{ c.client_code }}</td>
+                <td style="padding:8px;">{{ c.client_name }}</td>
+                <td style="padding:8px;">{{ c.client_type|default:"-" }}</td>
+                <td style="padding:8px;">{{ c.city|default:"-" }}</td>
+                <td style="padding:8px;">{{ c.contact_person|default:"-" }}</td>
+                <td style="padding:8px;"><a href="{% url 'core:view_client' client_id=c.pk %}">View</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No clients found. Click "New Client" to add one.</p>
+    {% endif %}
+
 </div>
 {% endblock %}

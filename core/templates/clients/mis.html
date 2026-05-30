@@ -1,16 +1,67 @@
 {% extends "base.html" %}
-{% load static %}
-
 {% block title %}Client MIS - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Client Analytics</h1>
-</div>
+<div class="page-container" style="max-width:1100px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
-    </div>
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Client Analytics</h1>
+        <p style="color:#666; margin-top:4px;">Value, invoiced and received per client (billing-share weighted).</p>
+    </header>
+
+    <form method="get" style="margin-bottom:16px;">
+        <select name="client_type" style="padding:6px;">
+            <option value="">All client types</option>
+            {% for t in client_types %}
+            <option value="{{ t }}" {% if filter_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn" type="submit">Filter</button>
+    </form>
+
+    <section style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+            <div style="font-size:26px; font-weight:700;">{{ totals.total_clients|default:0 }}</div><div style="color:#555;">Clients</div>
+        </div>
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#f5f3ff; border:1px solid #ddd6fe; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ totals.grand_total_value|default:0|floatformat:0 }}</div><div style="color:#555;">Total Value</div>
+        </div>
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#fefce8; border:1px solid #fde68a; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ totals.grand_total_invoiced|default:0|floatformat:0 }}</div><div style="color:#555;">Invoiced</div>
+        </div>
+        <div style="flex:1; min-width:150px; padding:16px; text-align:center; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px;">
+            <div style="font-size:20px; font-weight:700;">₹{{ totals.grand_total_received|default:0|floatformat:0 }}</div><div style="color:#555;">Received</div>
+        </div>
+    </section>
+
+    {% if client_data %}
+    <table class="data-table" style="width:100%; border-collapse:collapse;">
+        <thead>
+            <tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px;">Client</th>
+                <th style="padding:8px;">Type</th>
+                <th style="padding:8px; text-align:right;">Assignments</th>
+                <th style="padding:8px; text-align:right;">Value</th>
+                <th style="padding:8px; text-align:right;">Invoiced</th>
+                <th style="padding:8px; text-align:right;">Received</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in client_data %}
+            <tr style="border-top:1px solid #e5e7eb;">
+                <td style="padding:8px;"><a href="{% url 'core:view_client' client_id=c.pk %}">{{ c.client_name }}</a></td>
+                <td style="padding:8px;">{{ c.client_type|default:"-" }}</td>
+                <td style="padding:8px; text-align:right;">{{ c.assignment_count }}</td>
+                <td style="padding:8px; text-align:right;">₹{{ c.total_value|default:0|floatformat:0 }}</td>
+                <td style="padding:8px; text-align:right;">₹{{ c.total_invoiced|default:0|floatformat:0 }}</td>
+                <td style="padding:8px; text-align:right;">₹{{ c.total_received|default:0|floatformat:0 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#666;">No client data in scope.</p>
+    {% endif %}
+
 </div>
 {% endblock %}
