@@ -1,16 +1,115 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Revenue Share - PMS Portal{% endblock %}
+{% block title %}Revenue Allocation - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Revenue Share Allocation</h1>
-</div>
+<div class="page-container" style="max-width:980px; margin:0 auto; padding:20px;">
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Revenue Allocation</h1>
+        <p style="color:#666; margin-top:4px;">{{ assignment.assignment_no }} — {{ assignment.title|truncatechars:60 }}</p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
     </div>
+    {% endif %}
+
+    <!-- Current allocation with per-row Flag button (SCOPE_V2 §3.7) -->
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:24px;">
+        <h2 style="font-size:18px; margin-top:0;">Current Allocation (total {{ total_share|floatformat:1 }}%)</h2>
+        {% if shares %}
+        <table class="data-table" style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr style="background:#f3f4f6; text-align:left;">
+                    <th style="padding:8px;">Officer</th>
+                    <th style="padding:8px;">Share %</th>
+                    <th style="padding:8px;">Concern</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in shares %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ s.officer.name }}</td>
+                    <td style="padding:8px;">{{ s.share_percent|floatformat:1 }}%</td>
+                    <td style="padding:8px;">
+                        {% if s.officer_id == current_officer_id %}
+                            {% if s.pk in open_flag_share_ids %}
+                                <span class="badge badge-open">Flag open</span>
+                            {% else %}
+                                <details>
+                                    <summary style="cursor:pointer; color:#b45309;">⚑ Flag my share</summary>
+                                    <form method="post" action="{% url 'core:revenue_raise_flag' assignment_id=assignment.pk %}" style="margin-top:8px;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="revenue_share_id" value="{{ s.pk }}">
+                                        <textarea name="reason" required rows="2" placeholder="Reason (required)" style="width:100%; max-width:420px; padding:6px;"></textarea><br>
+                                        <button class="btn" type="submit" style="background:#fef3c7; margin-top:6px;">Submit Flag</button>
+                                    </form>
+                                </details>
+                            {% endif %}
+                        {% else %}
+                            <span style="color:#999;">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color:#666;">No revenue shares allocated yet.</p>
+        {% endif %}
+    </section>
+
+    <!-- Flags log -->
+    {% if flags %}
+    <section class="card" style="padding:16px; border:1px solid #fde68a; background:#fffbeb; border-radius:8px; margin-bottom:24px;">
+        <h2 style="font-size:18px; margin-top:0;">Flags ({{ flags|length }})</h2>
+        <table style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr style="background:#f3f4f6; text-align:left;">
+                    <th style="padding:6px;">Raised by</th>
+                    <th style="padding:6px;">Reason</th>
+                    <th style="padding:6px;">Status</th>
+                    <th style="padding:6px;">When</th>
+                    <th style="padding:6px;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in flags %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:6px;">{{ f.raised_by.name }}</td>
+                    <td style="padding:6px; max-width:280px;">{{ f.reason }}{% if f.resolution_note %}<br><em style="color:#555;">Resolution: {{ f.resolution_note }}</em>{% endif %}</td>
+                    <td style="padding:6px;"><span class="badge badge-{{ f.status|lower }}">{{ f.get_status_display }}</span></td>
+                    <td style="padding:6px;">{{ f.created_at|date:"d M Y" }}</td>
+                    <td style="padding:6px;">
+                        {% if f.status == "OPEN" %}
+                            {% if is_tl or is_head %}
+                            <form method="post" action="{% url 'core:revenue_address_flag' flag_id=f.pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                <input type="text" name="resolution_note" placeholder="Note" style="padding:4px; width:140px;">
+                                <button class="btn" type="submit">Address</button>
+                            </form>
+                            {% endif %}
+                            {% if f.raised_by_id == current_officer_id %}
+                            <form method="post" action="{% url 'core:revenue_withdraw_flag' flag_id=f.pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button class="btn" type="submit">Withdraw</button>
+                            </form>
+                            {% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if is_tl %}
+        <p style="margin-top:10px; color:#555;">To change the allocation, raise an
+            <a href="{% url 'core:edit_request_propose' assignment_id=assignment.pk section='REVENUE' %}">EditRequest on the Revenue section</a>.</p>
+        {% endif %}
+    </section>
+    {% endif %}
+
 </div>
 {% endblock %}

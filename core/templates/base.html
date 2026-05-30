@@ -135,9 +135,17 @@
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                     <span>Proposals</span>
                 </a>
-                <a href="{% url 'core:mis_dashboard' %}" class="nav-item" onclick="closeSidebarOnMobile()">
+                <a href="{% url 'core:mis_pre_wo' %}" class="nav-item" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                    <span>Pre-WO MIS</span>
+                </a>
+                <a href="{% url 'core:mis_revenue' %}" class="nav-item" onclick="closeSidebarOnMobile()">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-                    <span>MIS / Analytics</span>
+                    <span>Revenue MIS</span>
+                </a>
+                <a href="{% url 'core:mis_non_revenue' %}" class="nav-item" onclick="closeSidebarOnMobile()">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
+                    <span>Non-Revenue MIS</span>
                 </a>
             </div>
 

@@ -1866,6 +1866,59 @@ class CronHeartbeat(models.Model):
 
 
 # =============================================================================
+# Revenue Allocation Flag (SCOPE_V2 §3.7 — lightweight grievance channel)
+# =============================================================================
+
+class RevenueAllocationFlag(models.Model):
+    """A logged concern raised by an affected Officer on their revenue share.
+
+    Minimum-viable grievance: reason (mandatory), status Open/Addressed/Withdrawn.
+    No SLA, no auto-escalation, no adjudication. Visible to TL (action owner),
+    GH (oversight), and the flagger. Typical resolution: TL raises an EditRequest
+    on the revenue section. Full grievance workflow deferred (Phase 4+).
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Open"
+        ADDRESSED = "ADDRESSED", "Addressed"
+        WITHDRAWN = "WITHDRAWN", "Withdrawn"
+
+    assignment = models.ForeignKey(
+        Assignment, on_delete=models.CASCADE, related_name="revenue_flags",
+    )
+    revenue_share = models.ForeignKey(
+        "RevenueShare", on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="flags",
+    )
+    raised_by = models.ForeignKey(
+        Officer, on_delete=models.PROTECT, related_name="raised_revenue_flags",
+        to_field="officer_id", db_column="raised_by",
+    )
+    reason = models.TextField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    resolution_note = models.TextField(blank=True, default="")
+    addressed_by = models.ForeignKey(
+        Officer, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="addressed_revenue_flags",
+        to_field="officer_id", db_column="addressed_by",
+    )
+    addressed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "revenue_allocation_flags"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["assignment"], name="idx_flag_assignment"),
+            models.Index(fields=["status"], name="idx_flag_status"),
+        ]
+
+    def __str__(self):
+        return f"Flag #{self.pk} on {self.assignment_id} [{self.status}]"
+
+
+# =============================================================================
 # Pre-WO Pipeline (SCOPE_V2 §3.1)
 # =============================================================================
 
@@ -1977,3 +2030,4 @@ auditlog.register(UtilizationClaim)
 auditlog.register(TrainingProgramme)
 auditlog.register(TrainingRevenueLedger)
 auditlog.register(PreWORecord)
+auditlog.register(RevenueAllocationFlag)

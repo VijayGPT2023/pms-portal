@@ -18,7 +18,7 @@ from .models import (
     UtilizationClaim, ProposalDocument, FinanceOfficer,
     TrainingProgramme, TrainerAllocation, TrainingParticipant, TrainingChecklist,
     TrainingRevenueLedger,
-    PreWORecord,
+    PreWORecord, RevenueAllocationFlag,
 )
 
 
@@ -280,6 +280,14 @@ class PreWORecordAdmin(admin.ModelAdmin):
     list_filter = ("stage", "approval_status", "outcome", "office")
     search_fields = ("record_number", "title", "client")
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(RevenueAllocationFlag)
+class RevenueAllocationFlagAdmin(admin.ModelAdmin):
+    list_display = ("id", "assignment", "raised_by", "status", "addressed_by", "created_at")
+    list_filter = ("status",)
+    search_fields = ("assignment__assignment_no", "raised_by__officer_id")
+    readonly_fields = ("created_at", "updated_at", "addressed_at")
 
 
 # Simple registrations for remaining models

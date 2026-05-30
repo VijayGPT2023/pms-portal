@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Pre-WO MIS - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:1100px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Pre-WO MIS</h1>
+        <p style="color:#666; margin-top:4px;">Conversion funnel & drop-off · {{ scope_label }}</p>
+    </header>
+
+    <section style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:24px;">
+        <div style="flex:1; min-width:140px; padding:16px; text-align:center; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+            <div style="font-size:30px; font-weight:700;">{{ kpis.total }}</div><div style="color:#555;">Total Records</div>
+        </div>
+        <div style="flex:1; min-width:140px; padding:16px; text-align:center; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:8px;">
+            <div style="font-size:30px; font-weight:700;">{{ kpis.converted }}</div><div style="color:#555;">Converted to WO</div>
+        </div>
+        <div style="flex:1; min-width:140px; padding:16px; text-align:center; background:#fef2f2; border:1px solid #fecaca; border-radius:8px;">
+            <div style="font-size:30px; font-weight:700;">{{ kpis.dropped }}</div><div style="color:#555;">Dropped</div>
+        </div>
+        <div style="flex:1; min-width:140px; padding:16px; text-align:center; background:#fefce8; border:1px solid #fde68a; border-radius:8px;">
+            <div style="font-size:30px; font-weight:700;">{{ kpis.conversion_rate }}%</div><div style="color:#555;">Conversion Rate</div>
+        </div>
+    </section>
+
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:24px;">
+        <h2 style="font-size:18px; margin-top:0;">Funnel</h2>
+        <table style="width:100%; border-collapse:collapse;">
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">Enquiry</td><td style="padding:8px; text-align:right; font-weight:700;">{{ kpis.enquiry }}</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">Preliminary Visit</td><td style="padding:8px; text-align:right; font-weight:700;">{{ kpis.prelim }}</td></tr>
+            <tr style="border-bottom:1px solid #eee;"><td style="padding:8px;">Proposal</td><td style="padding:8px; text-align:right; font-weight:700;">{{ kpis.proposal }}</td></tr>
+            <tr><td style="padding:8px;">Converted to Work Order</td><td style="padding:8px; text-align:right; font-weight:700;">{{ kpis.converted }}</td></tr>
+        </table>
+    </section>
+
+    {% if by_office %}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">By Office</h2>
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Office</th><th style="padding:8px; text-align:right;">Records</th><th style="padding:8px; text-align:right;">Converted</th></tr></thead>
+            <tbody>
+                {% for r in by_office %}
+                <tr style="border-top:1px solid #e5e7eb;"><td style="padding:8px;">{{ r.office__office_name }}</td><td style="padding:8px; text-align:right;">{{ r.count }}</td><td style="padding:8px; text-align:right;">{{ r.converted }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

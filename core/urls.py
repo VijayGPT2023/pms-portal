@@ -18,6 +18,7 @@ from .views import (
     profile as prof,
     edit_requests as ereq,
     pre_wo as prewo,
+    mis_v2,
 )
 
 app_name = "core"
@@ -109,8 +110,17 @@ urlpatterns = [
     path("revenue/edit/<int:assignment_id>/submit/", rev.revenue_share_submit, name="revenue_share_submit"),
     path("revenue/api/officers/", rev.api_get_officers, name="api_get_officers"),
     path("revenue/api/assignment/<int:assignment_id>/", rev.api_get_assignment, name="api_get_assignment"),
+    # Revenue allocation flags (SCOPE_V2 §3.7)
+    path("revenue/<int:assignment_id>/flag/", rev.raise_flag, name="revenue_raise_flag"),
+    path("revenue/flag/<int:flag_id>/address/", rev.address_flag, name="revenue_address_flag"),
+    path("revenue/flag/<int:flag_id>/withdraw/", rev.withdraw_flag, name="revenue_withdraw_flag"),
 
-    # ── MIS ───────────────────────────────────────────────────────────
+    # ── MIS V2 — three simpler dashboards (SCOPE_V2 §3.8) ──────────────
+    path("mis/pre-wo/", mis_v2.pre_wo_mis, name="mis_pre_wo"),
+    path("mis/revenue/", mis_v2.revenue_mis, name="mis_revenue"),
+    path("mis/non-revenue/", mis_v2.non_revenue_mis, name="mis_non_revenue"),
+
+    # ── MIS (legacy 6-tab — retired from nav, URLs kept for old links) ─
     path("mis/", mis.mis_dashboard, name="mis_dashboard"),
     path("mis/export/csv/", mis.mis_export_csv, name="mis_export_csv"),
     path("mis/office/<str:office_id>/", mis.office_detail, name="mis_office_detail"),
