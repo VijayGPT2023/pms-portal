@@ -30,10 +30,36 @@ class TestTrainingRoutes:
     def test_training_list_loads(self, auth_client):
         response = auth_client.get("/training/")
         assert response.status_code == 200
+        assert b"Training Programmes" in response.content
+        assert b"coming soon" not in response.content  # real template, not stub
 
     def test_training_create_form(self, auth_client):
         response = auth_client.get("/training/create/")
         assert response.status_code == 200
+        assert b"New Training Programme" in response.content
+        assert b"coming soon" not in response.content
+
+    def test_training_create_and_view(self, auth_client, office):
+        resp = auth_client.post("/training/create/submit/", {
+            "title": "UAT Lean Workshop",
+            "office_id": office.office_id,
+            "budgeted_participants": "20",
+            "fee_per_participant": "1500",
+        })
+        assert resp.status_code == 302
+        from core.models import TrainingProgramme
+        p = TrainingProgramme.objects.get(title="UAT Lean Workshop")
+        assert p.budgeted_revenue == 30000
+
+    def test_trainer_allocation_form(self, auth_client, office):
+        from core.models import TrainingProgramme
+        p = TrainingProgramme.objects.create(
+            programme_number="TRN-HQ-T-001", title="T", office=office, stage="ANNOUNCED",
+        )
+        resp = auth_client.get(f"/training/trainers/{p.pk}/")
+        assert resp.status_code == 200
+        assert b"Faculty Allocation" in resp.content
+        assert b"coming soon" not in resp.content
 
 
 class TestUtilizationRoutes:

@@ -1,16 +1,85 @@
 {% extends "base.html" %}
-{% load static %}
-
-{% block title %}Trainer Allocation - PMS Portal{% endblock %}
+{% block title %}Faculty Allocation - PMS Portal{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Trainer Allocation</h1>
+<div class="page-container" style="max-width:900px; margin:0 auto; padding:20px;" x-data="trainerForm()">
+
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Faculty Allocation</h1>
+        <p style="color:#666; margin-top:4px;">{{ programme.programme_number }} — {{ programme.title|truncatechars:50 }}</p>
+        <p style="color:#666;">Revenue % across faculty should total 100% (used to split the 80-20 recognition).</p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'core:save_trainer_allocations' programme_id=programme.pk %}">
+        {% csrf_token %}
+        <table class="data-table" style="width:100%; border-collapse:collapse; margin-bottom:12px;">
+            <thead>
+                <tr style="background:#f3f4f6; text-align:left;">
+                    <th style="padding:8px;">Faculty (Officer)</th>
+                    <th style="padding:8px;">Role</th>
+                    <th style="padding:8px;">Days</th>
+                    <th style="padding:8px;">Revenue %</th>
+                    <th style="padding:8px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <template x-for="(row, i) in rows" :key="i">
+                    <tr style="border-top:1px solid #e5e7eb;">
+                        <td style="padding:6px;">
+                            <select :name="'trainer_' + i + '_officer_id'" x-model="row.officer_id" style="width:100%; padding:6px;">
+                                <option value="">— select —</option>
+                                {% for o in officers %}
+                                <option value="{{ o.officer_id }}">{{ o.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td style="padding:6px;">
+                            <select :name="'trainer_' + i + '_role'" x-model="row.role" style="padding:6px;">
+                                <option value="PRIMARY">Primary</option>
+                                <option value="CO_TRAINER">Co-Trainer</option>
+                            </select>
+                        </td>
+                        <td style="padding:6px;"><input type="number" :name="'trainer_' + i + '_days'" x-model="row.days" style="width:70px; padding:6px;"></td>
+                        <td style="padding:6px;"><input type="number" step="0.01" :name="'trainer_' + i + '_percent'" x-model.number="row.percent" style="width:80px; padding:6px;"></td>
+                        <td style="padding:6px;"><button type="button" class="btn" @click="rows.splice(i,1)">✕</button></td>
+                    </tr>
+                </template>
+            </tbody>
+        </table>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <button type="button" class="btn" @click="rows.push({officer_id:'',role:'CO_TRAINER',days:0,percent:0})">+ Add Faculty</button>
+            <div :style="Math.abs(total - 100) > 0.01 ? 'color:#b91c1c; font-weight:700;' : 'color:#047857; font-weight:700;'">
+                Total: <span x-text="total.toFixed(1)"></span>%
+            </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Save Faculty</button>
+            <a class="btn" href="{% url 'core:training_view' programme_id=programme.pk %}">Back</a>
+        </div>
+    </form>
 </div>
 
-<div class="card">
-    <div class="card-body">
-        <p>This page is being ported from FastAPI to Django. Content coming soon.</p>
-    </div>
-</div>
+<script>
+function trainerForm() {
+    return {
+        rows: [
+            {% for t in trainers %}
+            { officer_id: "{{ t.officer.officer_id }}", role: "{{ t.trainer_role }}", days: {{ t.sessions_count|default:0 }}, percent: {{ t.revenue_share_percent|default:0 }} },
+            {% endfor %}
+        ],
+        get total() { return this.rows.reduce((s, r) => s + (parseFloat(r.percent) || 0), 0); },
+        init() { if (this.rows.length === 0) this.rows.push({officer_id:'',role:'PRIMARY',days:0,percent:0}); },
+    };
+}
+</script>
 {% endblock %}
