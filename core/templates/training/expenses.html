@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Training Expenses - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:1000px; margin:0 auto; padding:20px;">
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Training Expenses</h1>
+        <p style="color:#666; margin-top:4px;">{{ programme.programme_number }} — itemized per AI-850/2025 (Annexure i–xvii).</p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}<div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'core:training_expenses' programme_id=programme.pk %}">
+        {% csrf_token %}
+        <table class="data-table" style="width:100%; border-collapse:collapse; margin-bottom:16px;">
+            <thead><tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px;">#</th><th style="padding:8px;">Head</th>
+                <th style="padding:8px;">Category</th>
+                <th style="padding:8px;">Estimated (₹)</th><th style="padding:8px;">Actual (₹)</th><th style="padding:8px;">Remarks</th>
+            </tr></thead>
+            <tbody>
+                {% for row in rows %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:6px; color:#888;">{{ row.head.seq }}</td>
+                    <td style="padding:6px;">{{ row.head.head_name }}</td>
+                    <td style="padding:6px;"><span class="badge">{{ row.head.get_macro_category_display }}</span></td>
+                    <td style="padding:6px;"><input type="number" step="0.01" name="estimated_{{ row.head.id }}" value="{{ row.item.estimated_amount|default:'' }}" {% if not can_edit %}disabled{% endif %} style="width:120px; padding:6px;"></td>
+                    <td style="padding:6px;"><input type="number" step="0.01" name="actual_{{ row.head.id }}" value="{{ row.item.actual_amount|default:'' }}" {% if not can_edit %}disabled{% endif %} style="width:120px; padding:6px;"></td>
+                    <td style="padding:6px;"><input type="text" name="remarks_{{ row.head.id }}" value="{{ row.item.remarks|default:'' }}" {% if not can_edit %}disabled{% endif %} style="width:100%; padding:6px;"></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="border-top:2px solid #d1d5db; font-weight:700; background:#f9fafb;">
+                    <td colspan="3" style="padding:8px; text-align:right;">Total</td>
+                    <td style="padding:8px;">₹{{ est_total|floatformat:0 }}</td>
+                    <td style="padding:8px;">₹{{ act_total|floatformat:0 }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        {% if can_edit %}
+        <div style="display:flex; gap:8px;">
+            <button class="btn btn-primary" type="submit">Save Expenses</button>
+            <a class="btn" href="{% url 'core:training_view' programme_id=programme.pk %}">Back</a>
+        </div>
+        {% else %}
+        <a class="btn" href="{% url 'core:training_view' programme_id=programme.pk %}">Back</a>
+        {% endif %}
+    </form>
+</div>
+{% endblock %}

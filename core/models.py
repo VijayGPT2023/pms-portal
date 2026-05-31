@@ -613,11 +613,32 @@ class Milestone(models.Model):
 # Expenditure
 # =============================================================================
 
+class MacroExpenseCategory(models.TextChoices):
+    """Shared macro buckets so Consultancy (NPC-ASS-6 A-F) and Training
+    (AI-850 i-xvii) expense heads roll up into common categories in the
+    combined Revenue MIS, while each stream keeps its own detailed table.
+    """
+    FEE = "FEE", "Fees & Honorarium"
+    TRAVEL = "TRAVEL", "Travel & Conveyance"
+    LODGING = "LODGING", "Lodging & Boarding"
+    MATERIAL = "MATERIAL", "Material, Kit & Publication"
+    ADMIN = "ADMIN", "Administrative & Event"
+    MISC = "MISC", "Miscellaneous & Unforeseen"
+
+
 class ExpenditureHead(models.Model):
-    """Master list of expenditure categories (CMR format: A-F)."""
+    """Master list of CONSULTANCY expenditure categories (NPC-ASS-6: A-F).
+
+    `category` keeps the original A-F sheet section; `macro_category` is the
+    shared bucket used by the combined Revenue MIS.
+    """
     category = models.CharField(max_length=10)
     head_code = models.CharField(max_length=20, unique=True)
     head_name = models.CharField(max_length=200)
+    macro_category = models.CharField(
+        max_length=20, choices=MacroExpenseCategory.choices,
+        default=MacroExpenseCategory.MISC,
+    )
     description = models.TextField(blank=True, default="")
     is_active = models.BooleanField(default=True)
 
@@ -1748,6 +1769,56 @@ class TrainingRevenueLedger(models.Model):
         ]
 
 
+class TrainingExpenseHead(models.Model):
+    """Master list of TRAINING expenditure heads (AI-850/2025 Annex i-xvii).
+
+    Independent of the consultancy ExpenditureHead table, but carries the same
+    `macro_category` so the combined Revenue MIS can roll consultancy + training
+    expenses into shared buckets.
+    """
+    seq = models.IntegerField(default=0)  # i..xvii ordering
+    head_code = models.CharField(max_length=20, unique=True)
+    head_name = models.CharField(max_length=300)
+    macro_category = models.CharField(
+        max_length=20, choices=MacroExpenseCategory.choices,
+        default=MacroExpenseCategory.MISC,
+    )
+    description = models.TextField(blank=True, default="")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "training_expense_heads"
+        ordering = ["seq", "head_code"]
+
+    def __str__(self):
+        return f"{self.head_code} - {self.head_name}"
+
+
+class TrainingExpenseItem(models.Model):
+    """Estimated (approved) vs actual expense per training programme per head.
+
+    Mirrors the consultancy ExpenditureItem but on its own table — keeps the
+    Training stream fully independent (one of the 4 independent entities:
+    Pre-WO / Consultancy / Training / Non-Revenue).
+    """
+    programme = models.ForeignKey(
+        TrainingProgramme, on_delete=models.CASCADE, related_name="expense_items"
+    )
+    head = models.ForeignKey(TrainingExpenseHead, on_delete=models.PROTECT)
+    estimated_amount = models.FloatField(default=0)
+    actual_amount = models.FloatField(default=0)
+    remarks = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "training_expense_items"
+        unique_together = [("programme", "head")]
+        indexes = [
+            models.Index(fields=["programme"], name="idx_tei_programme"),
+        ]
+
+
 # =============================================================================
 # Site Configuration (SCOPE_V2 §3.6 — admin-editable knobs)
 # =============================================================================
@@ -2029,5 +2100,6 @@ auditlog.register(GrievanceTicket)
 auditlog.register(UtilizationClaim)
 auditlog.register(TrainingProgramme)
 auditlog.register(TrainingRevenueLedger)
+auditlog.register(TrainingExpenseItem)
 auditlog.register(PreWORecord)
 auditlog.register(RevenueAllocationFlag)

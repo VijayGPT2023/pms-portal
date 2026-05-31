@@ -45,6 +45,7 @@
         <p style="color:#666;">No faculty allocated yet.</p>
         {% endif %}
         {% if can_edit %}<a class="btn" style="margin-top:10px;" href="{% url 'core:trainer_allocation_form' programme_id=programme.pk %}">Manage Faculty</a>{% endif %}
+        <a class="btn" style="margin-top:10px;" href="{% url 'core:training_expenses' programme_id=programme.pk %}">Itemized Expenses (AI-850)</a>
     </section>
 
     <!-- 80-20 recognition (SCOPE_V2 §3.3) -->

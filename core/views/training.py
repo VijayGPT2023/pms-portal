@@ -17,6 +17,7 @@ from core.models import (
     ActivityLog, InvoiceRequest, Officer, Office,
     TrainerAllocation, TrainingChecklist, TrainingParticipant,
     TrainingProgramme, TrainingRevenueLedger,
+    TrainingExpenseHead, TrainingExpenseItem,
 )
 
 
@@ -653,3 +654,74 @@ def record_training_payment(request, programme_id):
 
     messages.success(request, "Payment recorded. 20% revenue recognized.")
     return redirect("core:training_view", programme_id=programme_id)
+
+
+# ============================================================
+# Training itemized expenses (AI-850/2025 Annex i-xvii)
+# ============================================================
+
+@login_required
+def training_expenses(request, programme_id):
+    """GET: show itemized training-expense form (estimated vs actual).
+    POST: save estimated_<head_id> / actual_<head_id> / remarks_<head_id>.
+    """
+    programme = get_object_or_404(TrainingProgramme, pk=programme_id)
+
+    if request.method == "POST":
+        if not _can_manage_programme(request.user, programme):
+            messages.error(request, "You cannot edit expenses for this programme.")
+            return redirect("core:training_expenses", programme_id=programme_id)
+
+        total_actual = 0.0
+        with transaction.atomic():
+            for key in request.POST:
+                if not key.startswith("estimated_"):
+                    continue
+                try:
+                    head_id = int(key.replace("estimated_", ""))
+                except ValueError:
+                    continue
+                est = _to_float(request.POST.get(key))
+                act = _to_float(request.POST.get(f"actual_{head_id}"))
+                rem = request.POST.get(f"remarks_{head_id}", "")
+                total_actual += act
+                if est > 0 or act > 0 or rem:
+                    TrainingExpenseItem.objects.update_or_create(
+                        programme=programme, head_id=head_id,
+                        defaults={"estimated_amount": est, "actual_amount": act, "remarks": rem},
+                    )
+                else:
+                    TrainingExpenseItem.objects.filter(
+                        programme=programme, head_id=head_id
+                    ).delete()
+
+            programme.actual_expenditure = total_actual
+            programme.save(update_fields=["actual_expenditure"])
+            ActivityLog.objects.create(
+                actor=request.user, action="UPDATE",
+                entity_type="training_programme", entity_id=programme.pk,
+                remarks=f"Training expenses updated; actual total {total_actual:.0f}",
+            )
+        messages.success(request, "Training expenses saved.")
+        return redirect("core:training_expenses", programme_id=programme_id)
+
+    heads = list(TrainingExpenseHead.objects.filter(is_active=True).order_by("seq", "head_code"))
+    existing = {ei.head_id: ei for ei in TrainingExpenseItem.objects.filter(programme=programme)}
+    rows = [{"head": h, "item": existing.get(h.id)} for h in heads]
+    est_total = sum((ei.estimated_amount or 0) for ei in existing.values())
+    act_total = sum((ei.actual_amount or 0) for ei in existing.values())
+
+    return render(request, "training/expenses.html", {
+        "programme": programme,
+        "rows": rows,
+        "est_total": est_total,
+        "act_total": act_total,
+        "can_edit": _can_manage_programme(request.user, programme),
+    })
+
+
+def _to_float(val):
+    try:
+        return float(val or 0)
+    except (TypeError, ValueError):
+        return 0.0

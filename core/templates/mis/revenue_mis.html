@@ -41,5 +41,42 @@
     {% else %}
     <p style="color:#666;">No recognized revenue in scope yet.</p>
     {% endif %}
+
+    {% if show_expenses %}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-top:24px;">
+        <h2 style="font-size:18px; margin-top:0;">Combined Expenditure by Category (Consultancy + Training)</h2>
+        <p style="color:#666; margin-top:0;">Actual expenditure rolled up into shared macro-categories across both revenue streams.</p>
+        {% if expense_rows %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;">
+                <th style="padding:8px;">Category</th>
+                <th style="padding:8px; text-align:right;">Consultancy (₹)</th>
+                <th style="padding:8px; text-align:right;">Training (₹)</th>
+                <th style="padding:8px; text-align:right;">Total (₹)</th>
+            </tr></thead>
+            <tbody>
+                {% for e in expense_rows %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ e.label }}</td>
+                    <td style="padding:8px; text-align:right;">{{ e.consultancy|floatformat:0 }}</td>
+                    <td style="padding:8px; text-align:right;">{{ e.training|floatformat:0 }}</td>
+                    <td style="padding:8px; text-align:right; font-weight:600;">{{ e.total|floatformat:0 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="border-top:2px solid #d1d5db; font-weight:700; background:#f9fafb;">
+                    <td style="padding:8px;">Total</td>
+                    <td style="padding:8px; text-align:right;">{{ exp_consultancy|floatformat:0 }}</td>
+                    <td style="padding:8px; text-align:right;">{{ exp_training|floatformat:0 }}</td>
+                    <td style="padding:8px; text-align:right;">{{ exp_total|floatformat:0 }}</td>
+                </tr>
+            </tfoot>
+        </table>
+        {% else %}
+        <p style="color:#666;">No itemized expenditure recorded yet.</p>
+        {% endif %}
+    </section>
+    {% endif %}
 </div>
 {% endblock %}

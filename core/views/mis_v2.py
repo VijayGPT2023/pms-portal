@@ -16,7 +16,8 @@ from django.db.models import Count, Q, Sum
 from django.shortcuts import render
 
 from core.models import (
-    NonRevenueSuggestion, OfficerRevenueLedger, PreWORecord,
+    ExpenditureItem, MacroExpenseCategory, NonRevenueSuggestion,
+    OfficerRevenueLedger, PreWORecord, TrainingExpenseItem,
     TrainingRevenueLedger,
 )
 
@@ -115,6 +116,42 @@ def revenue_mis(request):
         officer_map[row["officer_id"]]["amount"] += row["s"] or 0
     by_officer = sorted(officer_map.values(), key=lambda r: r["amount"], reverse=True)[:12]
 
+    # ---- Combined expenditure rollup by shared macro-category ----
+    # Unions consultancy (ExpenditureItem) + training (TrainingExpenseItem) so
+    # the two independent streams roll up into common buckets. Office-scoped;
+    # not shown at SELF level (officers don't own programme/assignment costs).
+    asg_items = ExpenditureItem.objects.all()
+    trn_items = TrainingExpenseItem.objects.all()
+    if level == "OFFICE":
+        asg_items = asg_items.filter(assignment__office__office_id=office_id)
+        trn_items = trn_items.filter(programme__office__office_id=office_id)
+
+    macro_labels = dict(MacroExpenseCategory.choices)
+    macro_rows = {k: {"label": v, "consultancy": 0.0, "training": 0.0}
+                  for k, v in MacroExpenseCategory.choices}
+    if level != "SELF":
+        for row in (asg_items.values("head__macro_category")
+                    .annotate(s=Sum("actual_amount"))):
+            mc = row["head__macro_category"] or "MISC"
+            macro_rows.setdefault(mc, {"label": macro_labels.get(mc, mc), "consultancy": 0.0, "training": 0.0})
+            macro_rows[mc]["consultancy"] += row["s"] or 0
+        for row in (trn_items.values("head__macro_category")
+                    .annotate(s=Sum("actual_amount"))):
+            mc = row["head__macro_category"] or "MISC"
+            macro_rows.setdefault(mc, {"label": macro_labels.get(mc, mc), "consultancy": 0.0, "training": 0.0})
+            macro_rows[mc]["training"] += row["s"] or 0
+
+    expense_rows = []
+    exp_consultancy = exp_training = 0.0
+    for mc, r in macro_rows.items():
+        total = r["consultancy"] + r["training"]
+        exp_consultancy += r["consultancy"]
+        exp_training += r["training"]
+        if total > 0:
+            expense_rows.append({"label": r["label"], "consultancy": r["consultancy"],
+                                 "training": r["training"], "total": total})
+    expense_rows.sort(key=lambda x: x["total"], reverse=True)
+
     return render(request, "mis/revenue_mis.html", {
         "scope_label": _scope_label(level, office_id),
         "kpis": {
@@ -125,6 +162,11 @@ def revenue_mis(request):
             "recognized_20": asg_20 + trn_20,
         },
         "by_officer": by_officer,
+        "expense_rows": expense_rows,
+        "exp_consultancy": exp_consultancy,
+        "exp_training": exp_training,
+        "exp_total": exp_consultancy + exp_training,
+        "show_expenses": level != "SELF",
     })
 
 

@@ -227,7 +227,8 @@ def sample_client(db, officer_user):
 
 @pytest.fixture
 def expenditure_heads(db):
-    """Create default expenditure heads."""
+    """Default expenditure heads. Idempotent — data migration 0012 already
+    seeds the NPC-ASS-6 heads into the test DB, so use get_or_create."""
     heads = []
     for cat, code, name in [
         ("A", "A1", "NPC Consultant Fee"),
@@ -236,8 +237,8 @@ def expenditure_heads(db):
         ("C", "C1", "Outstation Stay"),
         ("E", "E1", "Hall Hiring"),
     ]:
-        h = ExpenditureHead.objects.create(
-            category=cat, head_code=code, head_name=name
+        h, _ = ExpenditureHead.objects.get_or_create(
+            head_code=code, defaults={"category": cat, "head_name": name}
         )
         heads.append(h)
     return heads

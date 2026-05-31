@@ -24,6 +24,7 @@ from core.models import (
     RevenueShare, InvoiceRequest, PaymentReceipt, OfficerRevenueLedger,
     ConfigOption, FinancialYearTarget, Client, AssignmentClient,
     TrainingProgramme, TrainerAllocation, TrainingChecklist,
+    TrainingExpenseHead,
     NonRevenueSuggestion,
 )
 
@@ -169,27 +170,73 @@ def create_officers():
 
 
 def create_expenditure_heads():
-    """Create default CMR expenditure heads."""
-    heads = [
-        ("A", "A1", "NPC Consultant Fee"),
-        ("A", "A2", "Guest Consultant Fee"),
-        ("A", "A3", "Faculty Fee"),
-        ("B", "B1", "NPC Consultant Travel"),
-        ("B", "B2", "Supporting Staff Travel"),
-        ("C", "C1", "Outstation Stay"),
-        ("C", "C2", "Local Consultant Expenses"),
-        ("D", "D1", "Publication Titles"),
-        ("D", "D2", "Printing & Binding"),
-        ("E", "E1", "Hall Hiring"),
-        ("E", "E2", "Refreshment"),
-        ("E", "E3", "Stationery"),
-        ("F", "F1", "Unforeseen Expenses"),
+    """Create consultancy (NPC-ASS-6) + training (AI-850/2025) expense heads.
+
+    Kept in sync with data migration 0012_seed_expense_heads. Both sets carry a
+    shared macro_category for the combined Revenue MIS rollup.
+    """
+    consultancy = [
+        ("A", "A1", "NPC Consultant Fee", "FEE"),
+        ("A", "A2", "Guest Consultant Fee", "FEE"),
+        ("A", "A3", "Faculty Fee", "FEE"),
+        ("A", "A4", "Project Associate", "FEE"),
+        ("B", "B1", "NPC Consultant Travel", "TRAVEL"),
+        ("B", "B2", "Supporting Staff Travel", "TRAVEL"),
+        ("B", "B3", "Guest Consultant Travel", "TRAVEL"),
+        ("B", "B4", "Local Conveyance (NPC & Outside Consultants)", "TRAVEL"),
+        ("C", "C1", "Outstation Stay (NPC Consultants)", "LODGING"),
+        ("C", "C2", "Local Consultant Expenses", "LODGING"),
+        ("C", "C3", "Guest Faculty Lodging & Boarding", "LODGING"),
+        ("D", "D1", "Publication Titles", "MATERIAL"),
+        ("D", "D2", "Printing & Binding / Report Writing", "MATERIAL"),
+        ("D", "D3", "Periodicals", "MATERIAL"),
+        ("E", "E1", "Hiring of Hall", "ADMIN"),
+        ("E", "E2", "Refreshment", "ADMIN"),
+        ("E", "E3", "Stationery", "MATERIAL"),
+        ("E", "E4", "Working Lunch", "ADMIN"),
+        ("E", "E5", "Advertisement", "ADMIN"),
+        ("E", "E6", "Brochure", "MATERIAL"),
+        ("E", "E7", "Cyclostyled Material", "MATERIAL"),
+        ("E", "E8", "Research Material / Database / Software / IT / Internet", "MATERIAL"),
+        ("E", "E9", "Residential Expenses of Participants", "LODGING"),
+        ("E", "E10", "Factory / Other Visits", "TRAVEL"),
+        ("E", "E11", "Documentation Fees", "ADMIN"),
+        ("E", "E12", "Implementation Charges", "ADMIN"),
+        ("E", "E13", "Miscellaneous", "MISC"),
+        ("F", "F1", "Unforeseen Expenses (5%)", "MISC"),
     ]
-    for cat, code, name in heads:
+    for cat, code, name, macro in consultancy:
         ExpenditureHead.objects.get_or_create(
-            head_code=code, defaults={"category": cat, "head_name": name}
+            head_code=code,
+            defaults={"category": cat, "head_name": name, "macro_category": macro},
         )
-    print(f"  Expenditure Heads: {ExpenditureHead.objects.count()}")
+
+    training = [
+        (1, "T01", "Room Rent for Participants (APAI plan)", "LODGING"),
+        (2, "T02", "Room Rent for NPC Officer (APAI plan)", "LODGING"),
+        (3, "T03", "Room Rent for Faculty (APAI plan)", "LODGING"),
+        (4, "T04", "Projector / Screen / Collar Mike etc.", "ADMIN"),
+        (5, "T05", "Field Visit Charges", "TRAVEL"),
+        (6, "T06", "Gala / Networking Dinner", "ADMIN"),
+        (7, "T07", "Group Photography (no printing)", "ADMIN"),
+        (8, "T08", "Honorarium to Faculty (per AI-830)", "FEE"),
+        (9, "T09", "Faculty Travel — Air / Rail Tickets", "TRAVEL"),
+        (10, "T10", "Faculty Travel — Local Conveyance (home location)", "TRAVEL"),
+        (11, "T11", "Faculty Pick & Drop (programme location)", "TRAVEL"),
+        (12, "T12", "NPC Officer Tour (Air/Rail + LC at home location)", "TRAVEL"),
+        (13, "T13", "NPC Officer Pick & Drop (programme location)", "TRAVEL"),
+        (14, "T14", "Training Kit (Bag, Pen, Pad, Pen drive, Certificate)", "MATERIAL"),
+        (15, "T15", "Courier Charges", "MATERIAL"),
+        (16, "T16", "Site Seeing Tickets (River Cruise, Light & Sound etc.)", "ADMIN"),
+        (17, "T17", "Other Miscellaneous Expenses", "MISC"),
+    ]
+    for seq, code, name, macro in training:
+        TrainingExpenseHead.objects.get_or_create(
+            head_code=code,
+            defaults={"seq": seq, "head_name": name, "macro_category": macro},
+        )
+    print(f"  Expenditure Heads: {ExpenditureHead.objects.count()} consultancy, "
+          f"{TrainingExpenseHead.objects.count()} training")
 
 
 def create_config_options():

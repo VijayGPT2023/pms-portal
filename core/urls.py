@@ -158,6 +158,7 @@ urlpatterns = [
     # Post-event 80-20 recognition (SCOPE_V2 §3.3)
     path("training/<int:programme_id>/register-completion/", trn.register_completion, name="training_register_completion"),
     path("training/<int:programme_id>/record-payment/", trn.record_training_payment, name="training_record_payment"),
+    path("training/<int:programme_id>/expenses/", trn.training_expenses, name="training_expenses"),
 
     # ── Utilization ───────────────────────────────────────────────────
     path("utilization/", util.utilization_list, name="utilization_list"),
