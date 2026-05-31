@@ -172,7 +172,7 @@ def import_page(request):
 def import_data(request):
     """Import data from Excel file."""
     if request.method != "POST":
-        return redirect("core:data_import")
+        return redirect("core:import_page")
     if not _require_admin(request.user):
         return redirect("core:dashboard")
 

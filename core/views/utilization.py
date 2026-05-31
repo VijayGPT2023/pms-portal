@@ -226,7 +226,7 @@ def pending_approval(request):
 def tl_approve(request, claim_id):
     """TL approves claim (SUBMITTED -> TL_APPROVED)."""
     if request.method != "POST":
-        return redirect("core:utilization_pending")
+        return redirect("core:pending_approval")
 
     claim = get_object_or_404(UtilizationClaim, pk=claim_id, status="SUBMITTED")
     claim.status = "TL_APPROVED"
@@ -234,20 +234,20 @@ def tl_approve(request, claim_id):
     claim.tl_approved_at = timezone.now()
     claim.tl_remarks = request.POST.get("remarks", "").strip()
     claim.save()
-    return redirect("core:utilization_pending")
+    return redirect("core:pending_approval")
 
 
 @login_required
 def tl_reject(request, claim_id):
     """TL rejects claim (SUBMITTED -> DRAFT)."""
     if request.method != "POST":
-        return redirect("core:utilization_pending")
+        return redirect("core:pending_approval")
 
     claim = get_object_or_404(UtilizationClaim, pk=claim_id, status="SUBMITTED")
     claim.status = "DRAFT"
     claim.tl_remarks = request.POST.get("remarks", "").strip()
     claim.save()
-    return redirect("core:utilization_pending")
+    return redirect("core:pending_approval")
 
 
 @login_required
@@ -275,7 +275,7 @@ def pending_rectification(request):
 def head_rectify(request, claim_id):
     """Head rectifies claim (TL_APPROVED -> HEAD_RECTIFIED)."""
     if request.method != "POST":
-        return redirect("core:utilization_rectification")
+        return redirect("core:pending_rectification")
 
     claim = get_object_or_404(UtilizationClaim, pk=claim_id, status="TL_APPROVED")
     if not _is_head_for_officer(request.user, claim.officer):
@@ -287,14 +287,14 @@ def head_rectify(request, claim_id):
     claim.head_rectified_at = timezone.now()
     claim.head_remarks = request.POST.get("remarks", "").strip()
     claim.save()
-    return redirect("core:utilization_rectification")
+    return redirect("core:pending_rectification")
 
 
 @login_required
 def finalize_claim(request, claim_id):
     """Head finalizes claim (HEAD_RECTIFIED -> FINAL)."""
     if request.method != "POST":
-        return redirect("core:utilization_rectification")
+        return redirect("core:pending_rectification")
 
     claim = get_object_or_404(UtilizationClaim, pk=claim_id, status="HEAD_RECTIFIED")
     if not _is_head_for_officer(request.user, claim.officer):
@@ -302,7 +302,7 @@ def finalize_claim(request, claim_id):
 
     claim.status = "FINAL"
     claim.save()
-    return redirect("core:utilization_rectification")
+    return redirect("core:pending_rectification")
 
 
 @login_required

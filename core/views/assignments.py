@@ -908,7 +908,7 @@ def manage_expenditure(request, assignment_id):
     # Wizard flow
     next_step = POST.get("next_step", "")
     if next_step == "team_revenue":
-        return redirect("core:revenue_edit", assignment_id=assignment.pk)
+        return redirect("core:revenue_share_page", assignment_id=assignment.pk)
 
     messages.success(request, "Cost estimates saved.")
     return redirect("core:assignment_view", assignment_id=assignment.pk)

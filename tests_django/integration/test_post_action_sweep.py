@@ -151,3 +151,26 @@ def test_post_actions_no_500(admin_user, seed):
 
     print(f"\nPOST SWEEP: fired {tested} action endpoints")
     assert not offenders, "POST ACTION 500s:\n" + "\n".join(offenders)
+
+
+def test_no_stale_redirect_names_in_views():
+    """Static guard: every redirect('core:..') / reverse('core:..') in the
+    view layer must resolve to a real URL name. Catches the stale-redirect
+    class (e.g. approvals_list, utilization_pending, revenue_edit) that 500s
+    only after a successful action — before a screenshot ever reveals it."""
+    import os
+    from core import urls as cu
+    valid = {p.name for p in cu.urlpatterns if getattr(p, "name", None)}
+    bad = {}
+    for root, _, files in os.walk("core/views"):
+        for fn in files:
+            if not fn.endswith(".py"):
+                continue
+            path = os.path.join(root, fn)
+            with open(path, encoding="utf-8") as fh:
+                src = fh.read()
+            for m in re.finditer(r"""(?:redirect|reverse)\(\s*["']core:(\w+)["']""", src):
+                if m.group(1) not in valid:
+                    bad.setdefault(m.group(1), set()).add(fn)
+    assert not bad, "Stale redirect/reverse URL names: " + "; ".join(
+        f"core:{n} ({', '.join(sorted(v))})" for n, v in sorted(bad.items()))

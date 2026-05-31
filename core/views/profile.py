@@ -47,7 +47,7 @@ def change_password_form(request):
 def change_password_submit(request):
     """Process password change request."""
     if request.method != "POST":
-        return redirect("core:change_password")
+        return redirect("core:change_password_form")
 
     current_password = request.POST.get("current_password", "")
     new_password = request.POST.get("new_password", "")
