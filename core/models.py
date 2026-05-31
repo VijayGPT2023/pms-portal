@@ -817,7 +817,12 @@ class InvoiceRequest(models.Model):
     # django-fsm transitions
     @transition(field=status, source="PENDING", target="APPROVED")
     def approve(self):
-        self.revenue_recognized_80 = self.invoice_amount * 0.80
+        # Revenue is shared on SURPLUS, not gross billed:
+        #   surplus = invoice amount − direct (actual) expenditure recorded so far.
+        # 80% of surplus recognized here, 20% on payment; together = full surplus.
+        exp = (self.assignment.total_expenditure or 0) if self.assignment_id else 0
+        surplus = max(0.0, (self.invoice_amount or 0) - exp)
+        self.revenue_recognized_80 = surplus * 0.80
 
     @transition(field=status, source="PENDING", target="REJECTED")
     def reject(self):
@@ -868,8 +873,14 @@ class PaymentReceipt(models.Model):
         return f"{self.receipt_number} - {self.amount_received}"
 
     def save(self, **kwargs):
-        # Auto-calculate 20% revenue recognition
-        self.revenue_recognized_20 = self.amount_received * 0.20
+        # 20% recognized on SURPLUS, not gross payment:
+        #   surplus = payment received − direct (actual) expenditure recorded.
+        # Mirrors InvoiceRequest.approve() (80%); together they total the surplus.
+        exp = 0
+        if self.invoice_request_id and self.invoice_request.assignment_id:
+            exp = self.invoice_request.assignment.total_expenditure or 0
+        surplus = max(0.0, (self.amount_received or 0) - exp)
+        self.revenue_recognized_20 = surplus * 0.20
         super().save(**kwargs)
 
 

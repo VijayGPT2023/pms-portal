@@ -593,7 +593,14 @@ def register_completion(request, programme_id):
         programme.invoice_amount = invoice_amount
         programme.invoice_date = request.POST.get("invoice_date") or None
         programme.fy_period = fy_period
-        programme.revenue_recognized_80 = invoice_amount * 0.80
+        # Faculty share SURPLUS, not gross billed: surplus = invoice − direct
+        # expenditure. Use the larger of the lump-sum actual_expenditure field
+        # or the itemized AI-850 TrainingExpenseItem actuals (whichever filled).
+        item_exp = TrainingExpenseItem.objects.filter(programme=programme).aggregate(
+            s=Sum("actual_amount"))["s"] or 0
+        direct_exp = max(programme.actual_expenditure or 0, item_exp)
+        surplus = max(0.0, invoice_amount - direct_exp)
+        programme.revenue_recognized_80 = surplus * 0.80
         programme.actual_revenue = invoice_amount
         programme.completion_registered = True
         programme.stage = "CONDUCTED"
@@ -604,7 +611,9 @@ def register_completion(request, programme_id):
         ActivityLog.objects.create(
             actor=request.user, action="UPDATE",
             entity_type="training_programme", entity_id=programme.pk,
-            remarks=f"Completion registered; 80% ({programme.revenue_recognized_80:.0f}) recognized",
+            remarks=f"Completion registered; surplus {surplus:.0f} "
+                    f"(invoice {invoice_amount:.0f} − exp {direct_exp:.0f}); "
+                    f"80% ({programme.revenue_recognized_80:.0f}) recognized",
         )
 
     messages.success(request, "Completion registered. 80% revenue recognized.")
@@ -639,7 +648,13 @@ def record_training_payment(request, programme_id):
     with transaction.atomic():
         programme.payment_amount = payment_amount
         programme.payment_date = request.POST.get("payment_date") or None
-        programme.revenue_recognized_20 = payment_amount * 0.20
+        # 20% recognized on SURPLUS of the payment (payment − direct expenditure),
+        # mirroring the 80% completion step; together they total the surplus.
+        item_exp = TrainingExpenseItem.objects.filter(programme=programme).aggregate(
+            s=Sum("actual_amount"))["s"] or 0
+        direct_exp = max(programme.actual_expenditure or 0, item_exp)
+        surplus = max(0.0, payment_amount - direct_exp)
+        programme.revenue_recognized_20 = surplus * 0.20
         programme.payment_recorded = True
         programme.stage = "CLOSED"
         programme.save()
@@ -649,7 +664,9 @@ def record_training_payment(request, programme_id):
         ActivityLog.objects.create(
             actor=request.user, action="UPDATE",
             entity_type="training_programme", entity_id=programme.pk,
-            remarks=f"Payment recorded; 20% ({programme.revenue_recognized_20:.0f}) recognized",
+            remarks=f"Payment recorded; surplus {surplus:.0f} "
+                    f"(payment {payment_amount:.0f} − exp {direct_exp:.0f}); "
+                    f"20% ({programme.revenue_recognized_20:.0f}) recognized",
         )
 
     messages.success(request, "Payment recorded. 20% revenue recognized.")

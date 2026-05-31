@@ -40,7 +40,8 @@ def two_faculty(db, programme, team_leader_user, officer_user):
     )
 
 
-def test_register_completion_recognizes_80(tl_client, programme, two_faculty):
+def test_register_completion_recognizes_80_of_SURPLUS(tl_client, programme, two_faculty):
+    """80% is recognized on SURPLUS (invoice − direct expenditure), not gross."""
     url = reverse("core:training_register_completion", kwargs={"programme_id": programme.pk})
     resp = tl_client.post(url, {
         "actual_participants": "28",
@@ -52,14 +53,33 @@ def test_register_completion_recognizes_80(tl_client, programme, two_faculty):
     assert resp.status_code == 302
     programme.refresh_from_db()
     assert programme.completion_registered is True
-    assert programme.revenue_recognized_80 == pytest.approx(56000 * 0.80)
+    # surplus = 56000 − 15000 = 41000 ; 80% = 32800
+    surplus = 56000 - 15000
+    assert programme.revenue_recognized_80 == pytest.approx(surplus * 0.80)
     assert programme.stage == "CONDUCTED"
 
-    # Split: 80% of 56000 = 44800; 60/40 => 26880 / 17920
+    # Split 80% of surplus (32800): 60/40 => 19680 / 13120
     ledger = {l.officer_id: l.amount for l in TrainingRevenueLedger.objects.filter(
         programme=programme, revenue_type="COMPLETION_80")}
-    assert ledger["TL001"] == pytest.approx(44800 * 0.60)
-    assert ledger["OFF001"] == pytest.approx(44800 * 0.40)
+    assert ledger["TL001"] == pytest.approx(surplus * 0.80 * 0.60)
+    assert ledger["OFF001"] == pytest.approx(surplus * 0.80 * 0.40)
+
+
+def test_zero_expenditure_shares_full_gross(tl_client, programme, two_faculty):
+    """With no expenditure, surplus = gross, so 80% of invoice (back-compat)."""
+    url = reverse("core:training_register_completion", kwargs={"programme_id": programme.pk})
+    tl_client.post(url, {"invoice_amount": "56000", "invoice_number": "INV/Z"})
+    programme.refresh_from_db()
+    assert programme.revenue_recognized_80 == pytest.approx(56000 * 0.80)
+
+
+def test_expenditure_exceeds_invoice_floors_at_zero(tl_client, programme, two_faculty):
+    """If direct expenditure > invoice, surplus floors at 0 — no negative share."""
+    url = reverse("core:training_register_completion", kwargs={"programme_id": programme.pk})
+    tl_client.post(url, {"invoice_amount": "10000", "actual_expenditure": "15000",
+                         "invoice_number": "INV/NEG"})
+    programme.refresh_from_db()
+    assert programme.revenue_recognized_80 == 0.0
 
 
 def test_payment_requires_completion_first(tl_client, programme, two_faculty):

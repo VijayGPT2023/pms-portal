@@ -114,3 +114,43 @@ class TestRevenueModel:
 
         total = inv.revenue_recognized_80 + pmt.revenue_recognized_20
         assert total == 100.0  # 80 + 20 = 100
+
+
+class TestSurplusSharing:
+    """Revenue is shared on SURPLUS (billed − direct expenditure), not gross."""
+
+    def test_invoice_80_on_surplus(self, db, sample_assignment, officer_user):
+        sample_assignment.total_expenditure = 30.0
+        sample_assignment.save(update_fields=["total_expenditure"])
+        inv = InvoiceRequest.objects.create(
+            request_number="SURP-1", assignment=sample_assignment,
+            invoice_amount=100.0, fy_period="2025-26", requested_by=officer_user,
+        )
+        inv.approve(); inv.save()
+        # surplus = 100 − 30 = 70 ; 80% = 56
+        assert inv.revenue_recognized_80 == pytest.approx(56.0)
+
+    def test_payment_20_on_surplus(self, db, sample_assignment, officer_user):
+        sample_assignment.total_expenditure = 30.0
+        sample_assignment.save(update_fields=["total_expenditure"])
+        inv = InvoiceRequest.objects.create(
+            request_number="SURP-2", assignment=sample_assignment,
+            invoice_amount=100.0, fy_period="2025-26", requested_by=officer_user,
+            status="APPROVED",
+        )
+        pmt = PaymentReceipt.objects.create(
+            receipt_number="SURP-PMT-1", invoice_request=inv, amount_received=100.0,
+            receipt_date="2025-12-01", fy_period="2025-26", updated_by=officer_user,
+        )
+        # surplus = 100 − 30 = 70 ; 20% = 14
+        assert pmt.revenue_recognized_20 == pytest.approx(14.0)
+
+    def test_surplus_floors_at_zero(self, db, sample_assignment, officer_user):
+        sample_assignment.total_expenditure = 150.0  # exceeds invoice
+        sample_assignment.save(update_fields=["total_expenditure"])
+        inv = InvoiceRequest.objects.create(
+            request_number="SURP-3", assignment=sample_assignment,
+            invoice_amount=100.0, fy_period="2025-26", requested_by=officer_user,
+        )
+        inv.approve(); inv.save()
+        assert inv.revenue_recognized_80 == 0.0
