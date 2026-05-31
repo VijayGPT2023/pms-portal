@@ -564,6 +564,42 @@ def _split_to_faculty(programme, total_amount, revenue_type, fy_period):
         )
 
 
+def _training_direct_expenditure(programme):
+    """Direct expenditure = larger of the lump-sum actual_expenditure field or
+    the sum of itemized AI-850 TrainingExpenseItem actuals."""
+    item_exp = TrainingExpenseItem.objects.filter(programme=programme).aggregate(
+        s=Sum("actual_amount"))["s"] or 0
+    return max(programme.actual_expenditure or 0, item_exp)
+
+
+def _recompute_training_recognition(programme):
+    """Re-derive 80%/20% recognition + rewrite faculty ledger from CURRENT
+    surplus (invoice/payment − direct expenditure). Idempotent: safe to call
+    whenever expenditure changes after completion/payment was already recorded.
+    Only touches steps that have actually happened."""
+    direct_exp = _training_direct_expenditure(programme)
+    changed = []
+    if programme.completion_registered:
+        surplus80 = max(0.0, (programme.invoice_amount or 0) - direct_exp)
+        programme.revenue_recognized_80 = surplus80 * 0.80
+        changed.append("revenue_recognized_80")
+        TrainingRevenueLedger.objects.filter(
+            programme=programme, revenue_type="COMPLETION_80").delete()
+        _split_to_faculty(programme, programme.revenue_recognized_80,
+                          "COMPLETION_80", programme.fy_period or "")
+    if programme.payment_recorded:
+        surplus20 = max(0.0, (programme.payment_amount or 0) - direct_exp)
+        programme.revenue_recognized_20 = surplus20 * 0.20
+        changed.append("revenue_recognized_20")
+        TrainingRevenueLedger.objects.filter(
+            programme=programme, revenue_type="PAYMENT_20").delete()
+        _split_to_faculty(programme, programme.revenue_recognized_20,
+                          "PAYMENT_20", programme.fy_period or "")
+    if changed:
+        programme.save(update_fields=changed)
+    return direct_exp
+
+
 @login_required
 @require_POST
 def register_completion(request, programme_id):
@@ -594,11 +630,8 @@ def register_completion(request, programme_id):
         programme.invoice_date = request.POST.get("invoice_date") or None
         programme.fy_period = fy_period
         # Faculty share SURPLUS, not gross billed: surplus = invoice − direct
-        # expenditure. Use the larger of the lump-sum actual_expenditure field
-        # or the itemized AI-850 TrainingExpenseItem actuals (whichever filled).
-        item_exp = TrainingExpenseItem.objects.filter(programme=programme).aggregate(
-            s=Sum("actual_amount"))["s"] or 0
-        direct_exp = max(programme.actual_expenditure or 0, item_exp)
+        # expenditure (larger of lump-sum field or itemized AI-850 actuals).
+        direct_exp = _training_direct_expenditure(programme)
         surplus = max(0.0, invoice_amount - direct_exp)
         programme.revenue_recognized_80 = surplus * 0.80
         programme.actual_revenue = invoice_amount
@@ -650,9 +683,7 @@ def record_training_payment(request, programme_id):
         programme.payment_date = request.POST.get("payment_date") or None
         # 20% recognized on SURPLUS of the payment (payment − direct expenditure),
         # mirroring the 80% completion step; together they total the surplus.
-        item_exp = TrainingExpenseItem.objects.filter(programme=programme).aggregate(
-            s=Sum("actual_amount"))["s"] or 0
-        direct_exp = max(programme.actual_expenditure or 0, item_exp)
+        direct_exp = _training_direct_expenditure(programme)
         surplus = max(0.0, payment_amount - direct_exp)
         programme.revenue_recognized_20 = surplus * 0.20
         programme.payment_recorded = True
@@ -714,12 +745,23 @@ def training_expenses(request, programme_id):
 
             programme.actual_expenditure = total_actual
             programme.save(update_fields=["actual_expenditure"])
+            # If recognition already happened, re-derive it from the new
+            # surplus so revenue sharing always reflects current expenditure.
+            _recompute_training_recognition(programme)
             ActivityLog.objects.create(
                 actor=request.user, action="UPDATE",
                 entity_type="training_programme", entity_id=programme.pk,
-                remarks=f"Training expenses updated; actual total {total_actual:.0f}",
+                remarks=f"Training expenses updated; actual total {total_actual:.0f}; "
+                        f"recognition re-derived (80%={programme.revenue_recognized_80:.0f}, "
+                        f"20%={programme.revenue_recognized_20:.0f})",
             )
-        messages.success(request, "Training expenses saved.")
+        if programme.completion_registered:
+            messages.success(
+                request,
+                f"Expenses saved. Revenue recognition re-derived on surplus "
+                f"(80% = {programme.revenue_recognized_80:.0f}).")
+        else:
+            messages.success(request, "Training expenses saved.")
         return redirect("core:training_expenses", programme_id=programme_id)
 
     heads = list(TrainingExpenseHead.objects.filter(is_active=True).order_by("seq", "head_code"))

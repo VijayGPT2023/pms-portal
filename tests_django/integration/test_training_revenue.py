@@ -139,3 +139,30 @@ def test_even_split_when_shares_not_100(tl_client, programme, team_leader_user, 
     tl_client.post(url, {"invoice_amount": "10000"})  # 80% = 8000, even => 4000 each
     amounts = sorted(l.amount for l in TrainingRevenueLedger.objects.filter(programme=programme))
     assert amounts == pytest.approx([4000.0, 4000.0])
+
+
+def test_expense_added_after_completion_recomputes_recognition(tl_client, programme, two_faculty):
+    """The real UAT scenario: register completion FIRST (no expenditure yet),
+    THEN add itemized expenses -> recognition must re-derive on surplus."""
+    from core.models import TrainingExpenseHead, TrainingRevenueLedger
+    # 1. Complete with zero expenditure -> 80% of gross 56000 = 44800
+    tl_client.post(reverse("core:training_register_completion", kwargs={"programme_id": programme.pk}),
+                   {"invoice_amount": "56000", "invoice_number": "INV/REC"})
+    programme.refresh_from_db()
+    assert programme.revenue_recognized_80 == pytest.approx(56000 * 0.80)
+
+    # 2. Now add itemized expenditure of 16000 via the expense form
+    h1 = TrainingExpenseHead.objects.get(head_code="T01")
+    h2 = TrainingExpenseHead.objects.get(head_code="T08")
+    resp = tl_client.post(reverse("core:training_expenses", kwargs={"programme_id": programme.pk}), {
+        f"estimated_{h1.id}": "0", f"actual_{h1.id}": "10000", f"remarks_{h1.id}": "",
+        f"estimated_{h2.id}": "0", f"actual_{h2.id}": "6000", f"remarks_{h2.id}": "",
+    })
+    assert resp.status_code == 302
+    programme.refresh_from_db()
+    # surplus = 56000 − 16000 = 40000 ; 80% = 32000 (recomputed!)
+    assert programme.revenue_recognized_80 == pytest.approx(40000 * 0.80)
+    # ledger rebuilt to the new amount (2 faculty, 60/40 of 32000)
+    led = {l.officer_id: l.amount for l in TrainingRevenueLedger.objects.filter(
+        programme=programme, revenue_type="COMPLETION_80")}
+    assert sum(led.values()) == pytest.approx(32000.0)
