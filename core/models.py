@@ -432,7 +432,7 @@ class Assignment(models.Model):
         default="DRAFT", max_length=50,
     )
     workflow_stage = FSMField(
-        default="REGISTRATION", max_length=50,
+        default="REGISTRATION", max_length=50, choices=WorkflowStage.choices,
     )
 
     # --- Section approval statuses (django-fsm) ---

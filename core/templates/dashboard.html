@@ -836,7 +836,12 @@
                         {% elif a.workflow_stage == 'COMPLETED' %}badge-info
                         {% elif a.workflow_stage == 'DETAIL_ENTRY' %}badge-warning
                         {% else %}badge-secondary{% endif %}" style="font-size: 0.65rem;">
-                        {{ a.get_workflow_stage_display|default:"-" }}
+                        {% if a.workflow_stage == 'REGISTRATION' %}WO Registration
+                        {% elif a.workflow_stage == 'TL_ASSIGNMENT' %}TL Assignment
+                        {% elif a.workflow_stage == 'DETAIL_ENTRY' %}Progressive Fill
+                        {% elif a.workflow_stage == 'ACTIVE' %}Execution
+                        {% elif a.workflow_stage == 'COMPLETED' %}Closure
+                        {% else %}{{ a.workflow_stage|default:"-" }}{% endif %}
                     </span>
                 </td>
                 <td style="font-size: 0.75rem; color: #64748b;">{{ a.domain|default:"-" }}</td>
