@@ -81,3 +81,17 @@ def test_form_pages_render(admin_user, sample_assignment):
     client = _client(admin_user)
     failures = [u for u in FORM_PAGES if client.get(u).status_code != 200]
     assert not failures, f"Form pages not rendering: {failures}"
+
+
+def test_assignment_view_all_tabs_render(admin_user, sample_assignment,
+                                         sample_milestones, expenditure_heads):
+    """Every assignment-view tab must render. Guards against stale {% url %}
+    names like the core:revenue_edit -> revenue_share_page drift that 500'd
+    the team tab."""
+    client = _client(admin_user)
+    failures = []
+    for tab in ("basic", "milestones", "cost", "team"):
+        resp = client.get(f"/assignment/view/{sample_assignment.pk}/?tab={tab}")
+        if resp.status_code != 200:
+            failures.append(f"tab={tab} -> HTTP {resp.status_code}")
+    assert not failures, f"Assignment-view tabs failing: {failures}"

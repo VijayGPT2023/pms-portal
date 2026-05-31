@@ -597,7 +597,7 @@
 <div class="card">
     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
         <h2 class="card-title" style="margin: 0;">Team & Revenue Sharing</h2>
-        <a href="{% url 'core:revenue_edit' assignment_id=assignment.pk %}" class="btn btn-primary btn-sm">Edit Revenue Shares</a>
+        <a href="{% url 'core:revenue_share_page' assignment_id=assignment.pk %}" class="btn btn-primary btn-sm">Edit Revenue Shares</a>
     </div>
 
     {% if revenue_shares %}
@@ -652,7 +652,7 @@
     {% else %}
     <p style="text-align: center; padding: 30px; color: #718096;">
         No revenue shares allocated yet.
-        <a href="{% url 'core:revenue_edit' assignment_id=assignment.pk %}">Allocate revenue shares</a>
+        <a href="{% url 'core:revenue_share_page' assignment_id=assignment.pk %}">Allocate revenue shares</a>
     </p>
     {% endif %}
 </div>
