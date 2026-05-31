@@ -6,7 +6,7 @@
 
     <header style="margin-bottom:20px;">
         <h1 style="margin:0; font-size:24px;">Finance Dashboard</h1>
-        <p style="color:#666; margin-top:4px;">Invoice approvals & payments — drives the 80-20 revenue recognition.</p>
+        <p style="color:#666; margin-top:4px;">Invoice approvals &amp; payments — drives the 80-20 revenue recognition.</p>
     </header>
 
     {% if messages %}
@@ -68,7 +68,7 @@
                     <td style="padding:8px;">{{ inv.request_number }}</td>
                     <td style="padding:8px;">{{ inv.assignment.assignment_no }}</td>
                     <td style="padding:8px; text-align:right;">₹{{ inv.invoice_amount|floatformat:0 }}</td>
-                    <td style="padding:8px;"><span class="badge">{{ inv.get_status_display }}</span></td>
+                    <td style="padding:8px;"><span class="badge">{{ inv.status }}</span></td>
                     <td style="padding:8px;"><a href="{% url 'core:payment_form' invoice_id=inv.pk %}">Record Payment</a></td>
                 </tr>
                 {% endfor %}

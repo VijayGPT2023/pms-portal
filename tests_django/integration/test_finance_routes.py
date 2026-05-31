@@ -18,7 +18,20 @@ class TestFinanceDashboard:
         response = auth_client.get("/finance/")
         assert response.status_code == 200
         assert b"Finance Dashboard" in response.content
-        assert b"coming soon" not in response.content  # real template, not stub
+        assert b"coming soon" not in response.content
+
+    def test_approved_invoice_status_renders(self, auth_client, sample_assignment, officer_user):
+        """Guard: InvoiceRequest.status is an FSMField (no get_status_display);
+        the dashboard must render the raw status value, not blank."""
+        InvoiceRequest.objects.create(
+            request_number="INV-STATUS-001", assignment=sample_assignment,
+            invoice_amount=100.0, fy_period="2025-26",
+            requested_by=officer_user, status="APPROVED",
+        )
+        response = auth_client.get("/finance/")
+        assert response.status_code == 200
+        assert b"INV-STATUS-001" in response.content
+        assert b"APPROVED" in response.content  # status visible, not blank  # real template, not stub
 
 
 class TestInvoiceRequest:

@@ -18,7 +18,13 @@
         <select name="filter_office" style="padding:6px;">
             <option value="">All offices</option>
             {% for o in offices %}
-            <option value="{{ o.office_id }}" {% if filter_office == o.office_id %}selected{% endif %}>{{ o.office_name }}</option>
+            <option value="{{ o }}" {% if filter_office == o %}selected{% endif %}>{{ o }}</option>
+            {% endfor %}
+        </select>
+        <select name="filter_domain" style="padding:6px;">
+            <option value="">All domains</option>
+            {% for d in domains %}
+            <option value="{{ d }}" {% if filter_domain == d %}selected{% endif %}>{{ d }}</option>
             {% endfor %}
         </select>
         <select name="filter_status" style="padding:6px;">
