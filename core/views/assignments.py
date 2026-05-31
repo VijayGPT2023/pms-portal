@@ -905,6 +905,11 @@ def manage_expenditure(request, assignment_id):
             update_fields.append("cost_approval_status")
         assignment.save(update_fields=update_fields)
 
+        # Expenditure changed -> re-derive any already-recognized revenue so
+        # sharing reflects the new surplus (billed − expenditure).
+        from core.views.finance import recompute_assignment_recognition
+        recompute_assignment_recognition(assignment)
+
     # Wizard flow
     next_step = POST.get("next_step", "")
     if next_step == "team_revenue":
@@ -985,6 +990,10 @@ def expenditure_entry(request, assignment_id):
         assignment.total_expenditure = total_exp
         assignment.surplus_deficit = (assignment.total_revenue or 0) - total_exp
         assignment.save(update_fields=["total_expenditure", "surplus_deficit"])
+
+        # Re-derive recognition on the new surplus (parity with training).
+        from core.views.finance import recompute_assignment_recognition
+        recompute_assignment_recognition(assignment)
 
     messages.success(request, "Expense entry recorded.")
     return redirect("core:assignment_view", assignment_id=assignment.pk)

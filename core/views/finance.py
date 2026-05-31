@@ -98,6 +98,64 @@ def _get_current_fy(ref_date=None):
     return f"{d.year - 1}-{str(d.year)[2:]}"
 
 
+def recompute_assignment_recognition(assignment):
+    """Re-derive 80%/20% revenue ledger for an assignment from CURRENT surplus.
+
+    Revenue is shared on surplus (billed − direct expenditure), but the ledger
+    rows are locked at invoice-approval / payment time. If expenditure is
+    entered AFTER those steps, this re-derives them so sharing stays correct —
+    the assignment-side equivalent of _recompute_training_recognition.
+
+    For each APPROVED/INVOICED invoice:  80% rows = 80% × (invoice − exp) split by share.
+    For each PaymentReceipt:             20% rows = 20% × (payment − exp) split by share.
+    Preserves each invoice's is_held flag. Idempotent.
+    """
+    exp = assignment.total_expenditure or 0
+    shares = list(RevenueShare.objects.filter(assignment=assignment))
+    if not shares:
+        return
+
+    with transaction.atomic():
+        # ---- 80% on each approved/invoiced invoice ----
+        invoices = InvoiceRequest.objects.filter(
+            assignment=assignment, status__in=["APPROVED", "INVOICED"])
+        for inv in invoices:
+            surplus = max(0.0, (inv.invoice_amount or 0) - exp)
+            r80 = surplus * 0.80
+            inv.revenue_recognized_80 = r80
+            inv.save(update_fields=["revenue_recognized_80"])
+            existing = OfficerRevenueLedger.objects.filter(
+                invoice_request=inv, revenue_type="INVOICE_80")
+            held = existing.filter(is_held=True).exists()
+            existing.delete()
+            for s in shares:
+                OfficerRevenueLedger.objects.create(
+                    officer_id=s.officer_id, assignment=assignment,
+                    invoice_request=inv, revenue_type="INVOICE_80",
+                    share_percent=s.share_percent,
+                    amount=r80 * (s.share_percent / 100),
+                    fy_period=inv.fy_period, transaction_date=date.today(),
+                    is_held=held, remarks="80% re-derived on surplus",
+                )
+
+        # ---- 20% on each payment ----
+        payments = PaymentReceipt.objects.filter(invoice_request__assignment=assignment)
+        for pmt in payments:
+            surplus = max(0.0, (pmt.amount_received or 0) - exp)
+            r20 = surplus * 0.20
+            OfficerRevenueLedger.objects.filter(
+                payment_receipt=pmt, revenue_type="PAYMENT_20").delete()
+            for s in shares:
+                OfficerRevenueLedger.objects.create(
+                    officer_id=s.officer_id, assignment=assignment,
+                    invoice_request_id=pmt.invoice_request_id, payment_receipt=pmt,
+                    revenue_type="PAYMENT_20", share_percent=s.share_percent,
+                    amount=r20 * (s.share_percent / 100),
+                    fy_period=pmt.fy_period, transaction_date=pmt.receipt_date,
+                    remarks="20% re-derived on surplus",
+                )
+
+
 def _generate_invoice_request_number(office_id):
     """Generate unique invoice request number: INV-OFFICE-YYYYMM-NNN."""
     today = date.today()

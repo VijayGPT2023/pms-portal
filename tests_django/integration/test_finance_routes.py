@@ -154,3 +154,38 @@ class TestSurplusSharing:
         )
         inv.approve(); inv.save()
         assert inv.revenue_recognized_80 == 0.0
+
+
+class TestRecomputeOnExpenditure:
+    """Assignment-side parity with training: expenditure entered AFTER invoice
+    approval re-derives the 80% ledger on the new surplus."""
+
+    def test_expense_after_invoice_recomputes_ledger(self, db, auth_client,
+                                                     sample_assignment, officer_user,
+                                                     expenditure_heads):
+        from core.models import RevenueShare, OfficerRevenueLedger, ExpenditureHead
+        # one officer gets 100% share
+        RevenueShare.objects.create(assignment=sample_assignment, officer=officer_user,
+                                    share_percent=100, share_amount=100)
+        # invoice approved with ZERO expenditure -> 80% of gross 100 = 80
+        inv = InvoiceRequest.objects.create(
+            request_number="RC-INV-1", assignment=sample_assignment,
+            invoice_amount=100.0, fy_period="2025-26", requested_by=officer_user,
+            status="PENDING",
+        )
+        auth_client.post(f"/finance/invoice/{inv.pk}/approve/", {})
+        inv.refresh_from_db()
+        assert inv.revenue_recognized_80 == pytest.approx(80.0)
+        led = OfficerRevenueLedger.objects.filter(invoice_request=inv, revenue_type="INVOICE_80")
+        assert sum(l.amount for l in led) == pytest.approx(80.0)
+
+        # Now enter expenditure of 30 via the cost form -> surplus 70, 80% = 56
+        h = ExpenditureHead.objects.get(head_code="A1")
+        auth_client.post(f"/assignment/expenditure/{sample_assignment.pk}/", {
+            f"estimated_{h.id}": "0", f"actual_{h.id}": "30", f"remarks_{h.id}": "",
+            "next_step": "",
+        })
+        inv.refresh_from_db()
+        assert inv.revenue_recognized_80 == pytest.approx(56.0), "80% must re-derive on surplus"
+        led = OfficerRevenueLedger.objects.filter(invoice_request=inv, revenue_type="INVOICE_80")
+        assert sum(l.amount for l in led) == pytest.approx(56.0), "ledger must rebuild"
