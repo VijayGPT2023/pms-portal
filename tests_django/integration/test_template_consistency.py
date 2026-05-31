@@ -73,6 +73,11 @@ def test_list_pages_have_no_invalid_vars(admin_user, settings, sample_assignment
             bad = sorted({b for b in re.findall(rf"{SENTINEL}\(([^)]*)\)", body) if b.strip()})
             if bad:
                 offenders.append(f"{url} -> invalid vars: {bad}")
+        # Catch blank-but-200 pages (e.g. an empty template file). A real page
+        # extends base.html, so the rendered body is always sizeable; an empty
+        # template yields almost nothing.
+        elif len(body.strip()) < 200:
+            offenders.append(f"{url} -> near-empty body ({len(body.strip())} chars) — empty template?")
 
     assert not offenders, "Template variable / context issues:\n" + "\n".join(offenders)
 

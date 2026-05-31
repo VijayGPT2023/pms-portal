@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Approvals - PMS Portal{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width:1200px; margin:0 auto; padding:20px;">
+
+    <header style="margin-bottom:20px;">
+        <h1 style="margin:0; font-size:24px;">Approvals</h1>
+        <p style="color:#666; margin-top:4px;">Pending items awaiting your action.</p>
+    </header>
+
+    {% if messages %}
+    <div class="messages" style="margin-bottom:16px;">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}" style="padding:10px; border-radius:4px; background:#fff3cd; border:1px solid #ffeaa7;">{{ message }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ---- 1. WO Registration ---- #}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">WO Registrations ({{ pending_registrations|length }})</h2>
+        {% if pending_registrations %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Activity #</th><th style="padding:8px;">Title</th><th style="padding:8px;">Office</th><th style="padding:8px;">Registered by</th><th style="padding:8px;">Action</th></tr></thead>
+            <tbody>
+                {% for a in pending_registrations %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;"><a href="{% url 'core:assignment_view' assignment_id=a.pk %}">{{ a.assignment_no }}</a></td>
+                    <td style="padding:8px;">{{ a.title|truncatechars:40 }}</td>
+                    <td style="padding:8px;">{{ a.office.office_id|default:"-" }}</td>
+                    <td style="padding:8px;">{{ a.registered_by.name|default:"-" }}</td>
+                    <td style="padding:8px; white-space:nowrap;">
+                        <form method="post" action="{% url 'core:approve_registration' assignment_id=a.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-primary" type="submit">Approve</button></form>
+                        <form method="post" action="{% url 'core:reject_registration' assignment_id=a.pk %}" style="display:inline;">{% csrf_token %}<button class="btn" type="submit" style="background:#fee2e2;">Reject</button></form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<p style="color:#666;">None pending.</p>{% endif %}
+    </section>
+
+    {# ---- 2. TL Assignment ---- #}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">TL Assignment ({{ pending_tl_assignments|length }})</h2>
+        {% if pending_tl_assignments %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Activity #</th><th style="padding:8px;">Title</th><th style="padding:8px;">Assign Team Leader</th></tr></thead>
+            <tbody>
+                {% for a in pending_tl_assignments %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ a.assignment_no }}</td>
+                    <td style="padding:8px;">{{ a.title|truncatechars:40 }}</td>
+                    <td style="padding:8px;">
+                        <form method="post" action="{% url 'core:allocate_team_leader' assignment_id=a.pk %}" style="display:flex; gap:6px;">
+                            {% csrf_token %}
+                            <select name="team_leader_id" required style="padding:6px;">
+                                <option value="">— select officer —</option>
+                                {% for oid, officers in office_officers.items %}
+                                    {% for o in officers %}
+                                    <option value="{{ o.officer_id }}">{{ o.name }} ({{ oid }})</option>
+                                    {% endfor %}
+                                {% endfor %}
+                            </select>
+                            <button class="btn btn-primary" type="submit">Assign</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<p style="color:#666;">None pending.</p>{% endif %}
+    </section>
+
+    {# ---- 3. Section approvals (Cost / Team / Milestone / Revenue) ---- #}
+    {% include "approvals/_section_queue.html" with items=pending_cost_estimations label="Cost Estimation" approve_url="core:approve_cost_estimation" reject_url="core:reject_cost_estimation" %}
+    {% include "approvals/_section_queue.html" with items=pending_team_constitutions label="Team Constitution" approve_url="core:approve_team_constitution" reject_url="core:reject_team_constitution" %}
+    {% include "approvals/_section_queue.html" with items=pending_milestone_plans label="Milestone Planning" approve_url="core:approve_milestone_planning" reject_url="core:reject_milestone_planning" %}
+    {% include "approvals/_section_queue.html" with items=pending_revenue_shares label="Revenue Shares" approve_url="core:approve_revenue_shares" reject_url="core:reject_revenue_shares" %}
+
+    {# ---- 4. Invoice requests ---- #}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px; margin-bottom:20px;">
+        <h2 style="font-size:18px; margin-top:0;">Invoice Requests ({{ pending_invoices|length }})</h2>
+        {% if pending_invoices %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Request #</th><th style="padding:8px;">Assignment</th><th style="padding:8px; text-align:right;">Amount</th><th style="padding:8px;">Action</th></tr></thead>
+            <tbody>
+                {% for inv in pending_invoices %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ inv.request_number }}</td>
+                    <td style="padding:8px;">{{ inv.assignment.assignment_no }}</td>
+                    <td style="padding:8px; text-align:right;">₹{{ inv.invoice_amount|floatformat:0 }}</td>
+                    <td style="padding:8px;"><form method="post" action="{% url 'core:approve_invoice' request_id=inv.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-primary" type="submit">Approve</button></form></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<p style="color:#666;">None pending.</p>{% endif %}
+    </section>
+
+    {# ---- 5. Tentative date change requests ---- #}
+    <section class="card" style="padding:16px; border:1px solid #e5e7eb; border-radius:8px;">
+        <h2 style="font-size:18px; margin-top:0;">Milestone Date Changes ({{ pending_tentative_dates|length }})</h2>
+        {% if pending_tentative_dates %}
+        <table style="width:100%; border-collapse:collapse;">
+            <thead><tr style="background:#f3f4f6; text-align:left;"><th style="padding:8px;">Assignment</th><th style="padding:8px;">Milestone</th><th style="padding:8px;">Action</th></tr></thead>
+            <tbody>
+                {% for m in pending_tentative_dates %}
+                <tr style="border-top:1px solid #e5e7eb;">
+                    <td style="padding:8px;">{{ m.assignment.assignment_no }}</td>
+                    <td style="padding:8px;">#{{ m.milestone_no }} {{ m.title|truncatechars:30 }}</td>
+                    <td style="padding:8px; white-space:nowrap;">
+                        <form method="post" action="{% url 'core:approve_tentative_date' milestone_id=m.pk %}" style="display:inline;">{% csrf_token %}<button class="btn btn-primary" type="submit">Approve</button></form>
+                        <form method="post" action="{% url 'core:reject_tentative_date' milestone_id=m.pk %}" style="display:inline;">{% csrf_token %}<button class="btn" type="submit" style="background:#fee2e2;">Reject</button></form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<p style="color:#666;">None pending.</p>{% endif %}
+    </section>
+
+</div>
+{% endblock %}
