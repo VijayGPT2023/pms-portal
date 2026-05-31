@@ -70,7 +70,7 @@ def user_management_page(request):
 def update_user_role(request):
     """Update a user's role."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_users")
+        return redirect("core:user_management")
 
     officer_id = request.POST.get("officer_id")
     role = request.POST.get("role") or ""
@@ -91,20 +91,20 @@ def update_user_role(request):
     except Officer.DoesNotExist:
         pass
 
-    return redirect("core:admin_users")
+    return redirect("core:user_management")
 
 
 @login_required
 def reset_user_password(request):
     """Reset a user's password."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_users")
+        return redirect("core:user_management")
 
     officer_id = request.POST.get("officer_id")
     try:
         officer = Officer.objects.get(officer_id=officer_id)
     except Officer.DoesNotExist:
-        return redirect("core:admin_users")
+        return redirect("core:user_management")
 
     new_password = secrets.token_urlsafe(8)
     officer.set_password(new_password)
@@ -170,7 +170,7 @@ def roles_management_page(request):
 def assign_role(request):
     """Assign a role to an officer."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_roles")
+        return redirect("core:roles_management")
 
     officer_id = request.POST.get("officer_id")
     role_type = request.POST.get("role_type")
@@ -231,14 +231,14 @@ def assign_role(request):
         new_data=f"role={role_type},scope={scope_value},from={effective_from}",
         remarks=f"Role assigned to {officer_id}",
     )
-    return redirect("core:admin_roles")
+    return redirect("core:roles_management")
 
 
 @login_required
 def remove_role(request):
     """End a role assignment."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_roles")
+        return redirect("core:roles_management")
 
     role_id = int(request.POST.get("role_id", 0))
     effective_to = request.POST.get("effective_to") or date.today().isoformat()
@@ -273,14 +273,14 @@ def remove_role(request):
     except OfficerRole.DoesNotExist:
         pass
 
-    return redirect("core:admin_roles")
+    return redirect("core:roles_management")
 
 
 @login_required
 def transfer_officer(request):
     """Transfer an officer to a new office."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_users")
+        return redirect("core:user_management")
 
     officer_id = request.POST.get("officer_id")
     to_office_id = request.POST.get("to_office_id")
@@ -292,7 +292,7 @@ def transfer_officer(request):
     try:
         officer = Officer.objects.get(officer_id=officer_id)
     except Officer.DoesNotExist:
-        return redirect("core:admin_users")
+        return redirect("core:user_management")
 
     from_office = officer.office
     to_office = Office.objects.get(office_id=to_office_id)
@@ -337,4 +337,4 @@ def transfer_officer(request):
         entity_type="officer",
         remarks=f"Transferred {officer_id} from {from_office.office_id} to {to_office_id}",
     )
-    return redirect("core:admin_users")
+    return redirect("core:user_management")

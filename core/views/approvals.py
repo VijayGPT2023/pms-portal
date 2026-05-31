@@ -11,6 +11,7 @@ from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from django_fsm import TransitionNotAllowed
 
 from core.models import (
     ActivityLog,
@@ -326,8 +327,12 @@ def approve_registration(request, assignment_id):
         return redir
 
     assignment = get_object_or_404(Assignment, pk=assignment_id)
-    assignment.approve_registration()
-    assignment.save()
+    try:
+        assignment.approve_registration()
+        assignment.save()
+    except TransitionNotAllowed:
+        messages.error(request, "This registration is not awaiting approval (already actioned).")
+        return redirect("core:approvals")
 
     # Update related approval_request
     ApprovalRequest.objects.filter(
@@ -358,8 +363,12 @@ def reject_registration(request, assignment_id):
 
     rejection_remarks = request.POST.get("rejection_remarks", "")
     assignment = get_object_or_404(Assignment, pk=assignment_id)
-    assignment.reject_registration()
-    assignment.save()
+    try:
+        assignment.reject_registration()
+        assignment.save()
+    except TransitionNotAllowed:
+        messages.error(request, "This registration is not awaiting approval (already actioned).")
+        return redirect("core:approvals")
 
     # Update related approval_request
     ApprovalRequest.objects.filter(

@@ -59,7 +59,7 @@ def upload_form(request, assignment_id):
 def upload_document(request, assignment_id):
     """Upload a document."""
     if request.method != "POST":
-        return redirect("core:proposal_upload", assignment_id=assignment_id)
+        return redirect("core:proposal_upload_form", assignment_id=assignment_id)
 
     assignment = get_object_or_404(Assignment, pk=assignment_id)
     if not _can_manage_documents(request.user, assignment):
@@ -111,7 +111,7 @@ def upload_document(request, assignment_id):
         description=request.POST.get("description", "").strip(),
         uploaded_by=request.user,
     )
-    return redirect("core:proposal_upload", assignment_id=assignment_id)
+    return redirect("core:proposal_upload_form", assignment_id=assignment_id)
 
 
 @login_required
@@ -147,7 +147,7 @@ def delete_document(request, document_id):
         except OSError:
             pass
     doc.delete()
-    return redirect("core:proposal_upload", assignment_id=assignment_id)
+    return redirect("core:proposal_upload_form", assignment_id=assignment_id)
 
 
 @login_required
@@ -191,7 +191,7 @@ def proposal_link_form(request, assignment_id):
 def link_proposal(request, assignment_id):
     """Link proposal to assignment."""
     if request.method != "POST":
-        return redirect("core:proposal_link", assignment_id=assignment_id)
+        return redirect("core:proposal_link_form", assignment_id=assignment_id)
 
     assignment = get_object_or_404(Assignment, pk=assignment_id)
     if not _can_manage_documents(request.user, assignment):
@@ -251,7 +251,7 @@ def link_proposal(request, assignment_id):
         assignment.linked_proposal_id = linked_id
         assignment.save(update_fields=["linked_proposal_id"])
 
-    return redirect("core:proposal_link", assignment_id=assignment_id)
+    return redirect("core:proposal_link_form", assignment_id=assignment_id)
 
 
 @login_required

@@ -18,6 +18,7 @@ from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
+from django_fsm import TransitionNotAllowed
 
 from core.models import (
     ActivityLog,
@@ -333,9 +334,17 @@ def approve_invoice_request(request, request_id):
         messages.error(request, "This invoice needs TL verification first.")
         return redirect("core:finance_dashboard")
 
+    if inv_req.status != "PENDING":
+        messages.error(request, f"Invoice is already {inv_req.status} — cannot approve.")
+        return redirect("core:finance_dashboard")
+
     with transaction.atomic():
         # Use django-fsm transition (auto-calculates revenue_recognized_80)
-        inv_req.approve()
+        try:
+            inv_req.approve()
+        except TransitionNotAllowed:
+            messages.error(request, "Invoice cannot be approved from its current state.")
+            return redirect("core:finance_dashboard")
         inv_req.approved_by = request.user
         inv_req.approved_at = timezone.now()
         inv_req.save()
@@ -404,7 +413,14 @@ def reject_invoice_request(request, request_id):
     rejection_remarks = request.POST.get("rejection_remarks", "")
     inv_req = get_object_or_404(InvoiceRequest, pk=request_id)
 
-    inv_req.reject()
+    if inv_req.status != "PENDING":
+        messages.error(request, f"Invoice is already {inv_req.status} — cannot reject.")
+        return redirect("core:finance_dashboard")
+    try:
+        inv_req.reject()
+    except TransitionNotAllowed:
+        messages.error(request, "Invoice cannot be rejected from its current state.")
+        return redirect("core:finance_dashboard")
     inv_req.approved_by = request.user
     inv_req.approved_at = timezone.now()
     inv_req.approval_remarks = rejection_remarks

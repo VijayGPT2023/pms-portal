@@ -336,7 +336,7 @@ def approve_training_programme(request, programme_id):
         entity_type="training_programme", entity_id=programme.pk,
         remarks="Training programme approved",
     )
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -355,7 +355,7 @@ def reject_training_programme(request, programme_id):
         entity_type="training_programme", entity_id=programme.pk,
         remarks=programme.remarks,
     )
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -383,7 +383,7 @@ def allocate_coordinator(request, programme_id):
         new_data=f"coordinator={coordinator_id}",
         remarks="Coordinator allocated",
     )
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -421,7 +421,7 @@ def approve_training_budget(request, programme_id):
         entity_type="training_budget", entity_id=programme.pk,
         remarks="Budget approved",
     )
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -440,7 +440,7 @@ def reject_training_budget(request, programme_id):
         entity_type="training_budget", entity_id=programme.pk,
         remarks=programme.remarks,
     )
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -470,7 +470,7 @@ def approve_trainer_allocation(request, programme_id):
     programme = get_object_or_404(TrainingProgramme, pk=programme_id)
     programme.trainer_approval_status = "APPROVED"
     programme.save(update_fields=["trainer_approval_status"])
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -483,7 +483,7 @@ def reject_trainer_allocation(request, programme_id):
     programme.trainer_approval_status = "REJECTED"
     programme.remarks = request.POST.get("rejection_remarks", "")
     programme.save(update_fields=["trainer_approval_status", "remarks"])
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -516,7 +516,7 @@ def approve_training_revenue(request, programme_id):
     programme = get_object_or_404(TrainingProgramme, pk=programme_id)
     programme.revenue_approval_status = "APPROVED"
     programme.save(update_fields=["revenue_approval_status"])
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 @login_required
@@ -529,7 +529,7 @@ def reject_training_revenue(request, programme_id):
     programme.revenue_approval_status = "REJECTED"
     programme.remarks = request.POST.get("rejection_remarks", "")
     programme.save(update_fields=["revenue_approval_status", "remarks"])
-    return redirect("core:approvals_list")
+    return redirect("core:approvals")
 
 
 # ============================================================

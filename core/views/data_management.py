@@ -249,7 +249,7 @@ def config_page(request):
 def add_config_option(request):
     """Add a new configuration option."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_config")
+        return redirect("core:config_page")
 
     ConfigOption.objects.get_or_create(
         category=request.POST.get("category", ""),
@@ -260,14 +260,14 @@ def add_config_option(request):
             "sort_order": int(request.POST.get("sort_order", 0)),
         },
     )
-    return redirect("core:admin_config")
+    return redirect("core:config_page")
 
 
 @login_required
 def update_config_option(request):
     """Update a configuration option."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_config")
+        return redirect("core:config_page")
 
     category = request.POST.get("category", "")
     old_value = request.POST.get("old_value", "")
@@ -290,14 +290,14 @@ def update_config_option(request):
     except ConfigOption.DoesNotExist:
         pass
 
-    return redirect("core:admin_config")
+    return redirect("core:config_page")
 
 
 @login_required
 def delete_config_option(request):
     """Delete a configuration option."""
     if request.method != "POST" or not _require_admin(request.user):
-        return redirect("core:admin_config")
+        return redirect("core:config_page")
 
     category = request.POST.get("category", "")
     option_value = request.POST.get("option_value", "")
@@ -306,7 +306,7 @@ def delete_config_option(request):
     if category == "domain":
         ConfigOption.objects.filter(category="sub_domain", parent_value=option_value).delete()
 
-    return redirect("core:admin_config")
+    return redirect("core:config_page")
 
 
 @login_required
